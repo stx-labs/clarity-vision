@@ -1,6 +1,6 @@
 # 4. Standard Library
 
-The standard library is vNEXT source, shipped with the engine as a prelude
+The standard library is vNEXT source, linked into modules by the compiler as a prelude
 that is in scope in every contract (2.4.5). Its normative definition is its
 source: [std/prelude.clar](std/prelude.clar). This chapter explains how it is
 delivered, what it contains and why, and how every legacy Clarity construct
@@ -11,67 +11,88 @@ maps onto vNEXT.
 - The prelude is part of the language version. It is frozen when the
   language version is frozen and never changes for that version.
 - Prelude names are reserved: a contract MUST NOT define a top-level name
-  that the prelude defines.
+  that the prelude defines. This includes the `std-*` helper definitions.
 - The prelude uses only features available to every contract (P3). It is
-  type-checked, cost-accounted, and instantiated by the same rules as user
-  code. A library call costs exactly what its expansion costs (P4).
-- Conformance vectors for library functions are derived from the prelude
-  source. If a vector and the source disagree, the vector is wrong.
-- Engines MAY implement a library function natively as an optimization, but
-  MUST produce identical results, events, and costs to evaluating the prelude
-  source. The conformance suite is how that is checked.
+  type-checked, instantiated, and compiled by the same rules as user code.
+- **Results are defined by the source.** Conformance vectors for library
+  functions are derived from the prelude source. If a vector and the source
+  disagree, the vector is wrong.
+- **Linked into each module.** The compiler includes the library instances a
+  contract uses in that contract's module. A library call costs the fuel of
+  that code (P4, P5). The chain holds no library code of its own.
+- **Optimization replaces the implementation, not the definition.** A later
+  compiler MAY link a hand-written or better compiled Wasm implementation of
+  a library function. It MUST produce identical results, events, and errors
+  to the source for every input, which the conformance suite checks.
+  Contracts already deployed keep the code they were deployed with, so their
+  costs never change under them and no chain upgrade is involved.
+
+The source is written for correctness and readability, not speed. Where a
+definition is slow (a digit-by-digit conversion, a bitwise square root), that
+is a candidate for a Wasm replacement, not a reason to move it into the core.
 
 ## 4.2 What belongs in the library
 
-The library holds **control flow and convenience**: constructs whose
-expansion costs the same as a native would, and which would otherwise each
-need a bespoke evaluation or typing rule in the core. It does not hold pure
-computation with a plain signature; that is a primitive, by the fourth test
-of the layering rule ([README.md](README.md)).
+Everything that can be written in the language. The layering rule
+([README.md](README.md)) keeps in the core only host access, what cannot be
+expressed, cryptographic standards, and the base operations on each type's
+representation. Every other construct a contract author uses is here.
 
-The test applied to each candidate is: *is the expansion within a small
-constant factor of a native implementation?* If yes, library. If no, the
-function costs one table row as a primitive and would cost users real fees
-as library code.
+| Section | Definitions | Built from |
+|---|---|---|
+| Branching | `if`, `not` | `match` on `bool` |
+| Early exit | `asserts!`, `unwrap!`, `unwrap-err!`, `try!`, `unwrap-panic`, `unwrap-err-panic`, `default-to` | `match`, `return`, `panic` |
+| Predicates | `is-some`, `is-none`, `is-ok`, `is-err` | `match` |
+| Arithmetic | `max`, `min` (rest parameters), `abs`, `mod`, `bit-not` | comparison, `+ - * /`, `bit-xor`, `fold-left` |
+| Arithmetic | `pow`, `sqrti`, `log2` | `fold-left` over a constant list of bit positions, with shifts |
+| Sequences | `append`, `replace-at?` | `concat`, `slice?`, `as-max-len?` |
+| Sequences | `index-of?` | `fold-left` with the target in the accumulator |
+| Conversions | `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le` | `buff-to-uint-be`, a byte-reversing `fold-left`, two's-complement arithmetic sign-extended from the actual length |
+| Conversions | `int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?` | digit tables, `element-at?`, `index-of?`, a 39-step `fold-left` |
+| Principals | `is-standard`, `principal-of?` | `principal-destruct?`, `principal-construct?`, `hash160` |
+| Cryptography | `verify-merkle-proof` | `sha256`, `log2`, `fold-left` over the proof |
+| Storage | `map-insert` | `map-get?`, `map-set` |
+| Assets | `stx-get-balance` | `stx-account` |
 
-| Section | Definitions | Built from | Expansion cost |
-|---|---|---|---|
-| Branching | `if`, `and`, `or`, `not` | `match` on `bool` | one `match` |
-| Early exit | `asserts!`, `unwrap!`, `unwrap-err!`, `try!`, `unwrap-panic`, `unwrap-err-panic`, `default-to` | `match`, `return`, `panic` | one `match` |
-| Predicates | `is-some`, `is-none`, `is-ok`, `is-err` | `match` | one `match` plus a call |
-| Arithmetic | `max`, `min`, `abs` | comparisons | one comparison plus a call |
-| Sequences | `append` | `concat`, `list` | one `concat` |
-| Principals | `is-standard`, `principal-of?` | `principal-destruct?`, `principal-construct?`, `hash160` | one or two primitives |
-| Storage | `map-insert` | `map-get?`, `map-set` | one read plus one write, as legacy |
-| Assets | `stx-get-balance` | `stx-account` | one lookup |
+About forty public definitions, plus `std-*` helpers. Two conventions decide
+whether a prelude function is `define-inline` or `define-private`:
 
-Twenty definitions in total. Two conventions decide whether a prelude
-function is `define-inline` or `define-private`:
+- Anything that needs laziness or early exit is inline: `if`, the early-exit
+  family, `append`, and `map-insert`.
+- Everything else is private. Private functions are compiled once per
+  instance and can be passed to `map`, `filter`, `fold-left`, and
+  `fold-right`.
 
-- Anything that needs laziness or early exit is inline. This is the whole
-  branching and early-exit family.
-- Anything users pass to `map`, `filter`, or `fold` is private, because
-  inline functions cannot be referenced (open question 4 in chapter 2).
-  Predicates and `not` fall here.
+### Notes on specific definitions
 
-### Functions considered and kept primitive
+- **Families over integer or sequence kinds.** `pow`, `sqrti`, `log2`,
+  `bit-not`, `int-to-ascii`, and `int-to-utf8` are overloaded on `int` and
+  `uint`. `replace-at?` is overloaded on the four sequence kinds. `mod`,
+  `max`, `min`, `index-of?`, `string-to-int?`, and `string-to-uint?` are
+  single generic definitions checked per instance (chapter 2 open question 5);
+  per-kind constants such as digit tables are selected by small overloaded
+  helpers.
+- **`pow` does not overflow early.** It squares and multiplies from the most
+  significant exponent bit down, so every intermediate is the base raised to
+  a prefix of the exponent and no step overflows unless the result does.
+- **`verify-merkle-proof`** takes a leaf hash, a root hash, the leaf index,
+  the transaction count, and up to 24 sibling hashes from leaf to root, all in
+  internal byte order, and uses double SHA-256 with Bitcoin's odd-row
+  duplication rule. It returns `false` for any proof inconsistent with the
+  canonical tree shape implied by the count: an index not below the count, a
+  path length other than the tree depth, or a sibling that must equal its
+  partner on an odd row but does not. This contract is enforced by the
+  source; it is security-sensitive and needs the densest conformance vectors
+  in the library.
 
-An earlier draft placed the following in the library. Each is expressible
-in the language, but each failed the constant-factor test and was returned to
-the core:
+### Kept primitive although expressible
 
-| Function | Why it stays primitive |
-|---|---|
-| `index-of?`, `replace-at?` | A `fold` carrying tuple state per element, and one copy per sequence kind for lack of sequence-kind polymorphism |
-| `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le` | A reversal fold plus two's-complement arithmetic for what a native does in one step |
-| `int-to-ascii`, `int-to-utf8` | A 39-iteration fold over a digit table with an `as-max-len?` per digit |
-| `string-to-int?`, `string-to-uint?` | A fold with an `index-of?` per character and two overflow guards per step |
-| `verify-merkle-proof` | A fold with two hashes and a tuple merge per level; also security-sensitive code that should not live in a consensus prelude |
-
-Moving these back removed three open questions from chapter 2
-(sequence-kind polymorphism, fixed-count iteration, and the size of the
-prelude's generic surface) and cut the prelude roughly in half
-.
+The layering rule's representation-base test keeps a few operations that
+could be written in the language, because everything else is written in
+terms of them: `element-at?` (expressible through `slice?`), `to-int` and
+`to-uint` (expressible through the byte conversions), the bitwise
+operations, and comparison on sequences. Moving them would lengthen the
+prelude without shrinking the set of things a compiler must implement.
 
 ## 4.3 Disposition of every legacy construct
 
@@ -85,16 +106,17 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 
 | Legacy | vNEXT | Notes |
 |---|---|---|
-| `+`, `-`, `*`, `/` | primitive | binary only |
-| `mod`, `pow`, `sqrti`, `log2` | primitive | |
+| `+`, `-`, `*`, `/` | primitive | rest parameter (2.6.5); at least two arguments, so unary `-` is written `(- 0 x)` |
+| `mod`, `pow`, `sqrti`, `log2` | library | same results as legacy |
 | `>=`, `<=`, `<`, `>` | primitive | |
 | `to-int`, `to-uint` | primitive | |
 | `xor` | removed | use `bit-xor` |
-| `bit-and`, `bit-or`, `bit-xor`, `bit-not` | primitive | binary only |
+| `bit-and`, `bit-or`, `bit-xor` | primitive | rest parameter |
+| `bit-not` | library | `bit-xor` with all ones |
 | `bit-shift-left`, `bit-shift-right` | primitive | shift of 128 or more aborts instead of wrapping |
-| `and`, `or` | library | binary, inline, short-circuit |
+| `and`, `or` | form | two or more arguments, short-circuit |
 | `not` | library | private |
-| `is-eq` | primitive | binary only |
+| `is-eq` | primitive | binary only; `(is-eq a b c)` is written `(and (is-eq a b) (is-eq a c))` |
 | `if` | library | inline over `match` |
 
 ### Binding, sequencing, branching, early exit
@@ -104,7 +126,7 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 | `let` | form | |
 | `begin` | sugar | `(let () ...)` |
 | `match` | form | constructor patterns `((some x) ...)`, `(none ...)`, `((ok x) ...)`, `((err e) ...)`, `(true ...)`, `(false ...)` |
-| `asserts!`, `unwrap!`, `unwrap-err!`, `try!` | library | inline over `match` and `return` |
+| `asserts!`, `unwrap!`, `unwrap-err!`, `try!` | library | inline over `match` and `return`; not usable in top-level expressions or constant initializers, where `return` is forbidden (2.4.2) |
 | `unwrap-panic`, `unwrap-err-panic` | library | inline over `match` and `panic` |
 | `default-to` | library | inline; default is now lazy |
 | `is-ok`, `is-err`, `is-some`, `is-none` | library | private |
@@ -115,13 +137,16 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 
 | Legacy | vNEXT | Notes |
 |---|---|---|
-| `list` | form | the only variadic form |
-| `len`, `concat`, `slice?`, `as-max-len?` | primitive | |
-| `element-at?`, `index-of?`, `replace-at?` | primitive | |
+| `list` | form | variadic, like `and` and `or`; functions use rest parameters |
+| `len`, `concat`, `slice?`, `as-max-len?` | primitive | `concat` has a rest parameter |
+| `element-at?` | primitive | |
+| `index-of?`, `replace-at?` | library | |
 | `element-at`, `index-of` | removed | aliases |
 | `append` | library | `(concat items (list item))` |
 | `map` | primitive | single sequence only; see chapter 2 open question 2 |
-| `filter`, `fold` | primitive | |
+| `filter` | primitive | |
+| `fold` | removed | `fold-left` with the callback's parameters swapped (accumulator first) |
+| new: `fold-left`, `fold-right` | primitive | 3.3 |
 
 ### Tuples
 
@@ -134,10 +159,12 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 
 | Legacy | vNEXT | Notes |
 |---|---|---|
-| `buff-to-uint-be`, `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le` | primitive | |
+| `buff-to-uint-be` | primitive | |
+| `buff-to-uint-le` | library | over `buff-to-uint-be` |
+| `buff-to-int-be`, `buff-to-int-le` | library | over `buff-to-uint-be`; a short buffer is sign-extended from its actual length, where legacy zero-padded it (chapter 3.4) |
 | new: `uint-to-buff-be`, `uint-to-buff-le`, `int-to-buff-be`, `int-to-buff-le` | primitive | fixed width, abort if the value does not fit (issue #7312) |
-| `int-to-ascii`, `int-to-utf8` | primitive | |
-| `string-to-int?`, `string-to-uint?` | primitive | |
+| `int-to-ascii`, `int-to-utf8` | library | |
+| `string-to-int?`, `string-to-uint?` | library | |
 | `to-consensus-buff?`, `from-consensus-buff?` | primitive | |
 | `to-ascii?` | primitive | candidate for removal |
 
@@ -159,7 +186,7 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 | `hash160`, `sha256`, `sha512`, `sha512/256`, `keccak256` | primitive | buffers only; integer inputs removed |
 | `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required |
 | `secp256r1-verify`, `ed25519-verify` | primitive | low-S required for ECDSA |
-| `verify-merkle-proof` | primitive | |
+| `verify-merkle-proof` | library | over `sha256` |
 
 ### Storage
 
@@ -167,7 +194,7 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 |---|---|---|
 | `var-get`, `var-set` | primitive | |
 | `map-get?`, `map-set`, `map-delete` | primitive | |
-| `map-insert` | library | `map-get?` then `map-set`; becomes primitive if static reference kinds are dropped (chapter 2 open question 6) |
+| `map-insert` | library | `map-get?` then `map-set`; the value expression is now evaluated only when the key is absent; becomes primitive if static reference kinds are dropped (chapter 2 open question 6) |
 
 ### Assets
 
@@ -212,6 +239,7 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 | `use-trait` | removed | `(define-type name (trait id))` |
 | new: `define-type` | form | transparent type aliases |
 | new: `define-inline` | form | call-by-name, expanded at call site |
+| new: rest parameters `(name T...)` | form | private functions only; the rest arguments are bound as a list (2.6.5) |
 
 ### Native variables
 
@@ -226,9 +254,9 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 ## 4.4 New in vNEXT
 
 Library additions with no legacy counterpart, included because they were
-common user-written helpers and expand to a single comparison:
+common user-written helpers:
 
-- `max`, `min`, `abs`
+- `max`, `min` (rest parameters), `abs`
 
 Primitive additions with no legacy counterpart: the four `*-to-buff-*`
 functions (chapter 3). Further candidates from the issue tracker are
@@ -238,18 +266,33 @@ collected in [05-issue-tracker.md](05-issue-tracker.md).
 
 Writing the prelude is the test of the core design. Findings so far:
 
-- The first draft put every expressible function in the library and had to
-  invent digit tables, byte tables, and 39-element iteration lists to do it.
-  Those functions are the ones with plain signatures, where a primitive costs
-  one table row; the library bought nothing there and would have cost users
-  fees. The layering rule's fourth test came from this.
-- The value of the library is concentrated in the control-flow family, where
-  it replaces ten bespoke lazy-evaluation and typing rules with `match`,
-  `return`, and inline expansion.
+- An earlier draft returned the conversion, search, and Merkle functions to
+  the core because their library versions cost more than a native under a
+  per-operation cost table. With fuel as the metric and optimization done by
+  a compiler linking faster code, that argument is gone, and they are
+  library again. The core is smaller and there is no per-construct cost
+  table.
+- Template checking of generic bodies carries more weight than planned. It
+  lets `index-of?` and the string parsers be one definition across sequence
+  kinds instead of four, at the price of errors reported inside the prelude
+  (chapter 2 open question 5).
+- Per-kind constants (digit tables, the minus sign) need small overloaded
+  helpers, because a generic body cannot write a literal of an unknown kind.
+- `replace-at?` exposes a gap in the size rules: an intermediate `concat`
+  has a larger bound than any value it can hold (chapter 2 open question 12).
+- Rest parameters are strict: the extra arguments are built into a list
+  before the body runs. That is right for `max`, `+`, and `concat`, but it
+  means n-ary short-circuiting cannot be written in the language, so `and`
+  and `or` moved from the library into the core (chapter 2.5.3).
 - `never` as the type of `(return ...)` and `(panic)` makes every early-exit
   form typeable with ordinary lub rules, with no special cases.
 - Inline functions cannot be passed to `filter`, which forces predicates to
-  be real functions with call overhead (chapter 2 open question 4).
-- Overloading and static reference kinds are each justified by exactly one
-  group of prelude functions (`unwrap!`/`try!` and `map-insert`). Both are
-  flagged for a keep-or-drop decision in chapter 2.
+  be private functions (chapter 2 open question 4).
+- Folds whose initial value has a smaller type than the step's result
+  (`std-reverse-16` starts from `0x`, `std-render-decimal` from `""`,
+  `index-of?` from `none`) rely on instantiation finding the accumulator
+  type by iteration (2.6.2). A type ascription form would let the source
+  state that type directly (chapter 2 open question 14).
+- Overloading and static reference kinds are each justified by a small
+  group of prelude functions (`unwrap!`/`try!` and the integer families;
+  `map-insert`). Both are flagged for a keep-or-drop decision in chapter 2.

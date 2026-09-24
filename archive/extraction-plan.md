@@ -2,7 +2,7 @@
 
 Engineering plan for extracting Clarity into independent crates with explicit
 interfaces, and the maintenance model that keeps the latest language version
-free of epoch and version gating. Refines [03-architecture.md](03-architecture.md)
+free of epoch and version gating. Refines [kernel-architecture.md](kernel-architecture.md)
 with file-level detail and a hackathon execution slice.
 
 ## 1. What clar2wasm already proved about the boundary
@@ -70,13 +70,13 @@ clarity-vN           one crate per future language version; exactly one
 ### 3.1 `ChainHost` — what the chain provides to the kernel
 
 Replaces `HeadersDB` + `BurnStateDB`
-([clarity_db.rs:158,215](../../clarity/src/vm/database/clarity_db.rs)). Scope
+([clarity_db.rs:158,215](../../../clarity/src/vm/database/clarity_db.rs)). Scope
 it by need, not by history: the get-block-info/get-burn-block-info/
 get-tenure-info host functions in `clarity_wasm.rs` enumerate exactly which
 lookups contracts can express — that list, plus PoX/liquid-supply state, is
 the whole trait. Stacks-specific shapes (`SortitionDBRef`, tenure lookups,
 reward-set structs) stay on the stackslib side of the line
-([stackslib/src/clarity_vm/database/mod.rs](../../stackslib/src/clarity_vm/database/mod.rs)).
+([stackslib/src/clarity_vm/database/mod.rs](../../../stackslib/src/clarity_vm/database/mod.rs)).
 
 ### 3.2 `TransactionContext` — what the kernel provides to engines
 
@@ -137,7 +137,7 @@ pub trait Engine {
 
 The legacy engine implements this by wrapping its existing entry points
 (today's `initialize_contract` / `execute_contract` machinery behind
-[clarity/src/vm/clarity.rs](../../clarity/src/vm/clarity.rs)'s
+[clarity/src/vm/clarity.rs](../../../clarity/src/vm/clarity.rs)'s
 `TransactionConnection`). clar2wasm implements it as an alternative backend
 for the same language versions — its `ClarityWasmContext` is rebuilt on top of
 `TransactionContext`. The stored `ContractAnalysis` format becomes
@@ -253,7 +253,7 @@ through the ABI.
 
 **Step 4 — Route stackslib through the dispatcher.**
 `ClarityBlockConnection`/`ClarityTransactionConnection`
-([stackslib/src/clarity_vm/clarity.rs](../../stackslib/src/clarity_vm/clarity.rs))
+([stackslib/src/clarity_vm/clarity.rs](../../../stackslib/src/clarity_vm/clarity.rs))
 construct `TransactionContext` and call `Engine` methods instead of the VM
 directly. Replay validation gate.
 
@@ -268,7 +268,7 @@ frozen; stacks-core adopts the manifest/pinning mechanism at the next epoch
 boundary. clar2wasm and Clarinet migrate to published crates.
 
 **Step 7 — First clean engine.** `clarity-v7` (vNEXT), built from the spec
-([04-spec-plan.md](04-spec-plan.md)), zero gating, validating the ABI as its
+([04-spec-plan.md](../04-spec-plan.md)), zero gating, validating the ABI as its
 second-ever consumer before kernel 1.0 is frozen.
 
 ## 6. Hackathon slice

@@ -85,14 +85,14 @@ Meaning of each type:
 | `(optional T)` | `none` or `(some v)` with `v : T` |
 | `(response T E)` | `(ok v)` with `v : T` or `(err e)` with `e : E` |
 | `{ f: T, ... }` | records with exactly the listed fields |
-| `(trait X)` | contract principals whose stored interface implements trait `X` |
+| `(trait X)` | contract principals whose interface implements trait `X` |
 
 `(buff N)`, `(string-ascii N)`, `(string-utf8 N)`, and `(list N T)` are the
 four **sequence types**. Their **element types** are `(buff 1)`,
 `(string-ascii 1)`, `(string-utf8 1)`, and `T` respectively.
 
 Every type has a statically known maximum serialized size (defined in the
-kernel wire-format chapter), and that size MUST NOT exceed the value size
+chain ABI's wire format), and that size MUST NOT exceed the value size
 limit (2.8). Type nesting depth MUST NOT exceed the type depth limit.
 
 ### 2.3.2 Subtyping
@@ -109,8 +109,8 @@ smallest reflexive, transitive relation such that:
 - `{ f1: S1, ... } <: { f1: T1, ... }` when both have exactly the same field
   names and `Si <: Ti` for every field.
 - A contract principal literal type `'SP....c` (the singleton type of one
-  contract principal literal) `<: (trait X)` when the stored interface of `c`
-  implements `X` (kernel cross-version trait rules).
+  contract principal literal) `<: (trait X)` when the interface of `c`
+  implements `X` (chain ABI trait rules).
 - `(trait X) <: (trait Y)` when every function required by `Y` is present in
   `X` with an identical signature (structural sub-trait).
 - `(trait X) <: principal`.
@@ -189,7 +189,8 @@ instantiation time (2.6.2) and have no runtime representation.
 
 Reference kinds may appear only in `define-private` and `define-inline`
 parameters. `(function ...)` arguments may name any function defined in the
-current contract except inline functions.
+current contract or the prelude except inline functions, or any primitive
+that is not a special form.
 
 ## 2.4 Contracts and top-level forms
 
@@ -210,13 +211,19 @@ except as stated in 2.4.2 and 2.4.3.
 | `(impl-trait trait-identifier)` | A conformance claim, checked statically: every function in the trait MUST be defined as a public or read-only function with a compatible signature (parameters contravariant, result covariant), and a function the trait marks `read-only` MUST be defined with `define-read-only` | |
 | `(define-public (name (param type) ...) expr ...)` | An externally callable function | parameter types are interface types; result type MUST be a `response`; monomorphic |
 | `(define-read-only (name (param type) ...) expr ...)` | An externally callable function that MUST NOT mutate state (2.7.4) | parameter types are interface types; monomorphic |
-| `(define-private (name (param type-or-ref-kind) ...) expr ...)` | An internal function called by value | may be generic and may be overloaded (2.6) |
-| `(define-inline (name (param type-or-ref-kind) ...) expr ...)` | An internal function expanded at each call site, with call-by-name parameters (2.6.3) | may be generic and may be overloaded |
+| `(define-private (name (param type-or-ref-kind) ...) expr ...)` | An internal function called by value | may be generic and overloaded, and may end with a rest parameter (2.6) |
+| `(define-inline (name (param type-or-ref-kind) ...) expr ...)` | An internal function expanded at each call site, with call-by-name parameters (2.6.3) | may be generic and overloaded |
 
 Parameter names within one definition MUST be distinct (a duplicate is a
 static error, not a runtime one). A function body is a non-empty sequence of
 expressions evaluated in order; the value of the last is the value of the
 body. Result types are inferred (2.6.4).
+
+**Intermediate responses MUST be handled.** In any expression sequence (a
+function body, a `let` or `begin` body, or a `match` arm), every expression
+other than the last MUST NOT have a `response` type. A `response` is consumed
+by returning it, matching on it, or passing it to a function; it cannot be
+dropped (P7). This is a static error.
 
 ### 2.4.2 Top-level expressions
 
@@ -227,7 +234,11 @@ traits, are fully usable in top-level expressions: a trait defined in the
 contract is resolved against the contract's own analysis, not against a
 deployed copy of the contract, so `(f .other-contract)` with `f` taking a
 locally defined trait type is valid at the top level. `return` MUST NOT appear in a top-level
-expression. A runtime error in any top-level expression aborts the deploy.
+expression, so the early-exit library functions (`unwrap!`, `try!`,
+`asserts!`, `unwrap-err!`), which expand to `return`, are unusable in
+top-level expressions and in `define-constant` and `define-data-var`
+initializers; `unwrap-panic` and `match` serve there. A runtime error in
+any top-level expression aborts the deploy.
 
 ### 2.4.3 The definition graph is acyclic
 
@@ -238,12 +249,18 @@ resolution and instantiation (2.6.2), MUST be acyclic. This single rule
 excludes recursion (direct, mutual, and through function references),
 recursive types, and recursive constants.
 
+Each definition of an overloaded name is its own node, so one overload may
+use another as long as the graph stays acyclic.
+
 ### 2.4.4 Contract interface
 
-The contract's stored interface (kernel format) lists its public and
-read-only functions with their signatures, its implemented traits, its
-defined traits, and its token and map definitions. Other contracts, of any
-language version, type-check calls against this interface only.
+The compiler emits the contract's interface into its module in the chain
+ABI's interface format: its public and read-only functions with their
+signatures and read-only marks, its implemented traits, its defined traits,
+and its token definitions. The chain validates the interface against the
+module at deploy. Other contracts, whatever their source language, compile
+calls against this interface only, and the chain validates every call
+against it at runtime (2.5.8).
 
 ### 2.4.5 Standard library names
 
@@ -284,7 +301,7 @@ which one applies.
 
 `(begin expr ...)` is sugar for `(let () expr ...)`.
 
-### 2.5.3 `match`
+### 2.5.3 `match`, `and`, `or`
 
 ```
 (match expr arm arm)
@@ -292,7 +309,7 @@ arm     ::= (pattern body-expr ...)
 pattern ::= (some name) | none | (ok name) | (err name) | true | false
 ```
 
-`match` is the only branching construct in the core. The scrutinee type
+`match` is the core's branching construct. The scrutinee type
 determines the required patterns, each of which MUST appear exactly once:
 
 | Scrutinee type | Required patterns | Bindings |
@@ -305,6 +322,20 @@ The type of the `match` is the lub of the arm types. Exactly one arm is
 evaluated.
 
 `if` is a library function defined over `match` on `bool`.
+
+```
+(and expr expr ...)
+(or expr expr ...)
+```
+
+`and` and `or` take two or more `bool` expressions and evaluate them left to
+right, stopping at the first `false` (`and`) or the first `true` (`or`).
+They are core forms, not library functions, because short-circuiting over
+any number of arguments cannot be written in the language: an inline
+function has a fixed number of by-name parameters, and a rest parameter
+(2.6.5) is a list value whose elements are all evaluated before the body
+runs. `(and a b c)` means exactly `(match a (true (match b (true c) (false
+false))) (false false))`.
 
 ### 2.5.4 `return`
 
@@ -347,7 +378,8 @@ construct values.
 | `(list e1 ... en)` | `(list n lub(T1, ..., Tn))`; `(list)` is `(list 0 never)` |
 | `{ f1: e1, ... }` | `{ f1: T1, ... }`; field names MUST be distinct |
 
-`list` is the only variadic form in the language.
+`list`, `and`, and `or` are the only variadic forms. Functions take a
+variable number of arguments only through a rest parameter (2.6.5).
 
 ### 2.5.7 Tuple access
 
@@ -367,13 +399,20 @@ construct values.
 contract principal type, or an expression of a trait type `(trait X)`; in
 the trait case `function-name` MUST be a function of `X`. Any expression of
 trait type is acceptable, including a tuple field or a `let`-bound name. Arguments are type-checked against the callee's stored
-interface (literal case) or the trait signature (trait case). The result type
+interface (literal case) or the trait signature (trait case). In the literal
+case the callee's interface is therefore an input to compilation, and the
+compiler records it in the module's provenance
+([../03-architecture.md](../03-architecture.md) section 2). The result type
 is the callee's declared result type. The callee MUST be a public or
 read-only function and MUST NOT be in the current contract.
 
-The call is dispatched by the kernel, which enforces the depth limit and the
-no-reentrancy rule (2.7.5) and routes to the callee's engine, which may be a
-different language version.
+The call is dispatched by the chain, which enforces the depth limit and the
+no-reentrancy rule (2.7.5). The callee may be written in any source language.
+The chain validates the arguments against the callee's declared parameter
+types and the result against its declared result type, and for a trait
+target checks that the principal's interface implements the trait. A
+Clarity contract can therefore rely on its parameter types whoever calls
+it.
 
 ### 2.5.9 Context scoping and asset allowances
 
@@ -405,7 +444,7 @@ Both have type `(response T uint)` where `T` is the body type. Outcome:
    `(ok body-value)`.
 2. If any movement is not covered, the frame is rolled back and the value is
    `(err i)`, where `i` is the index of the first violated allowance
-   (defined precisely in the cost and semantics chapters).
+   (defined precisely in the semantics chapter).
 3. If the body is exited by a `return` that crosses the form, the allowance
    check still runs. On violation, the frame is rolled back, the `return`
    is cancelled, and the form's value is `(err i)`. Otherwise the frame is
@@ -437,7 +476,8 @@ internally behave like private functions.
 ### 2.6.2 Instantiation and overload resolution
 
 Let a call be `(f a1 ... an)`, and let the candidate definitions of `f` be
-those with `n` parameters. For a candidate with parameter types
+those that accept `n` arguments: exactly `n` parameters, or, for a
+rest-parameter definition, fewer than `n` fixed parameters (2.6.5). For a candidate with parameter types
 `P1 ... Pn` (which may contain type variables, size variables, and reference
 kinds) and free variables `X`, an **instantiation** is a substitution `σ`
 over `X` such that:
@@ -447,13 +487,28 @@ over `X` such that:
   of the matching kind whose declared types match `Pi[σ]`; for
   `(function (Q ...) R)`, the named function MUST itself admit an
   instantiation whose parameter types are supertypes of `Q[σ]...` and whose
-  result type is a subtype of `R[σ]`.
+  result type is a subtype of `R[σ]`. A rest-parameter definition with `k` fixed
+  parameters is named at a function type with `k + 1` parameters, and the
+  last one fills its rest parameter as a one-element list (2.6.5).
 
 The candidate **admits** the call if an instantiation exists. Among the
 instantiations that exist, the **least** one (pointwise under `<:`, and
 smallest size values) is chosen; if no least instantiation exists the
 candidate does not admit the call. This is the declarative form of the
 familiar "unify and take the least upper bound" algorithm.
+
+When a type variable occurs in both a parameter and the result of a
+`(function ...)` parameter, as the accumulator `A` does in `fold-left`, the
+least instantiation is a least fixpoint rather than a unification: the
+initial value's type is a lower bound for `A`, and the named function's
+result type at that `A` is another, so `A` is the least type closed under
+both. The prelude relies on this: `(fold-left std-prepend-byte 0x bytes)`
+starts from `(buff 0)` and settles at `(buff 16)`, and `index-of?` starts
+from `none` and settles at `(optional uint)`. Every type in the language
+has finitely many supertypes below the size limit, so the iteration
+terminates. A compiler MAY instead require the initial value to already
+have the closed type when the fixpoint is not reached in a bounded number
+of steps; see open question 14.
 
 Overload resolution: exactly one candidate MUST admit the call. Zero is a
 type error; more than one is an ambiguity error. Overloading is by arity and
@@ -464,7 +519,7 @@ The result type of the call is the candidate's inferred result type under
 sizes. A resulting size that exceeds the value size limit is a type error.
 
 Each distinct `(candidate, σ, reference arguments)` triple is a distinct
-**instance**. Instances are what the cost model and the definition graph
+**instance**. Instances are what the compiler and the definition graph
 (2.4.3) operate on. Instance bodies are type-checked with the concrete
 substitution applied ("template" semantics): a generic body that is never
 instantiated is parsed and scope-checked but not type-checked.
@@ -478,7 +533,15 @@ An inline function is expanded at each call site:
 2. Evaluation of the call is evaluation of the body with each parameter
    reference replaced by its argument expression, evaluated in the caller's
    context at the point of reference (call by name). An argument whose
-   parameter is never referenced on the taken path is not evaluated.
+   parameter is never referenced on the taken path is not evaluated. Because
+   evaluation happens at the point of reference, an argument referenced
+   inside an `as-contract?` or `restrict-assets?` form in the body is
+   evaluated inside that frame, with the frame's `tx-sender` and
+   `contract-caller`, and the order in which arguments are evaluated is the
+   order of their references in the body, not their order at the call site.
+   Prelude inline functions reference their parameters outside any such
+   frame, and the library documents each place where laziness changes legacy
+   behavior (`default-to`, `map-insert`).
 3. Names bound inside the body (`let`, `match`) are fresh and cannot capture
    names in argument expressions. Free names in the body resolve in the
    defining contract's top-level scope.
@@ -499,6 +562,78 @@ The result type of a function instance is the lub of the type of its last
 body expression and the types of the operands of every `return` reachable
 in its body (after inline expansion). If the lub is undefined, it is a type
 error. For `define-public`, the result type MUST be a `response` type.
+
+### 2.6.5 Rest parameters
+
+The last parameter of a `define-private` definition MAY be a **rest
+parameter**, written with `...` after its type:
+
+```
+(define-private (name (param type) ... (rest T...)) expr ...)
+```
+
+A call supplies the fixed parameters in order and **one or more** further
+arguments for the rest parameter. Inside the body, the rest parameter is a
+list: `rest : (list N T)`, where `N` is the number of rest arguments at that
+call site. The call `(name a1 ... ak b1 ... bm)` is the call of the
+definition with `a1 ... ak` for the fixed parameters and `(list b1 ... bm)`
+for the rest, so arguments are evaluated left to right and the list is typed
+by 2.5.6. Each call site is its own instance (2.6.2), with `N` bound to `m`.
+
+A function that takes "two or more" is one definition. Its binary case is
+simply the call with one rest argument:
+
+```
+(define-private (std-max-pair (left T) (right T))
+  (if (> left right) left right))
+
+(define-private (max (left T) (right T...))
+  (fold-left std-max-pair left right))
+
+;; (max a b)     is (fold-left std-max-pair a (list b))
+;; (max a b c d) is (fold-left std-max-pair a (list b c d))
+;; (max a)       is an arity error: a rest parameter needs an argument
+```
+
+`fold-left` passes the accumulator first (3.3), so this pattern is the left
+fold of the helper whether or not the helper is commutative.
+
+The rewrite goes one way only. An argument that is already a list is not
+spread: in `(max a xs)` with `xs : (list 5 int)`, `xs` is a single rest
+argument, so `right : (list 1 (list 5 int))` and the body fails to
+type-check. To apply a rest function's operation to an existing list, fold
+its helper directly: `(fold-left std-max-pair a xs)`. There is no spread
+syntax, so each call has one spelling.
+
+Rules:
+
+- **All fixed or all rest.** If any definition of a name has a rest
+  parameter, every definition of that name MUST have one, with the same
+  number of fixed parameters. Overloads then differ only by type, and
+  overload resolution needs no rule about arity.
+- **Passing a rest function.** A rest-parameter function may be passed as a
+  `(function ...)` argument at the type with one more parameter than its
+  fixed parameters; the last argument becomes a one-element rest list
+  (2.6.2). So `(fold-left max 0 xs)` and `(fold-left + 0 xs)` work.
+- **No self-reference.** A rest-parameter body cannot fold itself, since
+  that is a cycle (2.4.3). The binary operation lives in a helper, as
+  `std-max-pair` above, or in a primitive.
+- **Private only.** Public and read-only functions MUST NOT have rest
+  parameters, because their interface has a fixed arity in the chain ABI.
+  Inline functions MUST NOT have them either: rest arguments are evaluated
+  as a list before the body runs, which would silently make an inline
+  function strict in those arguments.
+- **Primitives** whose chapter 3 signature ends in `I...` or `S...` follow
+  the same rules. Their result type may be tighter than a user definition
+  could state; `concat`'s bound, for example, is the exact sum of its
+  arguments' bounds.
+
+A compiler instantiates each call site with its own `N`, so it can compile
+the one-argument case of a rest function without building a list. The spec
+does not require it.
+
+`is-eq` and the comparisons have no rest parameter: `(is-eq a b c)` has no
+single obvious meaning, and "all equal" is `(and (is-eq a b) (is-eq a c))`.
 
 ## 2.7 Dynamic semantics
 
@@ -526,7 +661,9 @@ entry point, its state changes (variables, maps, token balances, events) are
 buffered. If it returns `(ok v)`, they are committed to the caller's frame.
 If it returns `(err e)`, they are discarded and `(err e)` is returned to the
 caller, which continues executing. A `return` of an `err` value has the same
-effect as evaluating to it.
+effect as evaluating to it. The chain performs the commit or discard based on the
+returned value, so the rule holds for calls between modules of any source
+language.
 
 ### 2.7.4 Read-only enforcement
 
@@ -535,15 +672,16 @@ contract, execute `var-set`, `map-set`, `map-delete`, any `*-mint?`,
 `*-burn?`, or `*-transfer?` primitive, or `as-contract?` /
 `restrict-assets?`. A `contract-call?` from read-only code is permitted only
 when the callee is statically known to be read-only: a literal or static
-constant target whose stored interface marks the function read-only, or a
-trait target whose trait marks the function `read-only`. All of this is
-checked at analysis time; there is no runtime read-only check. The kernel
-additionally rejects any write attempted inside a read-only call frame as a
-defense in depth.
+constant target whose interface marks the function read-only, or a trait
+target whose trait marks the function `read-only`. All of this is checked at
+compile time, so a violation is reported before deploy. The chain
+independently rejects any write attempted inside a read-only call frame,
+which is what makes the guarantee hold when read-only code calls a module
+from another language.
 
 ### 2.7.5 Depth and reentrancy
 
-The kernel rejects a `contract-call?` into a contract that already has an
+The chain rejects a `contract-call?` into a contract that already has an
 active call frame in the current transaction, and rejects any call that
 would exceed the call depth limit. Both are runtime errors.
 
@@ -554,23 +692,27 @@ batch. Events of a rolled-back frame are discarded with it.
 
 ### 2.7.7 Cost
 
-Every core form and primitive has an execution cost and a memory cost
-defined in the cost chapter (not yet drafted). Library functions have none of
-their own. Exceeding the transaction or block budget is a runtime error.
+The language defines no costs (P4). A contract runs as the Wasm module its
+source compiles to, and its execution cost is the fuel that module consumes
+plus the chain's charges for the host functions it calls. Library functions
+are compiled and metered like any other code. Exceeding the transaction or
+block budget is a runtime error.
 
-The cost chapter MUST respect these principles, each of which closes a
-known legacy pricing bug:
+Fuel replaces a per-construct runtime cost table. It does not replace the
+chain's storage dimensions: reads and writes are still counted and sized,
+with the budget dimensions defined in the chain ABI.
 
-- A primitive that copies or decodes data is charged on the size bound of
-  its **output**, derived from its result type, not on the size of its
-  input. `slice?` is priced by the slice, `from-consensus-buff?` by
-  `serialized-size(T)` and the depth of `T`, and the memory for a decoded
-  value is reserved against that bound before decoding begins.
+The following rules are about resource safety, not pricing, and bind every
+compiler:
+
+- Memory for a decoded value is reserved against the size bound of its
+  result type before decoding begins. `from-consensus-buff?` reserves
+  `serialized-size(T)`, so a hostile input cannot allocate more than its
+  declared type admits.
 - A trait-typed value is a principal and is sized as one.
-- Analysis of a contract is metered on the **expanded, instantiated**
-  program (after inline expansion and generic instantiation, 2.6), and the
-  meter covers every step through persistence of the stored interface.
-  Exceeding the analysis budget rejects the deploy.
+- Compilation happens off chain, so its cost is the deployer's. What the
+  chain charges for is the module: its size and its validation at deploy,
+  as defined by the chain ABI.
 
 ## 2.8 Limits
 
@@ -588,33 +730,33 @@ contract source size and transaction budgets.
 ## 2.9 Open questions
 
 Each item needs a decision (or an RFC where tagged) before this chapter is
-frozen.
+frozen. Numbers are stable: a resolved item keeps its number and moves to
+the resolved list at the end.
 
-1. **Associative operators.** Fixed arity means `(+ a b c)` is gone. A
-   syntactic rule "calls of `+`, `*`, `and`, `or`, `bit-and`, `bit-or`,
-   `bit-xor`, `concat` with more than two arguments left-fold" is cheap but
-   special-cases a list of names. Draft position: fixed arity; revisit after
-   writing real contracts in vNEXT.
-2. **Multi-sequence `map`.** Legacy `(map f l1 l2)` is dropped. A library
-   version over `fold` and `element-at?` would carry tuple state per element
-   and fail the layering rule's fourth test, so if it is wanted it returns as
-   a primitive family (`map2`, `map3`). Draft position: dropped until there
-   is demand.
+2. **Multi-sequence `map`.** Legacy `(map f l1 l2)` is dropped. It cannot be
+   written in the library: `fold-left` would have to carry `f` and the
+   second list, and a function reference cannot be stored in the accumulator. If it
+   is wanted it returns as a primitive family (`map2`, `map3`), or the
+   language gains a way to pass a function reference through a fold. Draft
+   position: dropped until there is demand.
 3. **`bool` as unit.** `var-set`, `map-set`, and `ft-mint?`'s `(ok true)`
    return a `bool` that carries no information. A unit type would be cleaner
    but touches every public-function convention in the ecosystem. Draft
    position: keep `bool`.
 4. **Inline functions as function references.** `(filter not xs)` requires
-   `not` to be a real function today, so predicates in the prelude are
-   `define-private`, which costs a call. Alternatives: allow references to
-   inline functions whose parameters are each used exactly once (they are
-   trivially eta-expandable), or let the cost model treat small private
-   functions as inlined. Draft position: undecided.
+   `not` to be a real function, so predicates in the prelude are
+   `define-private`. The alternative is to allow references to inline
+   functions whose parameters are each used exactly once (they are trivially
+   eta-expandable). Since cost is not a language concern, the only gain is
+   uniformity. Draft position: keep predicates private; no new rule.
 5. **Template checking of generic bodies.** Bodies are checked per instance,
    so a type error in a generic body surfaces at its call sites. Bounded
    polymorphism (type classes) would move errors to the definition but is a
-   large addition. Draft position: template semantics. The prelude's generic
-   functions are now few and small, which lowers the stakes.
+   large addition. Draft position: template semantics. The prelude relies on
+   it: `mod`, `max`, `min`, `index-of?`, `string-to-int?`, and
+   `string-to-uint?` are single generic definitions that are only valid at
+   some instantiations, and a misuse is reported inside their bodies. Error
+   messages MUST attribute such errors to the call site.
 6. **Static reference kinds.** `(map K V)`, `(var T)`, and token references
    as parameters exist in this draft on their own merits (helpers over maps
    are a recurring pain point), and the prelude uses them only for
@@ -629,13 +771,36 @@ frozen.
 9. **`to-ascii?`** is retained as a primitive because it cannot be written
    generically. Decide whether it earns its place.
 10. **Trait-typed values in storage** remain forbidden (as legacy). Confirm.
-11. **Expansion amplification.** Inline expansion and per-instance checking
-    can produce an expanded program larger than the source. Metering
-    analysis on the expanded program (2.7.7) makes this a cost rather than a
-    resource exhaustion, and with the recalibrated library the prelude's own
-    expansions are shallow, but a hard cap on expanded size or on inline
-    nesting depth may still be wanted so that the failure is a clear
-    diagnostic instead of a budget error. Decide the cap and where it lives.
-12. **Candidate additions from the issue tracker** are collected in
+11. **Expansion amplification.** Inline expansion and per-instance
+    compilation can produce a module much larger than the source, and the
+    deployer pays for module size. The prelude's inline functions are all
+    shallow (its larger definitions are private and compiled once per
+    instance), but a language-level cap on expanded size or on inline
+    nesting depth may still be wanted, so that a pathological contract is a
+    clear compile error instead of an oversized module. Decide the cap.
+12. **Intermediate size bounds.** Size arithmetic applies to intermediate
+    results, so `(concat (concat prefix (list item)) suffix)` in the
+    prelude's `replace-at?` has type bound `2N + 1` before `as-max-len?`
+    brings it back to `N`. For a sequence type near the value size limit
+    (2.8), that intermediate bound is a type error even though no runtime
+    value can exceed the limit. Options: check the limit only on bindings,
+    parameters, and results, not on intermediate expressions; or keep
+    `replace-at?` primitive. Draft position: check the limit only where a
+    value can be stored or passed.
+13. **Candidate additions from the issue tracker** are collected in
     [05-issue-tracker.md](05-issue-tracker.md): Schnorr verification, `tx-fee`,
     wide-integer arithmetic, and per-definition contract introspection.
+14. **Type ascription.** There is no form that states the type of an
+    expression. Subtyping makes it unnecessary almost everywhere, but folds
+    whose initial value is `none`, `0x`, `""`, or `(list)` depend on the
+    fixpoint in 2.6.2 to find the accumulator type, and a user who wants a
+    `(list 10 uint)` accumulator from `(list)` has no way to say so. A
+    small core form `(as type expr)`, typed as `type` when `expr`'s type is
+    a subtype of it, would remove the dependency and give error messages a
+    place to point. Decide whether to add it.
+
+Resolved:
+
+1. **`fold` argument order.** Legacy `fold` is replaced by `fold-left`
+   (accumulator first) and `fold-right` (3.3), so rest forms of
+   non-commutative functions fold correctly without a swap helper.

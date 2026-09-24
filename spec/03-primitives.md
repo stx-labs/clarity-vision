@@ -2,23 +2,28 @@
 
 This chapter enumerates every primitive in the vNEXT core. A primitive is an
 operation that passes the layering rule in [README.md](README.md): it needs
-the host or kernel, it cannot be expressed in the language, or expressing it
-in the language would be asymptotically more expensive. Everything a contract
-author uses that is not listed here or in the special forms of
-[02-core-language.md](02-core-language.md) is a standard-library definition.
+the host, it cannot be expressed in the language, it is a
+cryptographic standard, or it is a base operation on a type's
+representation. Everything a contract author uses that is not listed here or
+in the special forms of [02-core-language.md](02-core-language.md) is a
+standard-library definition.
 
-Every primitive has a fixed arity. Notation follows 2.1: uppercase letters
-are type or size variables; "for `I` in {...}" denotes a family with one
+Every primitive has a declared arity (P6). A signature whose last parameter
+is written `I...` or `S...` has a rest parameter (2.6.5): the primitive takes
+its fixed arguments plus one or more further arguments, and the result is
+the left fold of the operation over them, so `(- a b c)` is `(- (- a b) c)`
+and `(- a b)` is ordinary subtraction. Passed as a function argument, such a
+primitive is its two-argument operation: `(fold-left + 0 xs)`.
+
+Notation otherwise follows 2.1: uppercase letters are type or size variables; "for `I` in {...}" denotes a family with one
 signature per listed type. Subtyping (2.3.2) applies to arguments, so a
 `(buff 4)` is accepted where `(buff 16)` is written.
 
-Each entry gives the signature, semantics, and error conditions. Cost is
-defined in the cost chapter (not yet drafted).
-
-> [!NOTE]
-> Signatures marked *(verify)* have been written from memory of the legacy
-> behavior and must be checked against the legacy docstrings before this
-> chapter is frozen.
+Each entry gives the signature, semantics, and error conditions. Primitives
+have no cost entries (P4). A primitive the compiler lowers to Wasm costs the
+fuel of that code; a primitive that calls a host function is charged by the
+chain ABI. Which primitives are host functions is decided by the chain ABI
+and the compilation chapter, not here.
 
 ## 3.1 Arithmetic
 
@@ -26,24 +31,21 @@ For `I` in {`int`, `uint`}:
 
 | Primitive | Signature | Semantics | Runtime errors |
 |---|---|---|---|
-| `+` | `(I I) -> I` | addition | overflow |
-| `-` | `(I I) -> I` | subtraction | overflow/underflow |
-| `*` | `(I I) -> I` | multiplication | overflow |
-| `/` | `(I I) -> I` | division truncating toward zero | divisor is zero |
-| `mod` | `(I I) -> I` | remainder with the sign of the dividend | divisor is zero |
-| `pow` | `(I I) -> I` | exponentiation | exponent negative or not representable in 32 bits; overflow |
-| `sqrti` | `(I) -> I` | largest integer whose square does not exceed the argument | argument negative |
-| `log2` | `(I) -> I` | floor of the base-2 logarithm | argument not positive |
+| `+` | `(I I...) -> I` | addition | overflow |
+| `-` | `(I I...) -> I` | subtraction | overflow/underflow |
+| `*` | `(I I...) -> I` | multiplication | overflow |
+| `/` | `(I I...) -> I` | division truncating toward zero | divisor is zero |
 | `to-int` | `(uint) -> int` | conversion | argument at least 2^127 |
 | `to-uint` | `(int) -> uint` | conversion | argument negative |
-| `bit-and` | `(I I) -> I` | bitwise and | |
-| `bit-or` | `(I I) -> I` | bitwise or | |
-| `bit-xor` | `(I I) -> I` | bitwise exclusive or | |
-| `bit-not` | `(I) -> I` | bitwise complement | |
+| `bit-and` | `(I I...) -> I` | bitwise and | |
+| `bit-or` | `(I I...) -> I` | bitwise or | |
+| `bit-xor` | `(I I...) -> I` | bitwise exclusive or | |
 | `bit-shift-left` | `(I uint) -> I` | shift left, discarding bits shifted out; the result reinterprets the 128-bit pattern as `I` | shift amount 128 or more |
 | `bit-shift-right` | `(I uint) -> I` | shift right; arithmetic for `int`, logical for `uint` | shift amount 128 or more |
 
-Library, not primitive: `max`, `min`, `abs`.
+Library, not primitive: `mod`, `pow`, `sqrti`, `log2`, `bit-not`, `max`,
+`min`, `abs`. Their error conditions are the same as legacy and are defined by
+their source.
 
 ## 3.2 Comparison and equality
 
@@ -66,41 +68,53 @@ kind-preserving: a `concat` of two buffers is a buffer.
 | Primitive | Signature | Semantics | Runtime errors |
 |---|---|---|---|
 | `len` | `(S[N]) -> uint` | current length (code points for `string-utf8`) | |
-| `concat` | `(S[N] S[M]) -> S[N + M]` | concatenation | |
+| `concat` | `(S[N] S[M]...) -> S[N + M1 + ... + Mk]` | concatenation, left to right; with rest arguments of bounds `M1 ... Mk`, the bound is their exact sum plus `N` | |
 | `element-at?` | `(S[N] uint) -> (optional elem(S))` | element at zero-based index, or `none` if out of range | |
 | `slice?` | `(S[N] uint uint) -> (optional S[N])` | elements in `[left, right)`; `none` if `left > right` or `right > len` | |
 | `as-max-len?` | `(S[N] size) -> (optional S[M])` | the second argument is a size term `M` (literal or size variable); `(some s)` if `len(s) <= M`, else `none` | |
 | `map` | `((function (elem(S)) U) S[N]) -> (list N U)` | applies the function to each element in order | |
 | `filter` | `((function (elem(S)) bool) S[N]) -> S[N]` | keeps elements for which the function returns `true`, preserving order | |
-| `fold` | `((function (elem(S) A) A) S[N] A) -> A` | left fold: the function receives each element and the accumulator, starting from the initial value | |
-| `index-of?` | `(S[N] elem(S)) -> (optional uint)` | zero-based index of the first element equal to the argument, or `none` | |
-| `replace-at?` | `(S[N] uint elem(S)) -> (optional S[N])` | copy with the element at the index replaced; `none` if the index is out of range | |
+| `fold-left` | `((function (A elem(S)) A) A S[N]) -> A` | `(f (f (f init x1) x2) ... xn)`: elements left to right, accumulator first | |
+| `fold-right` | `((function (elem(S) A) A) S[N] A) -> A` | `(f x1 (f x2 ... (f xn init)))`: elements right to left, accumulator second | |
 
-Library, not primitive: `append`. Multi-sequence `map` is dropped (open
-question in chapter 2).
+In both folds the initial value sits on the same side as the accumulator in
+the callback, so the argument order of the call mirrors the order of the
+callback's parameters. Neither fold can be written from the other: that
+needs a wrapper that swaps `f`'s arguments, and a function cannot be closed
+over. Legacy `fold` (left to right, element first) is removed; it is
+`fold-left` with the callback's parameters swapped.
+
+Library, not primitive: `append`, `index-of?`, `replace-at?`. Multi-sequence
+`map` is dropped (open question in chapter 2).
 
 ## 3.4 Conversions and serialization
 
 | Primitive | Signature | Semantics | Runtime errors |
 |---|---|---|---|
 | `buff-to-uint-be` | `((buff 16)) -> uint` | big-endian unsigned interpretation; the empty buffer is `u0` | |
-| `buff-to-uint-le` | `((buff 16)) -> uint` | little-endian unsigned interpretation; the empty buffer is `u0` | |
-| `buff-to-int-be` | `((buff 16)) -> int` | big-endian two's-complement interpretation, sign-extended from the buffer's actual length; the empty buffer is `0` | |
-| `buff-to-int-le` | `((buff 16)) -> int` | little-endian counterpart of `buff-to-int-be` | |
-| `int-to-ascii` | `(I) -> (string-ascii 40)` for `I` in {`int`, `uint`} | decimal rendering with a leading `-` for negative values | |
-| `int-to-utf8` | `(I) -> (string-utf8 40)` for `I` in {`int`, `uint`} | as `int-to-ascii` | |
-| `string-to-int?` | `(X) -> (optional int)` for `X` in {`(string-ascii N)`, `(string-utf8 N)`} | parses an optional `-` and decimal digits; `none` on empty input, a non-digit, or overflow | |
-| `string-to-uint?` | `(X) -> (optional uint)` for `X` as above | parses decimal digits; `none` on empty input, a non-digit, `-`, or overflow | |
 | `uint-to-buff-be` | `(uint size) -> (buff W)` | the second argument is a size term `W` (literal or static constant), at most 16; big-endian encoding in exactly `W` bytes | value does not fit in `W` bytes |
 | `uint-to-buff-le` | `(uint size) -> (buff W)` | little-endian counterpart | value does not fit |
 | `int-to-buff-be` | `(int size) -> (buff W)` | two's-complement big-endian encoding in exactly `W` bytes | value does not fit in `W` signed bytes |
 | `int-to-buff-le` | `(int size) -> (buff W)` | little-endian counterpart | value does not fit |
 | `to-consensus-buff?` | `(T) -> (optional (buff serialized-size(T)))` | SIP-005 serialization of the value; `none` if the result would exceed the value size limit. `T` MUST be storable | |
 | `from-consensus-buff?` | `(type (buff N)) -> (optional T)` | the first argument is a type expression `T`, which MUST be storable. Deserializes; `none` if the bytes are not a canonical encoding of a value of type `T` (exact typed-tuple fields, no trailing bytes). Memory for the result is reserved against `serialized-size(T)` before decoding (2.7.7) | |
-| `to-ascii?` | `(T) -> (response (string-ascii ascii-size(T)) uint)` | ASCII rendering of a value; `T` MUST be storable. Retained pending open question 8 in chapter 2 | |
+| `to-ascii?` | `(T) -> (response (string-ascii ascii-size(T)) uint)` | ASCII rendering of a value; `T` MUST be storable. Retained pending open question 9 in chapter 2 | |
 
 `serialized-size(T)` and `ascii-size(T)` are type-level size functions
-defined with the wire format in the kernel chapter.
+defined with the wire format in the chain ABI.
+
+`buff-to-uint-be` and `uint-to-buff-be` are the base conversions between
+integers and bytes. The `*-to-buff-*` family stays primitive because each
+takes a size argument, which a library function cannot. Library, not
+primitive: `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le`,
+`int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?`, with the
+same signatures as legacy. All but the signed buffer conversions also have
+the same results. `buff-to-int-be` and `buff-to-int-le` sign-extend from the
+buffer's actual length, so `(buff-to-int-be 0xff)` is `-1`; legacy zero-pads
+a short buffer and returns `255`, which makes the signed conversion of a
+short buffer disagree with the same bytes in a 16-byte buffer. This is a
+deliberate change, listed in the footguns table of chapter 1 and the
+disposition table of chapter 4.
 
 The four `*-to-buff-*` primitives have no legacy counterpart. They are the
 write direction of the `buff-to-*` family, requested for hashing structured
@@ -116,13 +130,14 @@ that aliasing class at the language level.
 | `principal-construct?` | `((buff 1) (buff 20) (optional (string-ascii 40))) -> (response principal { error-code: uint, principal: (optional principal) })` | builds a standard principal (no name) or contract principal (with name) from a version byte and hash bytes. `(err {error-code: u0, principal: (some p)})` if the version byte is valid but for the other network; `u1` if the version byte is invalid; `u2` if the name is not a valid contract name |
 | `principal-destruct?` | `(principal) -> (response D D)` where `D = { hash-bytes: (buff 20), name: (optional (string-ascii 40)), version: (buff 1) }` | decomposes a principal. `ok` if the version byte matches the current network, `err` with the same payload otherwise |
 | `contract-of` | `((trait X)) -> principal` | the contract principal a trait-typed value refers to |
-| `contract-hash?` | `(principal) -> (response (buff 32) uint)` | SHA-512/256 of the deployed contract's source; `err u1` if the principal is not a deployed contract |
+| `contract-hash?` | `(principal) -> (response (buff 32) uint)` | SHA-512/256 of the deployed contract's module; `err u1` if the principal is not a deployed contract. The chain never holds source; the source hash is available from the module's provenance section, off chain |
 
 Library, not primitive: `is-standard`, `principal-of?`.
 
 ## 3.6 Cryptography
 
-Hash functions accept buffers only (P6, footguns table).
+Hash functions accept buffers only (P6, footguns table). Library, not
+primitive: `verify-merkle-proof`, a composition of `sha256` (chapter 4).
 
 | Primitive | Signature | Semantics |
 |---|---|---|
@@ -136,7 +151,6 @@ Hash functions accept buffers only (P6, footguns table).
 | `secp256k1-decompress?` | `((buff 33)) -> (response (buff 65) uint)` | uncompressed form of a compressed public key |
 | `secp256r1-verify` | `((buff 32) (buff 64) (buff 33)) -> bool` | P-256 signature verification; `false` for a non-canonical signature |
 | `ed25519-verify` | `((buff N) (buff 64) (buff 32)) -> bool` | Ed25519 signature verification over an arbitrary-length message |
-| `verify-merkle-proof` | `((buff 32) (buff 32) uint uint (list 24 (buff 32))) -> bool` | Bitcoin-style inclusion proof with double SHA-256 and the odd-row duplication rule. Arguments: leaf hash, root hash, leaf index, transaction count, sibling hashes from leaf to root, all in internal byte order. `false` for any proof inconsistent with the canonical tree shape implied by the transaction count, including a path length other than the tree depth, an index not below the count, or a sibling that must equal its partner on an odd row but does not |
 
 **Canonical signatures.** An ECDSA signature (secp256k1 or P-256) is
 canonical only if its `S` component is in the lower half of the curve order
@@ -164,7 +178,7 @@ post-conditions and allowances) and emit events.
 
 | Primitive | Signature | Semantics | `err` codes |
 |---|---|---|---|
-| `ft-mint?` | `((fungible-token) uint principal) -> (response bool uint)` | mints `amount` to the recipient | `u1` supply cap exceeded; runtime error if `amount` is zero *(verify)* |
+| `ft-mint?` | `((fungible-token) uint principal) -> (response bool uint)` | mints `amount` to the recipient; exceeding the supply cap is a runtime error, as in legacy | `u1` amount is zero |
 | `ft-burn?` | `((fungible-token) uint principal) -> (response bool uint)` | burns `amount` from the owner | `u1` insufficient balance or amount is zero |
 | `ft-transfer?` | `((fungible-token) uint principal principal) -> (response bool uint)` | moves `amount` from sender to recipient | `u1` insufficient balance; `u2` sender is recipient; `u3` amount is zero |
 | `ft-get-balance` | `((fungible-token) principal) -> uint` | balance | |
@@ -220,7 +234,7 @@ desynchronizes the sender's nonce.)
 | `get-stacks-block-info?` | `(uint) -> (optional { id-header-hash: (buff 32), header-hash: (buff 32), time: uint })` | `none` if the height is not less than the current height |
 | `get-tenure-info?` | `(uint) -> (optional { burnchain-header-hash: (buff 32), miner-address: principal, time: uint, vrf-seed: (buff 32), block-reward: (optional uint), miner-spend-total: uint, miner-spend-winner: uint })` | `block-reward` is `none` until the reward has matured. Maturity is defined by the host in terms of the coinbase (tenure) height at which the reward was recorded, so the lookup is total: it never fails for a height the host has no row for |
 | `get-burn-block-info?` | `(uint) -> (optional { header-hash: (buff 32), pox-addrs: { addrs: (list 2 { hashbytes: (buff 32), version: (buff 1) }), payout: uint } })` | `none` if the burn height is outside the known range |
-| `get-bitcoin-tx-output?` | `((buff N) uint) -> (response { script: (buff 1024), amount: uint, txid: (buff 32) } uint)` | parses raw Bitcoin transaction bytes and returns output `vout`; `err` codes as legacy *(verify)* |
+| `get-bitcoin-tx-output?` | `((buff N) uint) -> (response { script: (buff 1024), amount: uint, txid: (buff 32) } uint)` | parses raw Bitcoin transaction bytes (SegWit or not) and returns output `vout`, with `txid` in internal byte order; `err u1` the bytes do not deserialize as a transaction, `err u2` `vout` is out of range, `err u3` the output script exceeds 1024 bytes |
 
 ## 3.10 Events and control
 
@@ -233,17 +247,17 @@ desynchronizes the sender's nonce.)
 
 | Group | Primitives |
 |---|---|
-| Arithmetic | 16 (each in two integer families) |
+| Arithmetic | 11 (each in two integer families) |
 | Comparison and equality | 5 |
-| Sequences | 10 |
-| Conversions | 15 |
+| Sequences | 9 |
+| Conversions | 8 |
 | Principals | 4 |
-| Cryptography | 11 |
+| Cryptography | 10 |
 | Storage | 5 |
 | Assets | 12 |
 | Context | 12 nullary, 4 lookups |
 | Events and control | 2 |
-| **Total** | **96** |
+| **Total** | **82** |
 
 For comparison, legacy Clarity 6 has 126 native functions and 16 native
 variables, most with bespoke typing rules.

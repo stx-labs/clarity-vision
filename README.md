@@ -1,9 +1,8 @@
 # Clarity Vision
 
-This directory captures the goals, architecture, and rationale for evolving
-Clarity into a first-class, independently specified programming language — one
-that justifies its existence by actually exploiting the properties that make it
-unique among smart contract languages.
+This directory captures the goals, architecture, and rationale for the next
+Clarity: a redesigned, independently specified language that compiles to
+Wasm. It is the first source language for a new chain that executes Wasm.
 
 These documents are working drafts intended to seed discussion. They are
 expected to eventually move to a dedicated language repository.
@@ -12,28 +11,31 @@ expected to eventually move to a dedicated language repository.
 
 | Document | Purpose |
 |---|---|
-| [01-why-clarity.md](01-why-clarity.md) | The case for investing in Clarity rather than replacing it — unique properties, what they enable, honest gaps, and rebuttals to "switch to an existing VM" |
-| [02-goals.md](02-goals.md) | Goals, non-goals, and success criteria for the effort |
-| [03-architecture.md](03-architecture.md) | Target crate architecture: a stable kernel plus frozen per-version engine crates, epoch pinning, and the interop boundary |
-| [04-spec-plan.md](04-spec-plan.md) | Plan for the language specification (new version only) and the conformance suite |
+| [01-why-clarity.md](01-why-clarity.md) | Why a decidable language on a Wasm chain: what the VM provides, what only the language can provide, the honest gaps, and why not just compile a general-purpose language |
+| [02-goals.md](02-goals.md) | Goals, non-goals, and success criteria |
+| [03-architecture.md](03-architecture.md) | The Clarity toolchain, the module format and chain ABI, the guarantees the chain enforces for every module, and the compiler trust path |
+| [04-spec-plan.md](04-spec-plan.md) | Plan for the language specification, the chain ABI it depends on, and the conformance suite |
 | [05-roadmap.md](05-roadmap.md) | Phased execution plan with milestones, dependencies, and risks |
-| [06-extraction-plan.md](06-extraction-plan.md) | File-level extraction plan: kernel carve-out, the three ABIs (informed by clar2wasm's host-function boundary), pins-not-branches version maintenance, and a hackathon slice |
-| [07-consensus-gates.md](07-consensus-gates.md) | Classification and routing rules for language-version, engine-revision, kernel-ruleset, and host epoch gates |
-| [spec/](spec/) | The vNEXT specification working draft: a minimal core language plus a standard library written in the language itself, with a disposition for every legacy construct |
-| [Interactive walkthrough](demo/) | Web-based explanation of the extraction, call-routing model, gate ownership, and maintainability/security benefits |
+| [spec/](spec/) | The specification working draft: a minimal core language plus a standard library written in the language itself |
+| [archive/](archive/) | The legacy Stacks track (interpreter extraction, consensus gates). Not part of this design |
 
 ## One-paragraph summary
 
-Clarity is the only production smart contract language that is *decidable*:
-every program provably terminates, so analyses that are mathematically
-impossible for EVM, Wasm, Move, or any Turing-complete VM — exact worst-case
-cost bounds, complete static analysis, tractable safety proofs — are possible
-for Clarity. Today those properties are largely unexploited, the language is
-tangled into stacks-core, and its behavior is defined by accumulated epoch
-gating rather than a specification. This effort (1) extracts Clarity into
-independent crates built around a stable kernel, (2) freezes each language
-version as its own engine crate so new versions can evolve without backwards
-compatibility constraints, (3) writes a real specification for the next
-language version, and (4) builds the toolchain — starting with a static cost
-analyzer and proof-friendly semantics — that turns decidability from a talking
-point into a product.
+The new chain executes Wasm modules, meters them in fuel, and enforces a set
+of runtime guarantees for every module regardless of source language
+([03-architecture.md](03-architecture.md) section 5). Wasm cannot give the guarantees that made
+Clarity worth having, because Wasm is Turing-complete: fuel makes execution
+*stop*, but it does not make the worst case *known in advance*. Clarity adds
+that. Every Clarity program terminates by construction, and every loop and
+value is bounded by its type, so a contract's worst-case cost is computable
+before it runs, whole-program analysis is complete, and safety proofs are
+tractable. This effort (1) specifies Clarity spec-first as a small core
+language plus a standard library written in it, (2) builds a deterministic
+compiler to Wasm held to the spec by a conformance suite, (3) defines, with
+the chain, an ABI that every source language shares, and (4) builds the
+toolchain that turns decidability into products: source verification, a
+static cost analyzer, and a property checker.
+
+Clarity 1–6 contracts on the existing chain keep running on the interpreter,
+and the interpreter and the Wasm engine can call each other. That
+arrangement is outside the scope of these documents.

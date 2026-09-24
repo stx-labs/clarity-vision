@@ -1,236 +1,221 @@
-# Architecture: Kernel + Frozen Engine Crates
+# Architecture: Clarity on a Wasm Chain
 
-This document describes the target architecture ("Model B"): a stable kernel
-crate, one frozen engine crate per language version, and a host-side
-dispatcher. It also describes the pragmatic path from today's single
-epoch-gated crate to that architecture.
+This document describes how Clarity source becomes code running on the new
+chain, what the chain guarantees for every module, and where the compiler
+sits in the trust path.
 
-## 1. The constraint that shapes everything
+## 1. Shape
 
-Contracts live forever. A Clarity 1 contract deployed in 2021 must be
-executable at every future epoch, and **a single transaction can traverse
-contracts of different language versions in one call stack** (a new contract
-`contract-call?`s an old one, or vice versa). Therefore:
-
-- Every validating node must link an engine for *every* language version that
-  has ever existed. Engines are never removed, only frozen.
-- Cross-version calls cross crate boundaries **mid-transaction**, sharing
-  database state, cost budget, asset tracking, and events. That shared
-  machinery must live in a crate all engines agree on: the **kernel**.
-- The kernel's types and stored data formats are consensus-critical and shared
-  across all engine crates simultaneously, so the kernel must be **eternally
-  additive-only** (`1.x` forever). This is the single most important semver
-  rule in the design.
-
-## 2. Crate layout
+There are three parts, and only the middle one is shared between languages:
 
 ```
-clarity-kernel        eternally stable; additive-only 1.x forever
-├── values & types    Value, TypeSignature, principals, sequences
-├── serialization     consensus wire format (SIP-005), stored analysis
-│                     metadata, database key/value layout
-├── database          ClarityDatabase, rollback wrapper, backing-store trait
-├── costs             cost & memory accounting (ExecutionCost, trackers,
-│                     limits) — shared budget across engines in one tx
-├── events/assets     event batches, asset maps (post-condition inputs)
-├── host interface    what a chain must provide: block info, burn info,
-│                     tx sender context, special-contract hooks
-└── interop ABI       Engine trait + TransactionContext trait: the
-                      cross-version call boundary
-
-clarity-legacy        Clarity 1–6: today's clarity crate, wrapped to
-                      implement the kernel Engine trait. Behavior frozen;
-                      implementation-defined semantics; consensus-fix
-                      patches only. Epoch gating stays inside, untouched.
-
-clarity-vNEXT         the first spec-first engine (working name; likely
-                      "Clarity 7" in the version enum). Clean-room
-                      implementation from the spec. Frozen at release.
-
-clarity-vNEXT+1, ...  each subsequent language version: its own crate,
-                      designed against the spec of its version, frozen at
-                      release. No obligation to resemble its predecessor.
-
-(host side, in stackslib)
-clarity-dispatch      epoch → engine-set manifest; routes each contract to
-                      the engine for its declared version; implements the
-                      host interface over Stacks chainstate; owns boot
-                      contracts, PoX hooks, cost contract selection.
+ Clarity toolchain (off chain)        Chain ABI (spec)           Chain runtime (on chain)
+ ─────────────────────────────        ────────────────           ────────────────────────
+ source ─► parse ─► check ─►          module format              validate module at deploy
+ expand/instantiate ─► lower ─►       interface metadata         store module + interface
+ link prelude ─► Wasm module  ──────► value encoding  ─────────► execute with fuel
+                                      host functions             enforce runtime guarantees
+                                      call semantics             dispatch contract calls
+                                      fuel schedule
 ```
 
-Supporting crates: `clarity-primitives` (hashes, c32/principal encoding,
-secp256k1/r1 verification — the pieces currently pulled from `stacks-common`)
-either stands alone or folds into the kernel.
+- The **toolchain** is Clarity-specific and runs off chain. The chain never
+  sees Clarity source.
+- The **chain ABI** is the contract between any compiler and the chain. It
+  is specified jointly with the chain and shared by every source language.
+- The **chain runtime** executes Wasm and enforces the guarantees in
+  section 5 for every module.
 
-## 3. The interop boundary
+## 2. The Clarity toolchain
 
-The kernel defines two traits; engines see the world only through them.
+Illustrative crate layout; names are placeholders.
 
-```rust
-/// Implemented by every engine crate. Object-safe; kernel types only.
-pub trait Engine {
-    fn language_version(&self) -> LanguageVersion;
-
-    /// Parse + type-check + analyze. Produces the stored contract
-    /// interface (kernel-stable format) that other engines read when
-    /// type-checking calls into this contract.
-    fn analyze(
-        &self,
-        contract: &ContractIdentifier,
-        source: &str,
-        ctx: &mut dyn AnalysisContext,
-    ) -> Result<ContractAnalysis, EngineError>;
-
-    /// Deploy: evaluate top-level forms, persist metadata.
-    fn initialize(
-        &self,
-        contract: &ContractIdentifier,
-        source: &str,
-        tx: &mut dyn TransactionContext,
-    ) -> Result<(), EngineError>;
-
-    /// Execute one public/read-only function call.
-    fn call(
-        &self,
-        contract: &ContractIdentifier,
-        function: &str,
-        args: &[Value],
-        tx: &mut dyn TransactionContext,
-    ) -> Result<Value, EngineError>;
-}
-
-/// Handed to an engine for the duration of one call frame. Carries all
-/// transaction-scoped shared state.
-pub trait TransactionContext {
-    fn db(&mut self) -> &mut ClarityDatabase;          // shared rollback tx
-    fn costs(&mut self) -> &mut dyn CostTracker;       // shared budget
-    fn assets(&mut self) -> &mut AssetMap;             // post-condition data
-    fn emit(&mut self, event: ClarityEvent);
-    fn caller_context(&self) -> &CallerContext;        // tx-sender, caller,
-                                                       // sponsor, call depth
-
-    /// Cross-contract call. Re-enters the dispatcher, which looks up the
-    /// callee's declared version and routes to the right engine — possibly
-    /// a different crate. Reentrancy and depth checks happen here, in the
-    /// kernel, uniformly for all versions.
-    fn call_contract(
-        &mut self,
-        contract: &ContractIdentifier,
-        function: &str,
-        args: &[Value],
-    ) -> Result<Value, EngineError>;
-}
+```
+clarity-syntax      lexer, parser, source spans
+clarity-types       type checker, overload resolution, instantiation (spec ch. 2)
+clarity-std         the prelude source (spec/std/prelude.clar) and its tests
+clarity-compiler    inline expansion, lowering to Wasm, prelude linking,
+                    interface metadata, provenance section
+clarity-analyzer    static cost bounds, asset-flow and authorization analyses
+clarity-verify      rebuilds a module from source and compares it
 ```
 
-Key properties of this boundary:
+Rules that bind every Clarity compiler:
 
-- **Values are the only data that cross.** Arguments and returns are kernel
-  `Value`s in the frozen serialization model. An engine's internal
-  representation (interpreted AST, Wasm, whatever) never leaks.
-- **Trait/interface compatibility is checked against stored metadata.** When a
-  vNEXT contract calls a Clarity 2 contract, its type checker reads the
-  callee's `ContractAnalysis` (kernel format) — it never needs the legacy
-  engine's type checker. Cross-version trait semantics are specified at the
-  kernel level.
-- **Reentrancy, call depth, and cost enforcement live in the kernel**, so no
-  engine can get them wrong and all versions agree.
-- **clar2wasm becomes an alternative `Engine` implementation** for a given
-  language version, conformance-tested against the reference engine. The
-  architecture is exactly the pluggability clar2wasm needs today.
+- **Deterministic output.** The same build inputs produce a byte-identical
+  module on every platform. No timestamps, paths, hash-map iteration order,
+  or host-dependent floating point in the output.
+- **Build inputs are explicit.** Compilation is not a function of source
+  alone. Type-checking a `contract-call?` with a literal target reads the
+  callee's deployed interface (spec 2.5.8), and the singleton-contract
+  subtyping rule reads it too (spec 2.3.2). The inputs are therefore the
+  source, the compiler version, the interface of every contract referenced
+  by literal, and the deploying principal if deployer-relative `.name`
+  references are resolved at compile time (open question 7). Deployed
+  interfaces never change, so recording which ones were used is enough to
+  reproduce the build.
+- **Provenance.** Each module carries a custom section with the compiler
+  identifier and version, the language version, a hash of the source, and
+  the hash of each callee interface the build read, keyed by contract
+  principal. `clarity-verify` fetches those interfaces from the chain and
+  checks the hashes before rebuilding.
+- **The prelude is linked into each module.** Only the library instances a
+  contract uses are included, compiled like user code. Consequence: a faster
+  library implementation ships in a new compiler release. Contracts already
+  deployed keep the code they were deployed with, so no deployed contract's
+  cost changes under it and no chain upgrade is needed.
+- **A new language version is a compiler release.** It needs the chain only
+  when it depends on a new host function or ABI feature.
 
-## 4. Epoch pinning
+## 3. The module format
 
-Each stacks-core epoch pins a **manifest** that maps every contract language
-version to an exact engine revision. Selection uses the epoch of the block
-currently being executed — not the contract's deployment epoch:
+A deployed contract is one Wasm module plus its interface:
 
-```toml
-# conceptual — the dispatcher encodes this mapping
-[epoch.3_2]
-clarity.1-through-4 = "clarity-legacy@7"
+- **Exports**: one function per public and read-only function, and an
+  initializer the chain runs once at deploy (Clarity's top-level
+  expressions and `define-constant` / `define-data-var` initializers).
+- **Imports**: host functions only (section 4). A module that imports
+  anything else is rejected.
+- **Interface metadata** (a custom section, validated by the chain): each
+  exported function's name, parameter and result types in ABI types, and
+  read-only mark; the traits the contract defines and claims to implement;
+  its token definitions. This is what other contracts compile and dispatch
+  against.
+- **Provenance** (section 2).
 
-[epoch.4_0]
-clarity.1-through-6 = "clarity-legacy@8" # epoch-4.0 fixes to old contracts
-clarity.7           = "clarity-v7@1"
-```
+At deploy the chain checks that the module is valid Wasm within size limits,
+imports only host functions, exports exactly the functions its interface
+declares with matching Wasm signatures, and that every implemented-trait
+claim holds against the interface. It then runs the initializer.
 
-This is a two-dimensional lookup — `(current epoch, contract Clarity
-version) -> engine revision` — but not a crate for every cell. Epochs reuse
-the same engine revision until that engine's behavior actually changes. A
-future epoch that changes only Clarity 7 selects `clarity-v7@2` while
-continuing to select the same legacy revision; an epoch with no relevant
-semantic change reuses the whole preceding manifest.
+### Values across calls
 
-- Cargo links multiple **majors** of the same package under renamed
-  identifiers (`clarity_legacy_e32 = { package = "clarity-legacy",
-  version = "7" }`), so historical replay uses the exact code that was
-  consensus at that epoch. Cargo unifies semver-compatible versions, so
-  **consensus fixes to a frozen engine are always major bumps** — honest
-  semver, since consensus changes are maximally breaking. Patch/minor
-  releases are reserved for provably non-consensus changes (docs,
-  diagnostics, performance). "Frozen" means *no semantic drift within an
-  epoch*, not "never patched."
-- The current epoch, rather than deployment epoch, is required for historical
-  epoch gates that intentionally changed already-deployed contracts. For
-  example, pre-3.4 Clarity 1–4 contracts contain `at-block`, but calls made at
-  epoch 3.4 and later must use the post-3.4 legacy revision where it is
-  unavailable; replaying their earlier calls selects the earlier revision.
-- **The kernel is singly linked and cannot be pinned per epoch**: its types
-  are the ABI, and two kernel copies would mean two incompatible `Value`s.
-  Every engine major compiles against the same additive-only
-  `clarity-kernel 1.x`. The corollary: rare consensus-relevant kernel
-  changes (database semantics, serialization edge cases, cost accounting
-  mechanics) are gated internally by a kernel-owned ruleset id mapped from
-  epochs by the host — the one place runtime gating legitimately survives,
-  kept small by keeping the kernel's consensus surface small.
+Values cross a contract call in the ABI's canonical encoding (the value model
+and wire format, formalizing SIP-005). The chain **decodes and validates
+every argument against the callee's declared parameter types, and every
+result against the declared result type**, before the other side sees it.
+For a trait-typed parameter, the chain checks that the principal's interface
+implements the trait.
 
-Costs of this model, accepted deliberately: binary size and compile time grow
-with each language version and consensus fix (engine copies are single-digit
-MB of release code each, compiled once and cached; expect a new engine every
-1–2 years, not every release — see the sizing analysis in
-[06-extraction-plan.md](06-extraction-plan.md)). Every validating node
-carries the current major of every engine forever (unavoidable — old
-contracts are callable at the current epoch); *superseded* majors are needed
-only for historical replay and can be feature-gated out of non-archival
-builds.
+The chain cannot trust any caller's compiler, so this validation is what lets
+a Clarity contract rely on its own types when it is called from a module
+written in another language.
 
-## 5. Migration path from today's code
+## 4. The host interface
 
-Today: one `clarity` crate ([clarity/](../../clarity/)) with ~589 runtime
-epoch branches, depending on `stacks-common`; `clarity-types` already split
-out; DB traits (`HeadersDB`, `BurnStateDB` in
-[clarity_db.rs](../../clarity/src/vm/database/clarity_db.rs)) shaped around
-Stacks chainstate; boot contracts and cost contracts in stackslib;
-`pox-locking` injecting special-case handlers.
+Everything a module can do beyond pure computation goes through host
+functions. The Clarity primitives in [spec/03-primitives.md](spec/03-primitives.md)
+that pass the layering rule's host-access test map onto them.
 
-Order of operations (details and sizing in [05-roadmap.md](05-roadmap.md)):
-
-1. **Carve out the kernel in place.** Inside the existing workspace, move
-   values/serialization/database/costs/events into `clarity-kernel` (growing
-   from today's `clarity-types`). The existing VM keeps working against it.
-   Replay-validated at every step.
-2. **Cut the stacks-core dependencies.** Extract needed primitives from
-   `stacks-common`; replace `StacksEpochId` inside the VM with a
-   kernel-owned ruleset identifier (the host maps epochs to rulesets);
-   replace `HeadersDB`/`BurnStateDB` with the minimal specified host
-   interface; make the pox-locking hook a generic registration API.
-3. **Wrap the legacy engine.** Implement `Engine` for the current VM
-   (versions 1–6), build the dispatcher in stackslib, route all execution
-   through the kernel boundary. At this point behavior is still identical —
-   the boundary is load-bearing but the code behind it is unchanged.
-4. **Extract to a separate repo and publish.** Kernel + legacy engine move
-   out; stacks-core, clar2wasm, and Clarinet consume from crates.io. The
-   legacy engine is declared frozen.
-5. **Build vNEXT from the spec** as the first true per-version engine crate,
-   activated by a future epoch through the manifest.
-
-## 6. Risks
-
-| Risk | Mitigation |
+| Group | Host functions |
 |---|---|
-| Kernel ABI turns out to be wrong after freezing | Kernel is additive-only, so mistakes are permanent surface area. Mitigate by validating the ABI with *two* real engines (legacy + vNEXT) and one alternative backend (clar2wasm) before declaring 1.0 |
-| Consensus drift during extraction | Full-history mainnet replay in CI on every step; conformance vectors captured from mainnet transactions; no step ships without bit-identical replay |
-| Dispatcher/kernel overhead on the hot path | The cross-engine boundary replaces existing dynamic dispatch that is already present (`contract-call?` machinery); benchmark against the existing criterion suites before/after |
-| Binary size / compile time growth | One new engine per language version (rare); engines compile once; measure and, if needed, split archival-replay pins behind a feature for non-archival tooling (validators always carry all engines) |
-| Downstream churn (Clarinet, clar2wasm, API) | They gain a published crate with semver instead of git-pinning stacks-core; coordinate before the repo split, not after |
-| Kernel hosts two type worlds (legacy quirks vs. vNEXT cleanups) | The kernel models *values and storage*, not each version's static type system; engines own their type checkers. Only the value model and stored interface format are shared |
+| Storage | data-var get/set, map get/set/delete, keyed by the calling contract |
+| Assets | fungible and non-fungible token mint/burn/transfer/balance/owner/supply, STX transfer/burn/account; every movement recorded in the transaction's asset map |
+| Context | tx-sender, contract-caller, sponsor, current contract, block heights and time, chain id, network flags, liquid supply |
+| Chain data | Stacks block, tenure, and burn block lookups; Bitcoin transaction output parsing. All total: they return `none` rather than fail |
+| Calls | contract-call by principal and function name, with argument and result validation (section 3) |
+| Frames | `as-contract?` and `restrict-assets?` frames: context switch, nested rollback, allowance checks |
+| Events | print and asset events |
+| Cryptography | signature schemes (secp256k1 recover/verify/decompress, secp256r1, ed25519); hashes if they are not compiled (open question 3) |
+
+Each host function has a fuel charge, and storage operations are also charged
+in read/write count and length dimensions. The charge table is part of the
+chain ABI.
+
+## 5. Where each guarantee lives
+
+| Guarantee | Enforced by | Holds for |
+|---|---|---|
+| Execution stops within the fuel budget | Chain (fuel metering) | Every module |
+| No reentrancy; bounded call depth | Chain (call dispatch) | Every module |
+| No writes inside a read-only call | Chain (host functions reject writes in a read-only frame) | Every module |
+| A public call that returns `err` has its state changes discarded | Chain (frame commit/discard on the result) | Every module |
+| Values at call boundaries match the declared interface | Chain (section 3) | Every call |
+| Post-conditions; `as-contract?` / `restrict-assets?` allowances | Chain (asset map, frames) | Every module |
+| Termination by construction; worst-case fuel of the module's own code computable in advance | Clarity language, preserved by the compiler | Clarity modules |
+| Worst-case fuel of a whole call graph computable in advance | Static cost analyzer over verified source | Call graphs whose every callee is verified Clarity, reached by literal target. A trait call or a call into another language is bounded only by the remaining budget, and the analyzer reports it as such |
+| Complete static analysis; tractable proofs | Clarity language | Clarity modules with verified source |
+| No undefined behavior; responses must be handled | Clarity type checker and compiler | Clarity modules |
+
+The first six rows are why a Clarity contract can call a module from another
+language safely. The last four are what Clarity adds over any other
+language on the chain.
+
+## 6. The trust path
+
+The compiler is in the trust path: a compiler bug can make the deployed code
+differ from the audited source. The defenses:
+
+1. **Spec and conformance suite.** A correct compiler is defined by the spec,
+   not by an implementation. Every compiler release passes the suite.
+2. **Differential testing and fuzzing** of the compiler against a direct
+   evaluator of the spec's semantics, used only as a test oracle.
+3. **Reproducible builds and source verification.** `clarity-verify`
+   rebuilds a module from its claimed source and compiler version and
+   compares bytes. Wallets and explorers show whether a module's source is
+   verified.
+4. **Analyses attach to the triple.** A cost bound or proof is stated for a
+   (source hash, compiler version, module hash) triple and is meaningful for
+   a deployed module only when that triple verifies.
+
+## 7. Legacy contracts
+
+Clarity 1–6 contracts keep running on the interpreter, and the interpreter
+and the Wasm engine can call each other. How that works is a chain concern
+outside the scope of these documents; see [archive/](archive/) for the
+legacy track.
+
+It is out of scope, not unimportant. Tokens, PoX, and sBTC are legacy
+contracts, and a new contract that cannot call them has no ecosystem. The
+chain owns the mapping from a legacy contract's analysis to an ABI
+interface, and the mapping is not one to one. Known mismatches the chain
+must decide, with input from the language:
+
+- **Tuples.** Legacy admission lets a tuple with extra fields pass where a
+  smaller one is declared, so a legacy function can return a value with
+  fields its interface does not name. vNEXT requires exact field sets
+  (spec 2.3.2). Boundary validation must either strip extra fields on the
+  way out of legacy code or reject them.
+- **List union types and trait values.** Legacy lists may carry a union of
+  trait types and contract literals, and legacy trait values carry static
+  type information at runtime. The ABI value model has neither; a trait
+  value is a principal (spec 2.7.1).
+- **Read-only marks.** A vNEXT read-only function may call a legacy
+  function only if the legacy interface marks it read-only, so the mapping
+  must carry that mark.
+- **Error-code and field-name conventions** (`error_code`, `stx-transfer-memo?`)
+  are the legacy contract's and are not translated.
+
+## 8. Open questions
+
+1. **Library linking.** Static linking (above) keeps the chain free of
+   Clarity-specific code and freezes each contract's costs at deploy. The
+   alternative is a chain-provided library module shared by all Clarity
+   contracts: smaller modules, but the chain then carries Clarity code, and
+   replacing it changes the cost of every deployed contract. Draft position:
+   static linking.
+2. **Allowance checking.** The host must provide frames and rollback. The
+   allowance comparison itself could be host code (uniform for all
+   languages) or compiled code over a host-provided movement log. Draft
+   position: host, so the guarantee holds for every module.
+3. **Hashes: host or compiled.** Signature schemes are host functions.
+   Hashes could be either; the choice is a fuel-schedule benchmark, not a
+   language question. The language is unaffected either way.
+4. **Bound certificates.** The static cost analyzer needs the loop bounds
+   the source types guarantee. A compiler could emit them into a custom
+   section that a checker validates against the module, letting bounds be
+   checked without the source. Decide whether this belongs in the ABI.
+5. **Fuel schedule changes.** Changing the chain's fuel schedule re-prices
+   every deployed module. Cost bounds must be stated per fuel-schedule
+   version, and the schedule should change rarely.
+6. **Source publication.** The chain executes Wasm only. Source could be
+   stored on chain as unexecuted data next to the module, or kept in an
+   off-chain registry keyed by the provenance hash. Draft position:
+   off-chain registry.
+7. **Deployer-relative names.** A `.name` reference can be resolved at
+   compile time, which makes the deploying principal a build input and the
+   module deployer-specific, or left symbolic in the module for the chain
+   to resolve at deploy, which puts a relocation step in the ABI. Draft
+   position: compile time, since the deployer is known whenever a module is
+   built or verified and the chain stays free of Clarity-specific
+   resolution.
