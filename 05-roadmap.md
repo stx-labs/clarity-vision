@@ -105,15 +105,17 @@ Phase 2 but its bounds cannot be stated until ABI v0 fixes the schedule.
    Vectors are written with each chapter, and the compiler implements the
    spec, never the reverse silently.
 4. **Static bounds lost in compilation**: if the lowering obscures loop
-   bounds, the analyzer cannot prove them from the module. Chapter 6 must
-   carry the preservation argument, and bound certificates (architecture
-   open question 4) are the fallback.
+   bounds, the analyzer cannot prove them from the module. The analyzer
+   therefore works from verified source, and chapter 6 must carry the
+   preservation argument that the module stays within the bound its source
+   implies.
 5. **Justification pressure**: if Phase 5 slips indefinitely, "just use Rust
    on the Wasm chain" wins by default. Treat the static cost analyzer as a
    headline deliverable with the same priority as the compiler.
-6. **Fuel schedule churn**: every schedule change re-prices deployed
-   contracts and invalidates published bounds. Agree with the chain team on
-   a schedule versioning policy before launch.
+6. **Fuel schedule churn**: schedule changes happen at epoch boundaries and
+   re-price every deployed contract, so a published bound holds only for the
+   schedule version it names. Agree with the chain team on how often the
+   schedule may change before launch.
 7. **Bounds stop at foreign code**: a `contract-call?` through a trait, or
    into a module from another language, has no static bound, and most real
    contracts make such calls. If the analyzer can only bound leaf contracts,

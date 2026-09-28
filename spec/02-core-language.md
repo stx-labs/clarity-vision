@@ -43,7 +43,9 @@ vNEXT source is a sequence of S-expressions.
   `.name`; trait identifiers `'SP....contract.trait`, `.contract.trait`, or
   a bare local trait `name` where a trait identifier is expected. A contract
   name is 1 to 40 characters, starts with an ASCII letter, and continues with
-  letters, digits, `-`, or `_`. There are no reserved or special-cased
+  letters, digits, `-`, or `_`. The same limit applies wherever a contract
+  name appears, including `principal-construct?`, `principal-destruct?`,
+  and `principal-to-ascii` (3.5). There are no reserved or special-cased
   contract names (legacy admitted `__transient`).
 - **Tuple literal syntax**: `{ name: expr, ... }`. This is the only tuple
   constructor syntax.
@@ -92,8 +94,25 @@ four **sequence types**. Their **element types** are `(buff 1)`,
 `(string-ascii 1)`, `(string-utf8 1)`, and `T` respectively.
 
 Every type has a statically known maximum serialized size (defined in the
-chain ABI's wire format), and that size MUST NOT exceed the value size
-limit (2.8). Type nesting depth MUST NOT exceed the type depth limit.
+chain ABI's wire format). Two limits (2.8) apply to it, depending on where
+the type occurs:
+
+- The **value size limit** applies to the type of every name (a `let` or
+  `match` binding, or a parameter of a function that is not inline), every
+  function result, every type written in source, and every value written
+  to storage, emitted in an event, or passed to `contract-call?`.
+- The **intermediate size limit** applies to the type of every other
+  expression: a primitive's argument, a list or tuple under construction,
+  or an inline function's argument before it is bound. Inline arguments are
+  checked after expansion, at the position where they land.
+
+A type that exceeds the limit for its position is a type error. So no
+value larger than the value size limit can be bound, returned, or stored,
+and a value that lives only during the evaluation of one expression is
+bounded by the intermediate limit. `replace-at?`'s
+`(concat (concat prefix (list item)) suffix)` has bound `2N + 1` before
+`as-max-len?` brings it back to `N`, which fits the intermediate limit
+even when `N` is near the value limit. Type nesting depth MUST NOT exceed the type depth limit.
 
 ### 2.3.2 Subtyping
 
@@ -131,6 +150,27 @@ A type is **storable** if it contains no `never`, no trait type, and no type
 or size variable. Only storable types may appear in `define-data-var`,
 `define-map`, `define-non-fungible-token`, and in `from-consensus-buff?`.
 
+Excluding trait types keeps every call target traceable to the transaction:
+a trait-typed value can only come from a contract literal or a public
+function's argument, so the contracts a transaction can reach are named in
+its payload or in the code, never in chain state. A registry therefore
+stores principals and has the caller name the target:
+
+```
+(define-map extensions uint principal)
+
+(define-public (run (id uint) (ext (trait extension)))
+  (begin
+    (asserts! (is-eq (map-get? extensions id) (some ext)) (err u1))
+    (contract-call? ext execute)))
+```
+
+`(trait extension) <: principal` (2.3.2), so the comparison needs no
+conversion. The restriction is not needed for termination or cost bounds (a
+call through a trait parameter already has a statically unknown callee). It
+is kept because lifting it later is backward compatible and restoring it
+would not be.
+
 A type is an **interface type** if it contains no `never` and no type or size
 variable. Trait types are allowed. Only interface types may appear in the
 parameter and result types of public and read-only functions and in trait
@@ -150,7 +190,7 @@ Type and size variables may appear only in `define-private` and
 definitions, and constants are monomorphic.
 
 > [!NOTE]
-> Size arithmetic (`N + M`, `N + 1`) appears only in primitive signatures in
+> Size arithmetic (`N + M`, `N + 1`, `K × M`) appears only in primitive signatures in
 > [03-primitives.md](03-primitives.md). Contract authors never write it,
 > because function result types are inferred, not declared.
 
@@ -187,8 +227,10 @@ definition of the matching kind in the current contract, or a parameter of
 the same kind in the enclosing function. References are resolved at
 instantiation time (2.6.2) and have no runtime representation.
 
-Reference kinds may appear only in `define-private` and `define-inline`
-parameters. `(function ...)` arguments may name any function defined in the
+Reference kinds let one helper serve every map (or variable, or token) of a
+given shape; each distinct reference is its own instance, so which storage a
+function touches stays statically known. Reference kinds may appear only in
+`define-private` and `define-inline` parameters. `(function ...)` arguments may name any function defined in the
 current contract or the prelude except inline functions, or any primitive
 that is not a special form.
 
@@ -298,6 +340,12 @@ names of top-level definitions, prelude definitions, and nullary
 primitives. Every name therefore has exactly one meaning at each point in
 the program, and the type checker and the evaluator cannot disagree about
 which one applies.
+
+Legacy is equally strict about locals, top-level definitions, and builtin
+names. Legacy source that uses a name reserved only in vNEXT (such as
+`max`, `min`, `abs`, `map-contains?`, `fold-left`, or `as`) as a local must
+rename it when ported. The reserved names are fixed per language version,
+because the prelude is part of the language version (chapter 4).
 
 `(begin expr ...)` is sugar for `(let () expr ...)`.
 
@@ -458,6 +506,20 @@ The other allowances' arguments are ordinary expressions evaluated before
 the body. The number of allowances
 is bounded (2.8).
 
+### 2.5.10 Type ascription
+
+```
+(as type expr)
+```
+
+`type` is a type expression (2.3.1), and may use the type and size
+variables in scope. `expr`'s type MUST be a subtype of `type` (2.3.2); the
+form has type `type` and evaluates to the value of `expr`. `as` only widens:
+it never narrows, converts, or checks anything at runtime. It exists to give
+an initial value the type a fold needs (2.6.2), and to give a type error a
+place to point: `(as (list 10 uint) (list))`, `(as (optional principal)
+none)`, `(as (string-ascii N) "")`.
+
 ## 2.6 Functions
 
 ### 2.6.1 Visibility
@@ -477,7 +539,9 @@ internally behave like private functions.
 
 Let a call be `(f a1 ... an)`, and let the candidate definitions of `f` be
 those that accept `n` arguments: exactly `n` parameters, or, for a
-rest-parameter definition, fewer than `n` fixed parameters (2.6.5). For a candidate with parameter types
+rest-parameter definition, fewer than `n` fixed parameters (2.6.5). A call
+whose last argument is a spread `e...` is accepted only by rest-parameter
+definitions with exactly `n - 1` fixed parameters. For a candidate with parameter types
 `P1 ... Pn` (which may contain type variables, size variables, and reference
 kinds) and free variables `X`, an **instantiation** is a substitution `σ`
 over `X` such that:
@@ -506,23 +570,52 @@ both. The prelude relies on this: `(fold-left std-prepend-byte 0x bytes)`
 starts from `(buff 0)` and settles at `(buff 16)`, and `index-of?` starts
 from `none` and settles at `(optional uint)`. Every type in the language
 has finitely many supertypes below the size limit, so the iteration
-terminates. A compiler MAY instead require the initial value to already
-have the closed type when the fixpoint is not reached in a bounded number
-of steps; see open question 14.
+terminates, but a step function that grows its accumulator would take as
+many steps as the size limit allows before failing. The iteration is
+therefore capped: starting from `A0`, the initial value's type, each step
+computes `A(i+1) = lub(A(i), R(A(i)))`, where `R` is the named function's
+result type, and if `A(i+1) = A(i)` is not reached within the fixpoint
+step limit (2.8), the candidate does not admit the call. Every prelude fold
+closes in two steps. A fold that needs a wider starting type states it with
+`as` (2.5.10): `(fold-left f (as (list 10 uint) (list)) xs)`.
 
 Overload resolution: exactly one candidate MUST admit the call. Zero is a
 type error; more than one is an ambiguity error. Overloading is by arity and
-by parameter types; there is no ranking.
+by parameter types; there is no ranking. Because `never <: T` for every `T`,
+an argument of type `never` is admitted by every candidate, so
+`(unwrap! (panic) e)` is an ambiguity error; the call could not complete
+anyway.
 
 The result type of the call is the candidate's inferred result type under
 `σ`, with size arithmetic in primitive signatures evaluated on the concrete
-sizes. A resulting size that exceeds the value size limit is a type error.
+sizes. A resulting size that exceeds the limit for the call's position
+(2.3.1) is a type error.
 
 Each distinct `(candidate, σ, reference arguments)` triple is a distinct
 **instance**. Instances are what the compiler and the definition graph
 (2.4.3) operate on. Instance bodies are type-checked with the concrete
 substitution applied ("template" semantics): a generic body that is never
 instantiated is parsed and scope-checked but not type-checked.
+
+A type error found while checking an instance body is reported at the call
+site that created the instance. The report MUST name the called definition
+and the instantiation (for example, `max` at `bool`), and MAY include the
+location inside the body as secondary information. When the instance was
+created from inside another instance body, the report MUST include the chain
+of call sites back to the user's code.
+
+Template semantics give functions over "any tuple with these fields" without
+a separate construct:
+
+```
+(define-private (credit (acct T) (amt uint))
+  (merge acct { balance: (+ (get balance acct) amt) }))
+```
+
+`credit` admits any tuple with a `uint` field `balance` and returns a tuple
+of the same shape. Each tuple shape is its own instance, so no value carries
+fields its static type lacks (2.3.2). A call with a tuple that has no
+`balance` field is reported as `credit` at that tuple type, at the call site.
 
 ### 2.6.3 Inline functions
 
@@ -540,8 +633,11 @@ An inline function is expanded at each call site:
    `contract-caller`, and the order in which arguments are evaluated is the
    order of their references in the body, not their order at the call site.
    Prelude inline functions reference their parameters outside any such
-   frame, and the library documents each place where laziness changes legacy
-   behavior (`default-to`, `map-insert`).
+   frame. Prelude functions whose names read as ordinary calls
+   (`default-to`, `map-insert`) are private, so their arguments are
+   evaluated eagerly as in legacy; laziness is confined to control-flow
+   forms, and the library documents each place where it changes legacy
+   behavior (`unwrap!`, `unwrap-err!`).
 3. Names bound inside the body (`let`, `match`) are fresh and cannot capture
    names in argument expressions. Free names in the body resolve in the
    defining contract's top-level scope.
@@ -555,6 +651,39 @@ have no evaluation and may be referenced any number of times.
 
 Inline functions cannot be passed as `(function ...)` arguments. Inline
 expansion is finite because the definition graph is acyclic (2.4.3).
+
+> [!NOTE]
+> **When to use `define-inline`.** An inline function is the only way to
+> write a helper that returns from its caller or evaluates an argument only
+> on some paths. Use it for exactly those two cases, and use
+> `define-private` for everything else. For example, a helper that
+> replaces an error code and exits in one step cannot be private:
+>
+> ```
+> (define-inline (try-with! (value (response T E)) (code F))
+>   (match value
+>     ((ok inner) inner)
+>     ((err ignored) (return (err code)))))
+>
+> (define-public (withdraw (amount uint))
+>   (let ((balance (try-with! (get-balance tx-sender) ERR-NO-ACCOUNT)))
+>     ...))
+> ```
+>
+> A private function is the better default because it behaves like every
+> other call: each argument is evaluated exactly once, left to right, before
+> the body runs. It can be passed to `map`, `filter`, and the folds. It is
+> compiled once per instance instead of once per call site. Its body may use
+> a parameter any number of times.
+>
+> An inline function gives those up. At a call site, an argument whose
+> parameter is not used on the path taken is never evaluated, so its side
+> effects (a `contract-call?`, a `var-set`, an abort) do not happen.
+> Arguments are evaluated in the order the body uses them, not the order
+> they are written. An argument used inside an `as-contract?` or
+> `restrict-assets?` form in the body sees that frame's `tx-sender`. A
+> function whose name reads as an ordinary call should not be inline unless
+> its documentation states which arguments may go unevaluated.
 
 ### 2.6.4 Result type inference
 
@@ -598,12 +727,27 @@ simply the call with one rest argument:
 `fold-left` passes the accumulator first (3.3), so this pattern is the left
 fold of the helper whether or not the helper is commutative.
 
-The rewrite goes one way only. An argument that is already a list is not
-spread: in `(max a xs)` with `xs : (list 5 int)`, `xs` is a single rest
-argument, so `right : (list 1 (list 5 int))` and the body fails to
-type-check. To apply a rest function's operation to an existing list, fold
-its helper directly: `(fold-left std-max-pair a xs)`. There is no spread
-syntax, so each call has one spelling.
+An argument that is already a list is not spread implicitly: in
+`(max a xs)` with `xs : (list 5 int)`, `xs` is a single rest argument, so
+`right : (list 1 (list 5 int))` and the body fails to type-check. To pass an
+existing list as the rest parameter, **spread** it by writing `...` after
+the argument:
+
+```
+(max a xs...)                              ;; right is xs
+(concat "0x" (map std-hex-byte bytes)...)  ;; one string from many
+```
+
+A spread argument `e...` with `e : (list N T)` MUST be the only argument in
+the rest position: the call supplies the fixed parameters and then `e...`,
+with no other rest arguments. The rest parameter is the value of `e`, typed
+`(list N T)`, and the instance binds `N` to that bound. `e` is evaluated
+once, in its position, like any other argument. Unlike a call without a
+spread, the rest list's runtime length may be less than `N`, including zero,
+so `(max a (list)...)` is `a`. Only a rest parameter admits a spread
+argument: a definition with a fixed parameter in that position does not
+accept the call. Spread is not available for special forms (`and`, `or`,
+`let`, `match`).
 
 Rules:
 
@@ -624,9 +768,10 @@ Rules:
   as a list before the body runs, which would silently make an inline
   function strict in those arguments.
 - **Primitives** whose chapter 3 signature ends in `I...` or `S...` follow
-  the same rules. Their result type may be tighter than a user definition
-  could state; `concat`'s bound, for example, is the exact sum of its
-  arguments' bounds.
+  the same rules, including spread. Their result type may be tighter than a
+  user definition could state; `concat`'s bound, for example, is the exact
+  sum of its arguments' bounds, or `N + K × M` when a `(list K S[M])` is
+  spread after a first argument of bound `N`.
 
 A compiler instantiates each call site with its own `N`, so it can compile
 the one-argument case of a rest function without building a list. The spec
@@ -669,15 +814,14 @@ language.
 
 A read-only function MUST NOT, directly or through functions in the same
 contract, execute `var-set`, `map-set`, `map-delete`, any `*-mint?`,
-`*-burn?`, or `*-transfer?` primitive, or `as-contract?` /
-`restrict-assets?`. A `contract-call?` from read-only code is permitted only
-when the callee is statically known to be read-only: a literal or static
-constant target whose interface marks the function read-only, or a trait
-target whose trait marks the function `read-only`. All of this is checked at
-compile time, so a violation is reported before deploy. The chain
-independently rejects any write attempted inside a read-only call frame,
-which is what makes the guarantee hold when read-only code calls a module
-from another language.
+`*-burn?`, or `*-transfer?` primitive. A `contract-call?` from read-only
+code is permitted only when the callee is statically known to be read-only:
+a literal or static constant target whose interface marks the function
+read-only, or a trait target whose trait marks the function `read-only`.
+All of this is checked at compile time, so a violation is reported before
+deploy. The chain independently rejects any write attempted inside a
+read-only call frame, which is what makes the guarantee hold when read-only
+code calls a module from another language.
 
 ### 2.7.5 Depth and reentrancy
 
@@ -722,85 +866,18 @@ contract source size and transaction budgets.
 | Limit | Value | Inherited from |
 |---|---|---|
 | Maximum serialized value size | 1,048,576 bytes | `MAX_VALUE_SIZE` |
+| Maximum intermediate value size (2.3.1) | 8,388,608 bytes | new, provisional; MUST stay below the chain's Wasm memory limit |
+| Fixpoint step limit for fold accumulators (2.6.2) | 8 | new, provisional |
 | Maximum type nesting depth | 32 | `MAX_TYPE_DEPTH` |
 | Maximum identifier and string literal length | 128 bytes | `MAX_STRING_LEN` |
 | Maximum call depth (functions and contract calls) | 128 | `MAX_CALL_STACK_DEPTH` |
 | Maximum allowances per `as-contract?` / `restrict-assets?` | 128 | `MAX_ALLOWANCES` |
 
-## 2.9 Open questions
-
-Each item needs a decision (or an RFC where tagged) before this chapter is
-frozen. Numbers are stable: a resolved item keeps its number and moves to
-the resolved list at the end.
-
-2. **Multi-sequence `map`.** Legacy `(map f l1 l2)` is dropped. It cannot be
-   written in the library: `fold-left` would have to carry `f` and the
-   second list, and a function reference cannot be stored in the accumulator. If it
-   is wanted it returns as a primitive family (`map2`, `map3`), or the
-   language gains a way to pass a function reference through a fold. Draft
-   position: dropped until there is demand.
-3. **`bool` as unit.** `var-set`, `map-set`, and `ft-mint?`'s `(ok true)`
-   return a `bool` that carries no information. A unit type would be cleaner
-   but touches every public-function convention in the ecosystem. Draft
-   position: keep `bool`.
-4. **Inline functions as function references.** `(filter not xs)` requires
-   `not` to be a real function, so predicates in the prelude are
-   `define-private`. The alternative is to allow references to inline
-   functions whose parameters are each used exactly once (they are trivially
-   eta-expandable). Since cost is not a language concern, the only gain is
-   uniformity. Draft position: keep predicates private; no new rule.
-5. **Template checking of generic bodies.** Bodies are checked per instance,
-   so a type error in a generic body surfaces at its call sites. Bounded
-   polymorphism (type classes) would move errors to the definition but is a
-   large addition. Draft position: template semantics. The prelude relies on
-   it: `mod`, `max`, `min`, `index-of?`, `string-to-int?`, and
-   `string-to-uint?` are single generic definitions that are only valid at
-   some instantiations, and a misuse is reported inside their bodies. Error
-   messages MUST attribute such errors to the call site.
-6. **Static reference kinds.** `(map K V)`, `(var T)`, and token references
-   as parameters exist in this draft on their own merits (helpers over maps
-   are a recurring pain point), and the prelude uses them only for
-   `map-insert`. Decide whether they stay as a user feature; if they are
-   dropped, `map-insert` becomes a primitive.
-7. **Overloading.** Exists so `unwrap!`, `try!`, and `unwrap-panic` accept
-   both `optional` and `response`. The alternative is distinct names. Draft
-   position: keep overloading; it is one rule and the forms are the most
-   used in the language.
-8. **Shadowing.** No name may be shadowed (2.5.2). Confirm this is not too
-   strict in practice, in particular for prelude names such as `max`.
-9. **`to-ascii?`** is retained as a primitive because it cannot be written
-   generically. Decide whether it earns its place.
-10. **Trait-typed values in storage** remain forbidden (as legacy). Confirm.
-11. **Expansion amplification.** Inline expansion and per-instance
-    compilation can produce a module much larger than the source, and the
-    deployer pays for module size. The prelude's inline functions are all
-    shallow (its larger definitions are private and compiled once per
-    instance), but a language-level cap on expanded size or on inline
-    nesting depth may still be wanted, so that a pathological contract is a
-    clear compile error instead of an oversized module. Decide the cap.
-12. **Intermediate size bounds.** Size arithmetic applies to intermediate
-    results, so `(concat (concat prefix (list item)) suffix)` in the
-    prelude's `replace-at?` has type bound `2N + 1` before `as-max-len?`
-    brings it back to `N`. For a sequence type near the value size limit
-    (2.8), that intermediate bound is a type error even though no runtime
-    value can exceed the limit. Options: check the limit only on bindings,
-    parameters, and results, not on intermediate expressions; or keep
-    `replace-at?` primitive. Draft position: check the limit only where a
-    value can be stored or passed.
-13. **Candidate additions from the issue tracker** are collected in
-    [05-issue-tracker.md](05-issue-tracker.md): Schnorr verification, `tx-fee`,
-    wide-integer arithmetic, and per-definition contract introspection.
-14. **Type ascription.** There is no form that states the type of an
-    expression. Subtyping makes it unnecessary almost everywhere, but folds
-    whose initial value is `none`, `0x`, `""`, or `(list)` depend on the
-    fixpoint in 2.6.2 to find the accumulator type, and a user who wants a
-    `(list 10 uint)` accumulator from `(list)` has no way to say so. A
-    small core form `(as type expr)`, typed as `type` when `expr`'s type is
-    a subtype of it, would remove the dependency and give error messages a
-    place to point. Decide whether to add it.
-
-Resolved:
-
-1. **`fold` argument order.** Legacy `fold` is replaced by `fold-left`
-   (accumulator first) and `fold-right` (3.3), so rest forms of
-   non-commutative functions fold correctly without a swap helper.
+There is no limit on the size of a contract after inline expansion and
+instantiation, which can grow exponentially (definitions that each call the
+next twice, or instantiate it at two types). The only limit is the chain's
+limit on module size. A compiler MUST report a contract whose module would
+exceed it as a compile error, and SHOULD stop expanding as soon as the
+limit is passed. A language-level cap would not make validity
+compiler-independent, since near the limit whether a contract fits already
+depends on code generation (P5).

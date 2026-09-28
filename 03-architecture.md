@@ -50,20 +50,25 @@ Rules that bind every Clarity compiler:
   callee's deployed interface (spec 2.5.8), and the singleton-contract
   subtyping rule reads it too (spec 2.3.2). The inputs are therefore the
   source, the compiler version, the interface of every contract referenced
-  by literal, and the deploying principal if deployer-relative `.name`
-  references are resolved at compile time (open question 7). Deployed
-  interfaces never change, so recording which ones were used is enough to
-  reproduce the build.
+  by literal, and the deploying principal, because deployer-relative
+  `.name` references are resolved at compile time. A module is therefore
+  specific to its deployer, and the chain has no relocation step and no
+  Clarity-specific name resolution. Deployed interfaces never change, so
+  recording which ones were used is enough to reproduce the build.
 - **Provenance.** Each module carries a custom section with the compiler
   identifier and version, the language version, a hash of the source, and
   the hash of each callee interface the build read, keyed by contract
   principal. `clarity-verify` fetches those interfaces from the chain and
   checks the hashes before rebuilding.
 - **The prelude is linked into each module.** Only the library instances a
-  contract uses are included, compiled like user code. Consequence: a faster
-  library implementation ships in a new compiler release. Contracts already
-  deployed keep the code they were deployed with, so no deployed contract's
-  cost changes under it and no chain upgrade is needed.
+  contract uses are included, compiled like user code. There is no
+  chain-provided library module, so the chain carries no Clarity code.
+  Consequence: a faster library implementation ships in a new compiler
+  release. Contracts already deployed keep the code they were deployed
+  with, and no chain upgrade is needed.
+- **Hashes are compiled, not host functions.** `sha256`, `sha512`,
+  `sha512/256`, `keccak256`, and `hash160` are Wasm compiled from their Rust
+  implementations and linked into the module like the prelude. Signature schemes stay host functions (section 4).
 - **A new language version is a compiler release.** It needs the chain only
   when it depends on a new host function or ABI feature.
 
@@ -116,11 +121,18 @@ that pass the layering rule's host-access test map onto them.
 | Calls | contract-call by principal and function name, with argument and result validation (section 3) |
 | Frames | `as-contract?` and `restrict-assets?` frames: context switch, nested rollback, allowance checks |
 | Events | print and asset events |
-| Cryptography | signature schemes (secp256k1 recover/verify/decompress, secp256r1, ed25519); hashes if they are not compiled (open question 3) |
+| Cryptography | signature schemes (secp256k1 recover/verify/decompress, secp256r1, ed25519). Hashes are compiled into the module (section 2) |
+
+The allowance comparison for `as-contract?` and `restrict-assets?` is host
+code, not compiled code over a host-provided movement log, so the guarantee
+holds for every module whatever its source language.
 
 Each host function has a fuel charge, and storage operations are also charged
-in read/write count and length dimensions. The charge table is part of the
-chain ABI.
+in read/write count and length dimensions. The fuel schedule and charge table
+are part of the chain ABI. They may change at epoch boundaries, and a change
+applies to every deployed module: a module's cost depends only on its code
+and the engine's schedule, not on its source. Cost bounds are therefore
+stated per schedule version.
 
 ## 5. Where each guarantee lives
 
@@ -150,20 +162,23 @@ differ from the audited source. The defenses:
    not by an implementation. Every compiler release passes the suite.
 2. **Differential testing and fuzzing** of the compiler against a direct
    evaluator of the spec's semantics, used only as a test oracle.
-3. **Reproducible builds and source verification.** `clarity-verify`
-   rebuilds a module from its claimed source and compiler version and
-   compares bytes. Wallets and explorers show whether a module's source is
-   verified.
+3. **Reproducible builds and source verification.** Source is published in
+   an off-chain registry keyed by the source hash in the module's provenance
+   section; the chain stores only the module. `clarity-verify` rebuilds a
+   module from its claimed source and compiler version and compares bytes.
+   Wallets and explorers show whether a module's source is verified.
 4. **Analyses attach to the triple.** A cost bound or proof is stated for a
    (source hash, compiler version, module hash) triple and is meaningful for
-   a deployed module only when that triple verifies.
+   a deployed module only when that triple verifies. A cost bound also names
+   the fuel-schedule version it was computed for (section 4). Bounds are
+   computed from verified source, not from the module: only Clarity source
+   guarantees bounded loops, so the ABI carries no bound certificates.
 
 ## 7. Legacy contracts
 
 Clarity 1–6 contracts keep running on the interpreter, and the interpreter
 and the Wasm engine can call each other. How that works is a chain concern
-outside the scope of these documents; see [archive/](archive/) for the
-legacy track.
+outside the scope of these documents.
 
 It is out of scope, not unimportant. Tokens, PoX, and sBTC are legacy
 contracts, and a new contract that cannot call them has no ecosystem. The
@@ -188,34 +203,10 @@ must decide, with input from the language:
 
 ## 8. Open questions
 
-1. **Library linking.** Static linking (above) keeps the chain free of
-   Clarity-specific code and freezes each contract's costs at deploy. The
-   alternative is a chain-provided library module shared by all Clarity
-   contracts: smaller modules, but the chain then carries Clarity code, and
-   replacing it changes the cost of every deployed contract. Draft position:
-   static linking.
-2. **Allowance checking.** The host must provide frames and rollback. The
-   allowance comparison itself could be host code (uniform for all
-   languages) or compiled code over a host-provided movement log. Draft
-   position: host, so the guarantee holds for every module.
-3. **Hashes: host or compiled.** Signature schemes are host functions.
-   Hashes could be either; the choice is a fuel-schedule benchmark, not a
-   language question. The language is unaffected either way.
-4. **Bound certificates.** The static cost analyzer needs the loop bounds
-   the source types guarantee. A compiler could emit them into a custom
-   section that a checker validates against the module, letting bounds be
-   checked without the source. Decide whether this belongs in the ABI.
-5. **Fuel schedule changes.** Changing the chain's fuel schedule re-prices
-   every deployed module. Cost bounds must be stated per fuel-schedule
-   version, and the schedule should change rarely.
-6. **Source publication.** The chain executes Wasm only. Source could be
-   stored on chain as unexecuted data next to the module, or kept in an
-   off-chain registry keyed by the provenance hash. Draft position:
-   off-chain registry.
-7. **Deployer-relative names.** A `.name` reference can be resolved at
-   compile time, which makes the deploying principal a build input and the
-   module deployer-specific, or left symbolic in the module for the chain
-   to resolve at deploy, which puts a relocation step in the ABI. Draft
-   position: compile time, since the deployer is known whenever a module is
-   built or verified and the chain stays free of Clarity-specific
-   resolution.
+1. **Wasm memory limit.** The language's intermediate value size limit
+   (spec 2.8, provisionally 8 MiB) must stay below the memory a module may
+   use, and exceeding that memory is a runtime error (spec 2.7.2). The chain
+   ABI must fix the limit, per transaction or per call frame.
+2. **Module size limit.** It is the only limit on a contract's size after
+   inline expansion and instantiation (spec 2.8), and the deploy check in
+   section 3 enforces it. The chain ABI must fix the value.

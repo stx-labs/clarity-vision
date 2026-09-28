@@ -145,7 +145,6 @@ item is a legacy behavior that vNEXT does not have.
 | `at-block` (already disabled in legacy at epoch 3.4) | Absent |
 | `bit-shift-left`/`bit-shift-right` silently reduce the shift amount modulo 128 | Shift amount of 128 or more aborts |
 | Variadic `is-eq`, `and`, `or`, `+`, ... with subtly different typing per arity | Arity is declared: a rest parameter collects extra arguments into a list, typed by the ordinary rules; `and`/`or` are core short-circuit forms; `is-eq` and comparisons are binary only |
-| `map-set`, `var-set` return a `bool` that is always `true` | Unchanged for now; see open questions |
 | Hashing an `int`/`uint` hashes an unspecified 16-byte encoding | Hash primitives accept buffers only |
 | `buff-to-int-be`/`buff-to-int-le` zero-pad a short buffer, so `0xff` is `255` but the same bytes in a 16-byte buffer are `-1` | Signed conversions sign-extend from the buffer's actual length; `(buff-to-int-be 0xff)` is `-1` |
 | Trait types written `<name>` require `use-trait` aliasing with a distinct lexical form | Trait types are ordinary type expressions `(trait id)`; aliases use `define-type` |

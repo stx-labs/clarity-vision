@@ -10,9 +10,10 @@ standard-library definition.
 
 Every primitive has a declared arity (P6). A signature whose last parameter
 is written `I...` or `S...` has a rest parameter (2.6.5): the primitive takes
-its fixed arguments plus one or more further arguments, and the result is
-the left fold of the operation over them, so `(- a b c)` is `(- (- a b) c)`
-and `(- a b)` is ordinary subtraction. Passed as a function argument, such a
+its fixed arguments plus one or more further arguments, or a single spread
+list (2.6.5), and the result is the left fold of the operation over them, so
+`(- a b c)` is `(- (- a b) c)`, `(- a b)` is ordinary subtraction, and
+`(+ 0 xs...)` is the sum of `xs`. Passed as a function argument, such a
 primitive is its two-argument operation: `(fold-left + 0 xs)`.
 
 Notation otherwise follows 2.1: uppercase letters are type or size variables; "for `I` in {...}" denotes a family with one
@@ -68,7 +69,7 @@ kind-preserving: a `concat` of two buffers is a buffer.
 | Primitive | Signature | Semantics | Runtime errors |
 |---|---|---|---|
 | `len` | `(S[N]) -> uint` | current length (code points for `string-utf8`) | |
-| `concat` | `(S[N] S[M]...) -> S[N + M1 + ... + Mk]` | concatenation, left to right; with rest arguments of bounds `M1 ... Mk`, the bound is their exact sum plus `N` | |
+| `concat` | `(S[N] S[M]...) -> S[N + M1 + ... + Mk]` | concatenation, left to right; with rest arguments of bounds `M1 ... Mk`, the bound is their exact sum plus `N`. With a spread `(list K S[M])`, the bound is `N + K × M` | |
 | `element-at?` | `(S[N] uint) -> (optional elem(S))` | element at zero-based index, or `none` if out of range | |
 | `slice?` | `(S[N] uint uint) -> (optional S[N])` | elements in `[left, right)`; `none` if `left > right` or `right > len` | |
 | `as-max-len?` | `(S[N] size) -> (optional S[M])` | the second argument is a size term `M` (literal or size variable); `(some s)` if `len(s) <= M`, else `none` | |
@@ -84,8 +85,10 @@ needs a wrapper that swaps `f`'s arguments, and a function cannot be closed
 over. Legacy `fold` (left to right, element first) is removed; it is
 `fold-left` with the callback's parameters swapped.
 
-Library, not primitive: `append`, `index-of?`, `replace-at?`. Multi-sequence
-`map` is dropped (open question in chapter 2).
+Library, not primitive: `append`, `index-of?`, `replace-at?`. Legacy
+multi-sequence `map` (`(map f l1 l2)`) is dropped. It cannot be written in
+the library, because a fold would have to carry `f` in its accumulator; if
+it is needed it can return as a primitive family (`map2`, `map3`).
 
 ## 3.4 Conversions and serialization
 
@@ -98,17 +101,16 @@ Library, not primitive: `append`, `index-of?`, `replace-at?`. Multi-sequence
 | `int-to-buff-le` | `(int size) -> (buff W)` | little-endian counterpart | value does not fit |
 | `to-consensus-buff?` | `(T) -> (optional (buff serialized-size(T)))` | SIP-005 serialization of the value; `none` if the result would exceed the value size limit. `T` MUST be storable | |
 | `from-consensus-buff?` | `(type (buff N)) -> (optional T)` | the first argument is a type expression `T`, which MUST be storable. Deserializes; `none` if the bytes are not a canonical encoding of a value of type `T` (exact typed-tuple fields, no trailing bytes). Memory for the result is reserved against `serialized-size(T)` before decoding (2.7.7) | |
-| `to-ascii?` | `(T) -> (response (string-ascii ascii-size(T)) uint)` | ASCII rendering of a value; `T` MUST be storable. Retained pending open question 9 in chapter 2 | |
 
-`serialized-size(T)` and `ascii-size(T)` are type-level size functions
-defined with the wire format in the chain ABI.
+`serialized-size(T)` is a type-level size function defined with the wire
+format in the chain ABI.
 
 `buff-to-uint-be` and `uint-to-buff-be` are the base conversions between
 integers and bytes. The `*-to-buff-*` family stays primitive because each
 takes a size argument, which a library function cannot. Library, not
 primitive: `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le`,
-`int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?`, with the
-same signatures as legacy. All but the signed buffer conversions also have
+`int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?`, and
+`to-ascii?`, with the same signatures as legacy. All but the signed buffer conversions also have
 the same results. `buff-to-int-be` and `buff-to-int-le` sign-extend from the
 buffer's actual length, so `(buff-to-int-be 0xff)` is `-1`; legacy zero-pads
 a short buffer and returns `255`, which makes the signed conversion of a
@@ -129,10 +131,15 @@ that aliasing class at the language level.
 |---|---|---|
 | `principal-construct?` | `((buff 1) (buff 20) (optional (string-ascii 40))) -> (response principal { error-code: uint, principal: (optional principal) })` | builds a standard principal (no name) or contract principal (with name) from a version byte and hash bytes. `(err {error-code: u0, principal: (some p)})` if the version byte is valid but for the other network; `u1` if the version byte is invalid; `u2` if the name is not a valid contract name |
 | `principal-destruct?` | `(principal) -> (response D D)` where `D = { hash-bytes: (buff 20), name: (optional (string-ascii 40)), version: (buff 1) }` | decomposes a principal. `ok` if the version byte matches the current network, `err` with the same payload otherwise |
+| `principal-to-ascii` | `(principal) -> (string-ascii 82)` | the principal's text form: the c32check address of a standard principal, or the address, `.`, and the name of a contract principal (41 for the address, 1 for the dot, 40 for the name) |
 | `contract-of` | `((trait X)) -> principal` | the contract principal a trait-typed value refers to |
 | `contract-hash?` | `(principal) -> (response (buff 32) uint)` | SHA-512/256 of the deployed contract's module; `err u1` if the principal is not a deployed contract. The chain never holds source; the source hash is available from the module's provenance section, off chain |
 
 Library, not primitive: `is-standard`, `principal-of?`.
+
+`principal-to-ascii` is new. It is the principal case of `to-ascii?`, which
+is otherwise library (3.4). It stays in the host because c32check is a chain
+address encoding that wallets and explorers must match byte for byte.
 
 ## 3.6 Cryptography
 
@@ -166,10 +173,15 @@ different signature encoding.
 | `var-get` | `((var T)) -> T` | current value |
 | `var-set` | `((var T) T) -> bool` | stores the value; returns `true` |
 | `map-get?` | `((map K V) K) -> (optional V)` | lookup |
+| `map-contains?` | `((map K V) K) -> bool` | `true` if the key has an entry; does not read the value |
 | `map-set` | `((map K V) K V) -> bool` | inserts or overwrites; returns `true` |
 | `map-delete` | `((map K V) K) -> bool` | removes the entry; returns `true` if it existed |
 
-Library, not primitive: `map-insert`.
+Library, not primitive: `map-insert` (`map-contains?` then `map-set`).
+
+`map-contains?` is new. It exists so that a membership test does not have to
+read, deserialize, and copy a value only to discard it, as
+`(is-some (map-get? m k))` does.
 
 ## 3.8 Assets
 

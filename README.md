@@ -17,7 +17,6 @@ expected to eventually move to a dedicated language repository.
 | [04-spec-plan.md](04-spec-plan.md) | Plan for the language specification, the chain ABI it depends on, and the conformance suite |
 | [05-roadmap.md](05-roadmap.md) | Phased execution plan with milestones, dependencies, and risks |
 | [spec/](spec/) | The specification working draft: a minimal core language plus a standard library written in the language itself |
-| [archive/](archive/) | The legacy Stacks track (interpreter extraction, consensus gates). Not part of this design |
 
 ## One-paragraph summary
 

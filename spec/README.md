@@ -9,8 +9,8 @@ document that this spec refers to.
 
 > [!IMPORTANT]
 > Everything in this directory is a draft intended to seed the RFC process.
-> Nothing here is normative yet. Each chapter lists its open questions at the
-> end; an open question tagged `RFC` needs its own design RFC before the
+> Nothing here is normative yet. A chapter with open questions lists them at
+> the end; an open question tagged `RFC` needs its own design RFC before the
 > chapter can be frozen.
 
 ## The two-layer design

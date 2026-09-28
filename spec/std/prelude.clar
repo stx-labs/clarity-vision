@@ -18,9 +18,9 @@
 ;;   (name T...)    a rest parameter: the extra arguments as a list (2.6.5)
 ;;   std-*          helper definitions; reserved like every prelude name
 ;;
-;; Generic bodies are checked per instance (template semantics, chapter 2
-;; open question 5). Where a comment says "`T` is instantiated at ...", any
-;; other instantiation is a type error at the call site.
+;; Generic bodies are checked per instance (template semantics, chapter
+;; 2.6.2). Where a comment says "`T` is instantiated at ...", any other
+;; instantiation is a type error at the call site.
 ;;
 ;; Each value parameter of an inline function is referenced at most once in
 ;; its body; bodies that need a value twice bind it with `let` first.
@@ -48,6 +48,9 @@
 (define-inline (asserts! (condition bool) (thrown E))
   (if condition true (return thrown)))
 
+;; `thrown` is evaluated only on failure. For `unwrap!` and `unwrap-err!`
+;; this is a change from legacy, which evaluated it before the check;
+;; `asserts!` was already lazy.
 (define-inline (unwrap! (value (optional T)) (thrown E))
   (match value
     ((some inner) inner)
@@ -88,8 +91,8 @@
     ((ok ignored) (panic))
     ((err inner) inner)))
 
-;; The default is evaluated only when needed (a change from legacy).
-(define-inline (default-to (default T) (value (optional T)))
+;; Private, so both arguments are evaluated before the call, as in legacy.
+(define-private (default-to (default T) (value (optional T)))
   (match value
     ((some inner) inner)
     (none default)))
@@ -235,7 +238,7 @@
 ;; ---------------------------------------------------------------------------
 
 ;; (list N T) -> (list (+ N 1) T)
-(define-inline (append (items (list N T)) (item T))
+(define-private (append (items (list N T)) (item T))
   (concat items (list item)))
 
 (define-private (std-index-of-step (acc { found: (optional uint), index: uint, target: T })
@@ -422,6 +425,57 @@
           (none none))))
     (none none)))
 
+;; `to-ascii?` renders the six kinds legacy accepts, with legacy's text and
+;; result bounds, except that a principal's bound is 82, not 170, because
+;; contract names are at most 40 characters. Only the string-utf8 overload
+;; can fail. Principals go through the `principal-to-ascii` primitive,
+;; because c32check is a chain encoding (chapter 3.5).
+
+(define-private (to-ascii? (value int))
+  (ok (int-to-ascii value)))
+
+;; "u" and at most 39 digits.
+(define-private (to-ascii? (value uint))
+  (ok (unwrap-panic (as-max-len? (concat "u" (int-to-ascii value)) u40))))
+
+(define-private (to-ascii? (value bool))
+  (ok (if value "true" "false")))
+
+(define-private (to-ascii? (value principal))
+  (ok (principal-to-ascii value)))
+
+;; Two lowercase hex digits.
+(define-private (std-hex-byte (byte (buff 1)))
+  (let ((number (buff-to-uint-be byte)))
+    (concat (unwrap-panic (element-at? "0123456789abcdef" (/ number u16)))
+            (unwrap-panic (element-at? "0123456789abcdef" (mod number u16))))))
+
+;; "0x" and two digits per byte: the spread gives the bound 2 + N * 2.
+(define-private (to-ascii? (value (buff N)))
+  (ok (concat "0x" (map std-hex-byte value)...)))
+
+;; The characters a string-ascii can hold, in the same order in both kinds.
+(define-constant std-ascii-chars
+  " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\t\n\r")
+(define-constant std-ascii-chars-utf8
+  u" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\t\n\r")
+
+(define-private (std-char-to-ascii (char (string-utf8 1)))
+  (match (index-of? std-ascii-chars-utf8 char)
+    ((some index) (element-at? std-ascii-chars index))
+    (none none)))
+
+(define-private (std-char-or-empty (char (optional (string-ascii 1))))
+  (default-to "" char))
+
+;; (err u1) if any character has no string-ascii form. The spread gives the
+;; bound N * 1.
+(define-private (to-ascii? (value (string-utf8 N)))
+  (let ((chars (map std-char-to-ascii value)))
+    (if (is-eq (len (filter is-some chars)) (len chars))
+      (ok (concat "" (map std-char-or-empty chars)...))
+      (err u1))))
+
 ;; ---------------------------------------------------------------------------
 ;; Principals
 ;; ---------------------------------------------------------------------------
@@ -493,14 +547,12 @@
 ;; Storage
 ;; ---------------------------------------------------------------------------
 
-;; Insert only if absent. `key` is referenced twice, so it is bound first.
-;; `value` is by name, so it is evaluated only when the key is absent (a
-;; change from legacy, which evaluated it first).
-(define-inline (map-insert (target (map K V)) (key K) (value V))
-  (let ((k key))
-    (match (map-get? target k)
-      ((some existing) false)
-      (none (map-set target k value)))))
+;; Insert only if absent. Private, so `key` and `value` are both evaluated
+;; before the call, as in legacy.
+(define-private (map-insert (target (map K V)) (key K) (value V))
+  (if (map-contains? target key)
+      false
+      (map-set target key value)))
 
 ;; ---------------------------------------------------------------------------
 ;; Assets

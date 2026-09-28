@@ -24,8 +24,10 @@ maps onto vNEXT.
   compiler MAY link a hand-written or better compiled Wasm implementation of
   a library function. It MUST produce identical results, events, and errors
   to the source for every input, which the conformance suite checks.
-  Contracts already deployed keep the code they were deployed with, so their
-  costs never change under them and no chain upgrade is involved.
+  Contracts already deployed keep the code they were deployed with, so a
+  library change never alters them and no chain upgrade is involved. (Their
+  cost can still change at an epoch boundary if the chain's fuel schedule
+  does; see [../03-architecture.md](../03-architecture.md) section 4.)
 
 The source is written for correctness and readability, not speed. Where a
 definition is slow (a digit-by-digit conversion, a bitwise square root), that
@@ -49,16 +51,17 @@ representation. Every other construct a contract author uses is here.
 | Sequences | `index-of?` | `fold-left` with the target in the accumulator |
 | Conversions | `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le` | `buff-to-uint-be`, a byte-reversing `fold-left`, two's-complement arithmetic sign-extended from the actual length |
 | Conversions | `int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?` | digit tables, `element-at?`, `index-of?`, a 39-step `fold-left` |
+| Conversions | `to-ascii?` | `int-to-ascii`, `principal-to-ascii`, `map` with a hex or character table, `concat` with a spread |
 | Principals | `is-standard`, `principal-of?` | `principal-destruct?`, `principal-construct?`, `hash160` |
 | Cryptography | `verify-merkle-proof` | `sha256`, `log2`, `fold-left` over the proof |
-| Storage | `map-insert` | `map-get?`, `map-set` |
+| Storage | `map-insert` | `map-contains?`, `map-set` |
 | Assets | `stx-get-balance` | `stx-account` |
 
 About forty public definitions, plus `std-*` helpers. Two conventions decide
 whether a prelude function is `define-inline` or `define-private`:
 
-- Anything that needs laziness or early exit is inline: `if`, the early-exit
-  family, `append`, and `map-insert`.
+- Anything that needs laziness or early exit is inline: `if` and the
+  early-exit family.
 - Everything else is private. Private functions are compiled once per
   instance and can be passed to `map`, `filter`, `fold-left`, and
   `fold-right`.
@@ -69,7 +72,7 @@ whether a prelude function is `define-inline` or `define-private`:
   `bit-not`, `int-to-ascii`, and `int-to-utf8` are overloaded on `int` and
   `uint`. `replace-at?` is overloaded on the four sequence kinds. `mod`,
   `max`, `min`, `index-of?`, `string-to-int?`, and `string-to-uint?` are
-  single generic definitions checked per instance (chapter 2 open question 5);
+  single generic definitions checked per instance (2.6.2);
   per-kind constants such as digit tables are selected by small overloaded
   helpers.
 - **`pow` does not overflow early.** It squares and multiplies from the most
@@ -126,9 +129,9 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 | `let` | form | |
 | `begin` | sugar | `(let () ...)` |
 | `match` | form | constructor patterns `((some x) ...)`, `(none ...)`, `((ok x) ...)`, `((err e) ...)`, `(true ...)`, `(false ...)` |
-| `asserts!`, `unwrap!`, `unwrap-err!`, `try!` | library | inline over `match` and `return`; not usable in top-level expressions or constant initializers, where `return` is forbidden (2.4.2) |
+| `asserts!`, `unwrap!`, `unwrap-err!`, `try!` | library | inline over `match` and `return`; `thrown` is evaluated only on failure, which for `unwrap!` and `unwrap-err!` is a change from legacy (legacy evaluates it first); not usable in top-level expressions or constant initializers, where `return` is forbidden (2.4.2) |
 | `unwrap-panic`, `unwrap-err-panic` | library | inline over `match` and `panic` |
-| `default-to` | library | inline; default is now lazy |
+| `default-to` | library | private; both arguments evaluated, as in legacy |
 | `is-ok`, `is-err`, `is-some`, `is-none` | library | private |
 | `ok`, `err`, `some` | form | constructors |
 | `none`, `true`, `false` | literal | |
@@ -143,7 +146,7 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 | `index-of?`, `replace-at?` | library | |
 | `element-at`, `index-of` | removed | aliases |
 | `append` | library | `(concat items (list item))` |
-| `map` | primitive | single sequence only; see chapter 2 open question 2 |
+| `map` | primitive | single sequence only; multi-sequence form dropped (chapter 3.3) |
 | `filter` | primitive | |
 | `fold` | removed | `fold-left` with the callback's parameters swapped (accumulator first) |
 | new: `fold-left`, `fold-right` | primitive | 3.3 |
@@ -166,7 +169,7 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 | `int-to-ascii`, `int-to-utf8` | library | |
 | `string-to-int?`, `string-to-uint?` | library | |
 | `to-consensus-buff?`, `from-consensus-buff?` | primitive | |
-| `to-ascii?` | primitive | candidate for removal |
+| `to-ascii?` | library | six overloads (`int`, `uint`, `bool`, `principal`, `buff`, `string-utf8`) with legacy's text and bounds, except that the principal bound is 82 where legacy's is 170, because contract names are limited to 40 characters (2.2); the principal case uses the new `principal-to-ascii` primitive (chapter 3.5). A `string-utf8` containing U+000C (form feed) is now `err u1`: legacy accepted it, but a vNEXT `string-ascii` cannot hold it (2.2) |
 
 ### Principals
 
@@ -194,7 +197,7 @@ the prelude; "removed" means vNEXT has no equivalent by that name.
 |---|---|---|
 | `var-get`, `var-set` | primitive | |
 | `map-get?`, `map-set`, `map-delete` | primitive | |
-| `map-insert` | library | `map-get?` then `map-set`; the value expression is now evaluated only when the key is absent; becomes primitive if static reference kinds are dropped (chapter 2 open question 6) |
+| `map-insert` | library | private; `map-contains?` then `map-set`; both arguments evaluated, as in legacy; written with a `(map K V)` reference parameter (2.3.6) |
 
 ### Assets
 
@@ -259,7 +262,7 @@ common user-written helpers:
 - `max`, `min` (rest parameters), `abs`
 
 Primitive additions with no legacy counterpart: the four `*-to-buff-*`
-functions (chapter 3). Further candidates from the issue tracker are
+functions, `map-contains?`, and `principal-to-ascii` (chapter 3). Further candidates from the issue tracker are
 collected in [05-issue-tracker.md](05-issue-tracker.md).
 
 ## 4.5 What the prelude taught us about the core
@@ -275,11 +278,12 @@ Writing the prelude is the test of the core design. Findings so far:
 - Template checking of generic bodies carries more weight than planned. It
   lets `index-of?` and the string parsers be one definition across sequence
   kinds instead of four, at the price of errors reported inside the prelude
-  (chapter 2 open question 5).
+  (2.6.2).
 - Per-kind constants (digit tables, the minus sign) need small overloaded
   helpers, because a generic body cannot write a literal of an unknown kind.
-- `replace-at?` exposes a gap in the size rules: an intermediate `concat`
-  has a larger bound than any value it can hold (chapter 2 open question 12).
+- `replace-at?` exposed a gap in the size rules: an intermediate `concat`
+  has a larger bound than any value it can hold. Intermediate expressions
+  are checked against a separate, larger limit (2.3.1).
 - Rest parameters are strict: the extra arguments are built into a list
   before the body runs. That is right for `max`, `+`, and `concat`, but it
   means n-ary short-circuiting cannot be written in the language, so `and`
@@ -287,12 +291,12 @@ Writing the prelude is the test of the core design. Findings so far:
 - `never` as the type of `(return ...)` and `(panic)` makes every early-exit
   form typeable with ordinary lub rules, with no special cases.
 - Inline functions cannot be passed to `filter`, which forces predicates to
-  be private functions (chapter 2 open question 4).
+  be private functions (2.6.3).
 - Folds whose initial value has a smaller type than the step's result
   (`std-reverse-16` starts from `0x`, `std-render-decimal` from `""`,
   `index-of?` from `none`) rely on instantiation finding the accumulator
-  type by iteration (2.6.2). A type ascription form would let the source
-  state that type directly (chapter 2 open question 14).
+  type by iteration (2.6.2). Each closes in two steps; a fold that needs a
+  wider start states it with `as` (2.5.10).
 - Overloading and static reference kinds are each justified by a small
   group of prelude functions (`unwrap!`/`try!` and the integer families;
-  `map-insert`). Both are flagged for a keep-or-drop decision in chapter 2.
+  `map-insert`).
