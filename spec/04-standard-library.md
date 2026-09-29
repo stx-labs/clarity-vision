@@ -1,37 +1,37 @@
 # 4. Standard Library
 
-The standard library is vNEXT source, linked into modules by the compiler as a prelude
-that is in scope in every contract (2.4.5). Its normative definition is its
-source: [std/prelude.clar](std/prelude.clar). This chapter explains how it is
-delivered, what it contains and why, and how every legacy Clarity construct
+The standard library is vNEXT source, linked into modules by the compiler as a
+prelude that is in scope in every contract (2.4.5). Its normative definition is
+its source: [std/prelude.clar](std/prelude.clar). This chapter explains how it
+is delivered, what it contains and why, and how every legacy Clarity construct
 maps onto vNEXT.
 
 ## 4.1 Delivery and status
 
-- The prelude is part of the language version. It is frozen when the
-  language version is frozen and never changes for that version.
-- Prelude names are reserved: a contract MUST NOT define a top-level name
-  that the prelude defines. This includes the `std-*` helper definitions.
+- The prelude is part of the language version. It is frozen when the language
+  version is frozen and never changes for that version.
+- Prelude names are reserved: a contract MUST NOT define a top-level name that
+  the prelude defines. This includes the `std-*` helper definitions.
 - The prelude uses only features available to every contract (P3). It is
   type-checked, instantiated, and compiled by the same rules as user code.
 - **Results are defined by the source.** Conformance vectors for library
   functions are derived from the prelude source. If a vector and the source
   disagree, the vector is wrong.
 - **Linked into each module.** The compiler includes the library instances a
-  contract uses in that contract's module. A library call costs the fuel of
-  that code (P4, P5). The chain holds no library code of its own.
+  contract uses in that contract's module. A library call costs the fuel of that
+  code (P4, P5). The chain holds no library code of its own.
 - **Optimization replaces the implementation, not the definition.** A later
-  compiler MAY link a hand-written or better compiled Wasm implementation of
-  a library function. It MUST produce identical results, events, and errors
-  to the source for every input, which the conformance suite checks.
-  Contracts already deployed keep the code they were deployed with, so a
-  library change never alters them and no chain upgrade is involved. (Their
-  cost can still change at an epoch boundary if the chain's fuel schedule
-  does; see [../03-architecture.md](../03-architecture.md) section 4.)
+  compiler MAY link a hand-written or better compiled Wasm implementation of a
+  library function. It MUST produce identical results, events, and errors to the
+  source for every input, which the conformance suite checks. Contracts already
+  deployed keep the code they were deployed with, so a library change never
+  alters them and no chain upgrade is involved. (Their cost can still change at
+  an epoch boundary if the chain's fuel schedule does; see
+  [../03-architecture.md](../03-architecture.md) section 4.)
 
 The source is written for correctness and readability, not speed. Where a
-definition is slow (a digit-by-digit conversion, a bitwise square root), that
-is a candidate for a Wasm replacement, not a reason to move it into the core.
+definition is slow (a digit-by-digit conversion, a bitwise square root), that is
+a candidate for a Wasm replacement, not a reason to move it into the core.
 
 ## 4.2 What belongs in the library
 
@@ -40,263 +40,259 @@ Everything that can be written in the language. The layering rule
 expressed, cryptographic standards, and the base operations on each type's
 representation. Every other construct a contract author uses is here.
 
-| Section | Definitions | Built from |
-|---|---|---|
-| Branching | `if`, `not` | `match` on `bool` |
-| Early exit | `asserts!`, `unwrap!`, `unwrap-err!`, `try!`, `unwrap-panic`, `unwrap-err-panic`, `default-to` | `match`, `return`, `panic` |
-| Predicates | `is-some`, `is-none`, `is-ok`, `is-err` | `match` |
-| Arithmetic | `max`, `min` (rest parameters), `abs`, `mod`, `bit-not` | comparison, `+ - * /`, `bit-xor`, `fold-left` |
-| Arithmetic | `pow`, `sqrti`, `log2` | `fold-left` over a constant list of bit positions, with shifts |
-| Sequences | `append`, `replace-at?` | `concat`, `slice?`, `as-max-len?` |
-| Sequences | `index-of?` | `fold-left` with the target in the accumulator |
-| Conversions | `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le` | `buff-to-uint-be`, a byte-reversing `fold-left`, two's-complement arithmetic sign-extended from the actual length |
-| Conversions | `int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?` | digit tables, `element-at?`, `index-of?`, a 39-step `fold-left` |
-| Conversions | `to-ascii?` | `int-to-ascii`, `principal-to-ascii`, `map` with a hex or character table, `concat` with a spread |
-| Principals | `is-standard`, `principal-of?` | `principal-destruct?`, `principal-construct?`, `hash160` |
-| Cryptography | `verify-merkle-proof` | `sha256`, `log2`, `fold-left` over the proof |
-| Storage | `map-insert` | `map-contains?`, `map-set` |
-| Assets | `stx-get-balance` | `stx-account` |
+| Section      | Definitions                                                                                    | Built from                                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Branching    | `if`, `not`                                                                                    | `match` on `bool`                                                                                                 |
+| Early exit   | `asserts!`, `unwrap!`, `unwrap-err!`, `try!`, `unwrap-panic`, `unwrap-err-panic`, `default-to` | `match`, `return`, `panic`                                                                                        |
+| Predicates   | `is-some`, `is-none`, `is-ok`, `is-err`                                                        | `match`                                                                                                           |
+| Arithmetic   | `max`, `min` (rest parameters), `abs`, `mod`, `bit-not`                                        | comparison, `+ - * /`, `bit-xor`, `fold-left`                                                                     |
+| Arithmetic   | `pow`, `sqrti`, `log2`                                                                         | `fold-left` over a constant list of bit positions, with shifts                                                    |
+| Sequences    | `append`, `replace-at?`                                                                        | `concat`, `slice?`, `as-max-len?`                                                                                 |
+| Sequences    | `index-of?`                                                                                    | `fold-left` with the target in the accumulator                                                                    |
+| Conversions  | `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le`                                          | `buff-to-uint-be`, a byte-reversing `fold-left`, two's-complement arithmetic sign-extended from the actual length |
+| Conversions  | `int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?`                             | digit tables, `element-at?`, `index-of?`, a 39-step `fold-left`                                                   |
+| Conversions  | `to-ascii?`                                                                                    | `int-to-ascii`, `principal-to-ascii`, `map` with a hex or character table, `concat` with a spread                 |
+| Principals   | `is-standard`, `principal-of?`                                                                 | `principal-destruct?`, `principal-construct?`, `hash160`                                                          |
+| Cryptography | `verify-merkle-proof`                                                                          | `sha256`, `log2`, `fold-left` over the proof                                                                      |
+| Storage      | `map-insert`                                                                                   | `map-contains?`, `map-set`                                                                                        |
+| Assets       | `stx-get-balance`                                                                              | `stx-account`                                                                                                     |
 
 About forty public definitions, plus `std-*` helpers. Two conventions decide
 whether a prelude function is `define-inline` or `define-private`:
 
-- Anything that needs laziness or early exit is inline: `if` and the
-  early-exit family.
-- Everything else is private. Private functions are compiled once per
-  instance and can be passed to `map`, `filter`, `fold-left`, and
-  `fold-right`.
+- Anything that needs laziness or early exit is inline: `if` and the early-exit
+  family.
+- Everything else is private. Private functions are compiled once per instance
+  and can be passed to `map`, `filter`, `fold-left`, and `fold-right`.
 
 ### Notes on specific definitions
 
 - **Families over integer or sequence kinds.** `pow`, `sqrti`, `log2`,
   `bit-not`, `int-to-ascii`, and `int-to-utf8` are overloaded on `int` and
-  `uint`. `replace-at?` is overloaded on the four sequence kinds. `mod`,
-  `max`, `min`, `index-of?`, `string-to-int?`, and `string-to-uint?` are
-  single generic definitions checked per instance (2.6.2);
-  per-kind constants such as digit tables are selected by small overloaded
-  helpers.
+  `uint`. `replace-at?` is overloaded on the four sequence kinds. `mod`, `max`,
+  `min`, `index-of?`, `string-to-int?`, and `string-to-uint?` are single generic
+  definitions checked per instance (2.6.2); per-kind constants such as digit
+  tables are selected by small overloaded helpers.
 - **`pow` does not overflow early.** It squares and multiplies from the most
-  significant exponent bit down, so every intermediate is the base raised to
-  a prefix of the exponent and no step overflows unless the result does.
-- **`verify-merkle-proof`** takes a leaf hash, a root hash, the leaf index,
-  the transaction count, and up to 24 sibling hashes from leaf to root, all in
+  significant exponent bit down, so every intermediate is the base raised to a
+  prefix of the exponent and no step overflows unless the result does.
+- **`verify-merkle-proof`** takes a leaf hash, a root hash, the leaf index, the
+  transaction count, and up to 24 sibling hashes from leaf to root, all in
   internal byte order, and uses double SHA-256 with Bitcoin's odd-row
   duplication rule. It returns `false` for any proof inconsistent with the
   canonical tree shape implied by the count: an index not below the count, a
   path length other than the tree depth, or a sibling that must equal its
-  partner on an odd row but does not. This contract is enforced by the
-  source; it is security-sensitive and needs the densest conformance vectors
-  in the library.
+  partner on an odd row but does not. This contract is enforced by the source;
+  it is security-sensitive and needs the densest conformance vectors in the
+  library.
 
 ### Kept primitive although expressible
 
-The layering rule's representation-base test keeps a few operations that
-could be written in the language, because everything else is written in
-terms of them: `element-at?` (expressible through `slice?`), `to-int` and
-`to-uint` (expressible through the byte conversions), the bitwise
-operations, and comparison on sequences. Moving them would lengthen the
-prelude without shrinking the set of things a compiler must implement.
+The layering rule's representation-base test keeps a few operations that could
+be written in the language, because everything else is written in terms of them:
+`element-at?` (expressible through `slice?`), `to-int` and `to-uint`
+(expressible through the byte conversions), the bitwise operations, and
+comparison on sequences. Moving them would lengthen the prelude without
+shrinking the set of things a compiler must implement.
 
 ## 4.3 Disposition of every legacy construct
 
 This table covers every native function, define form, and native variable in
 Clarity 6. "Primitive" means it stays in the core with the signature in
 [03-primitives.md](03-primitives.md); "form" means a special form in
-[02-core-language.md](02-core-language.md); "library" means it is defined in
-the prelude; "removed" means vNEXT has no equivalent by that name.
+[02-core-language.md](02-core-language.md); "library" means it is defined in the
+prelude; "removed" means vNEXT has no equivalent by that name.
 
 ### Arithmetic and logic
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `+`, `-`, `*`, `/` | primitive | rest parameter (2.6.5); at least two arguments, so unary `-` is written `(- 0 x)` |
-| `mod`, `pow`, `sqrti`, `log2` | library | same results as legacy |
-| `>=`, `<=`, `<`, `>` | primitive | |
-| `to-int`, `to-uint` | primitive | |
-| `xor` | removed | use `bit-xor` |
-| `bit-and`, `bit-or`, `bit-xor` | primitive | rest parameter |
-| `bit-not` | library | `bit-xor` with all ones |
-| `bit-shift-left`, `bit-shift-right` | primitive | shift of 128 or more aborts instead of wrapping |
-| `and`, `or` | form | two or more arguments, short-circuit |
-| `not` | library | private |
-| `is-eq` | primitive | binary only; `(is-eq a b c)` is written `(and (is-eq a b) (is-eq a c))` |
-| `if` | library | inline over `match` |
+| Legacy                              | vNEXT     | Notes                                                                             |
+| ----------------------------------- | --------- | --------------------------------------------------------------------------------- |
+| `+`, `-`, `*`, `/`                  | primitive | rest parameter (2.6.5); at least two arguments, so unary `-` is written `(- 0 x)` |
+| `mod`, `pow`, `sqrti`, `log2`       | library   | same results as legacy                                                            |
+| `>=`, `<=`, `<`, `>`                | primitive |                                                                                   |
+| `to-int`, `to-uint`                 | primitive |                                                                                   |
+| `xor`                               | removed   | use `bit-xor`                                                                     |
+| `bit-and`, `bit-or`, `bit-xor`      | primitive | rest parameter                                                                    |
+| `bit-not`                           | library   | `bit-xor` with all ones                                                           |
+| `bit-shift-left`, `bit-shift-right` | primitive | shift of 128 or more aborts instead of wrapping                                   |
+| `and`, `or`                         | form      | two or more arguments, short-circuit                                              |
+| `not`                               | library   | private                                                                           |
+| `is-eq`                             | primitive | binary only; `(is-eq a b c)` is written `(and (is-eq a b) (is-eq a c))`           |
+| `if`                                | library   | inline over `match`                                                               |
 
 ### Binding, sequencing, branching, early exit
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `let` | form | |
-| `begin` | sugar | `(let () ...)` |
-| `match` | form | constructor patterns `((some x) ...)`, `(none ...)`, `((ok x) ...)`, `((err e) ...)`, `(true ...)`, `(false ...)` |
+| Legacy                                       | vNEXT   | Notes                                                                                                                                                                                                                                                                 |
+| -------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `let`                                        | form    |                                                                                                                                                                                                                                                                       |
+| `begin`                                      | sugar   | `(let () ...)`                                                                                                                                                                                                                                                        |
+| `match`                                      | form    | constructor patterns `((some x) ...)`, `(none ...)`, `((ok x) ...)`, `((err e) ...)`, `(true ...)`, `(false ...)`                                                                                                                                                     |
 | `asserts!`, `unwrap!`, `unwrap-err!`, `try!` | library | inline over `match` and `return`; `thrown` is evaluated only on failure, which for `unwrap!` and `unwrap-err!` is a change from legacy (legacy evaluates it first); not usable in top-level expressions or constant initializers, where `return` is forbidden (2.4.2) |
-| `unwrap-panic`, `unwrap-err-panic` | library | inline over `match` and `panic` |
-| `default-to` | library | private; both arguments evaluated, as in legacy |
-| `is-ok`, `is-err`, `is-some`, `is-none` | library | private |
-| `ok`, `err`, `some` | form | constructors |
-| `none`, `true`, `false` | literal | |
+| `unwrap-panic`, `unwrap-err-panic`           | library | inline over `match` and `panic`                                                                                                                                                                                                                                       |
+| `default-to`                                 | library | private; both arguments evaluated, as in legacy                                                                                                                                                                                                                       |
+| `is-ok`, `is-err`, `is-some`, `is-none`      | library | private                                                                                                                                                                                                                                                               |
+| `ok`, `err`, `some`                          | form    | constructors                                                                                                                                                                                                                                                          |
+| `none`, `true`, `false`                      | literal |                                                                                                                                                                                                                                                                       |
 
 ### Sequences
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `list` | form | variadic, like `and` and `or`; functions use rest parameters |
-| `len`, `concat`, `slice?`, `as-max-len?` | primitive | `concat` has a rest parameter |
-| `element-at?` | primitive | |
-| `index-of?`, `replace-at?` | library | |
-| `element-at`, `index-of` | removed | aliases |
-| `append` | library | `(concat items (list item))` |
-| `map` | primitive | single sequence only; multi-sequence form dropped (chapter 3.3) |
-| `filter` | primitive | |
-| `fold` | removed | `fold-left` with the callback's parameters swapped (accumulator first) |
-| new: `fold-left`, `fold-right` | primitive | 3.3 |
+| Legacy                                   | vNEXT     | Notes                                                                  |
+| ---------------------------------------- | --------- | ---------------------------------------------------------------------- |
+| `list`                                   | form      | variadic, like `and` and `or`; functions use rest parameters           |
+| `len`, `concat`, `slice?`, `as-max-len?` | primitive | `concat` has a rest parameter                                          |
+| `element-at?`                            | primitive |                                                                        |
+| `index-of?`, `replace-at?`               | library   |                                                                        |
+| `element-at`, `index-of`                 | removed   | aliases                                                                |
+| `append`                                 | library   | `(concat items (list item))`                                           |
+| `map`                                    | primitive | single sequence only; multi-sequence form dropped (chapter 3.3)        |
+| `filter`                                 | primitive |                                                                        |
+| `fold`                                   | removed   | `fold-left` with the callback's parameters swapped (accumulator first) |
+| new: `fold-left`, `fold-right`           | primitive | 3.3                                                                    |
 
 ### Tuples
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `tuple` | removed | use `{ f: v, ... }` |
-| `get`, `merge` | form | |
+| Legacy         | vNEXT   | Notes               |
+| -------------- | ------- | ------------------- |
+| `tuple`        | removed | use `{ f: v, ... }` |
+| `get`, `merge` | form    |                     |
 
 ### Conversions and serialization
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `buff-to-uint-be` | primitive | |
-| `buff-to-uint-le` | library | over `buff-to-uint-be` |
-| `buff-to-int-be`, `buff-to-int-le` | library | over `buff-to-uint-be`; a short buffer is sign-extended from its actual length, where legacy zero-padded it (chapter 3.4) |
-| new: `uint-to-buff-be`, `uint-to-buff-le`, `int-to-buff-be`, `int-to-buff-le` | primitive | fixed width, abort if the value does not fit (issue #7312) |
-| `int-to-ascii`, `int-to-utf8` | library | |
-| `string-to-int?`, `string-to-uint?` | library | |
-| `to-consensus-buff?`, `from-consensus-buff?` | primitive | |
-| `to-ascii?` | library | six overloads (`int`, `uint`, `bool`, `principal`, `buff`, `string-utf8`) with legacy's text and bounds, except that the principal bound is 82 where legacy's is 170, because contract names are limited to 40 characters (2.2); the principal case uses the new `principal-to-ascii` primitive (chapter 3.5). A `string-utf8` containing U+000C (form feed) is now `err u1`: legacy accepted it, but a vNEXT `string-ascii` cannot hold it (2.2) |
+| Legacy                                                                        | vNEXT     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buff-to-uint-be`                                                             | primitive |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `buff-to-uint-le`                                                             | library   | over `buff-to-uint-be`                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `buff-to-int-be`, `buff-to-int-le`                                            | library   | over `buff-to-uint-be`; a short buffer is sign-extended from its actual length, where legacy zero-padded it (chapter 3.4)                                                                                                                                                                                                                                                                                                                         |
+| new: `uint-to-buff-be`, `uint-to-buff-le`, `int-to-buff-be`, `int-to-buff-le` | primitive | fixed width, abort if the value does not fit (issue #7312)                                                                                                                                                                                                                                                                                                                                                                                        |
+| `int-to-ascii`, `int-to-utf8`                                                 | library   |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `string-to-int?`, `string-to-uint?`                                           | library   |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `to-consensus-buff?`, `from-consensus-buff?`                                  | primitive |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `to-ascii?`                                                                   | library   | six overloads (`int`, `uint`, `bool`, `principal`, `buff`, `string-utf8`) with legacy's text and bounds, except that the principal bound is 82 where legacy's is 170, because contract names are limited to 40 characters (2.2); the principal case uses the new `principal-to-ascii` primitive (chapter 3.5). A `string-utf8` containing U+000C (form feed) is now `err u1`: legacy accepted it, but a vNEXT `string-ascii` cannot hold it (2.2) |
 
 ### Principals
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
+| Legacy                 | vNEXT     | Notes                                                                                              |
+| ---------------------- | --------- | -------------------------------------------------------------------------------------------------- |
 | `principal-construct?` | primitive | single signature with `(optional (string-ascii 40))` name; `error_code` field renamed `error-code` |
-| `principal-destruct?` | primitive | |
-| `is-standard` | library | `(is-ok (principal-destruct? p))` |
-| `principal-of?` | library | `hash160` plus `principal-construct?` with the network's version byte |
-| `contract-of` | primitive | |
-| `contract-hash?` | primitive | |
+| `principal-destruct?`  | primitive |                                                                                                    |
+| `is-standard`          | library   | `(is-ok (principal-destruct? p))`                                                                  |
+| `principal-of?`        | library   | `hash160` plus `principal-construct?` with the network's version byte                              |
+| `contract-of`          | primitive |                                                                                                    |
+| `contract-hash?`       | primitive |                                                                                                    |
 
 ### Cryptography
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `hash160`, `sha256`, `sha512`, `sha512/256`, `keccak256` | primitive | buffers only; integer inputs removed |
-| `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required |
-| `secp256r1-verify`, `ed25519-verify` | primitive | low-S required for ECDSA |
-| `verify-merkle-proof` | library | over `sha256` |
+| Legacy                                                            | vNEXT     | Notes                                |
+| ----------------------------------------------------------------- | --------- | ------------------------------------ |
+| `hash160`, `sha256`, `sha512`, `sha512/256`, `keccak256`          | primitive | buffers only; integer inputs removed |
+| `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required                       |
+| `secp256r1-verify`, `ed25519-verify`                              | primitive | low-S required for ECDSA             |
+| `verify-merkle-proof`                                             | library   | over `sha256`                        |
 
 ### Storage
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `var-get`, `var-set` | primitive | |
-| `map-get?`, `map-set`, `map-delete` | primitive | |
-| `map-insert` | library | private; `map-contains?` then `map-set`; both arguments evaluated, as in legacy; written with a `(map K V)` reference parameter (2.3.6) |
+| Legacy                              | vNEXT     | Notes                                                                                                                                   |
+| ----------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `var-get`, `var-set`                | primitive |                                                                                                                                         |
+| `map-get?`, `map-set`, `map-delete` | primitive |                                                                                                                                         |
+| `map-insert`                        | library   | private; `map-contains?` then `map-set`; both arguments evaluated, as in legacy; written with a `(map K V)` reference parameter (2.3.6) |
 
 ### Assets
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `ft-mint?`, `ft-burn?`, `ft-transfer?`, `ft-get-balance`, `ft-get-supply` | primitive | |
-| `nft-mint?`, `nft-burn?`, `nft-transfer?`, `nft-get-owner?` | primitive | |
-| `stx-transfer?` | primitive | takes `(optional (buff 34))` memo |
-| `stx-transfer-memo?` | removed | merged into `stx-transfer?` |
-| `stx-burn?`, `stx-account` | primitive | |
-| `stx-get-balance` | library | `(get unlocked (stx-account p))` |
+| Legacy                                                                    | vNEXT     | Notes                             |
+| ------------------------------------------------------------------------- | --------- | --------------------------------- |
+| `ft-mint?`, `ft-burn?`, `ft-transfer?`, `ft-get-balance`, `ft-get-supply` | primitive |                                   |
+| `nft-mint?`, `nft-burn?`, `nft-transfer?`, `nft-get-owner?`               | primitive |                                   |
+| `stx-transfer?`                                                           | primitive | takes `(optional (buff 34))` memo |
+| `stx-transfer-memo?`                                                      | removed   | merged into `stx-transfer?`       |
+| `stx-burn?`, `stx-account`                                                | primitive |                                   |
+| `stx-get-balance`                                                         | library   | `(get unlocked (stx-account p))`  |
 
 ### Calls, context, and allowances
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `contract-call?` | form | |
-| `as-contract?` | form | |
-| `as-contract` | removed | unrestricted asset access |
-| `restrict-assets?` | form | `with-all-assets-unsafe` not permitted |
-| `with-stx`, `with-ft`, `with-nft`, `with-staking`, `with-pox`, `with-all-assets-unsafe` | allowance forms | |
-| `with-stacking` | removed | renamed `with-staking` in Clarity 6 |
-| `at-block` | removed | disabled in legacy since epoch 3.4 |
-| `print` | primitive | |
+| Legacy                                                                                  | vNEXT           | Notes                                  |
+| --------------------------------------------------------------------------------------- | --------------- | -------------------------------------- |
+| `contract-call?`                                                                        | form            |                                        |
+| `as-contract?`                                                                          | form            |                                        |
+| `as-contract`                                                                           | removed         | unrestricted asset access              |
+| `restrict-assets?`                                                                      | form            | `with-all-assets-unsafe` not permitted |
+| `with-stx`, `with-ft`, `with-nft`, `with-staking`, `with-pox`, `with-all-assets-unsafe` | allowance forms |                                        |
+| `with-stacking`                                                                         | removed         | renamed `with-staking` in Clarity 6    |
+| `at-block`                                                                              | removed         | disabled in legacy since epoch 3.4     |
+| `print`                                                                                 | primitive       |                                        |
 
 ### Chain data
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
+| Legacy                                                               | vNEXT     | Notes                                                   |
+| -------------------------------------------------------------------- | --------- | ------------------------------------------------------- |
 | `get-stacks-block-info?`, `get-tenure-info?`, `get-burn-block-info?` | primitive | return the whole record; property-name argument removed |
-| `get-block-info?` | removed | already removed in Clarity 3 |
-| `get-bitcoin-tx-output?` | primitive | |
+| `get-block-info?`                                                    | removed   | already removed in Clarity 3                            |
+| `get-bitcoin-tx-output?`                                             | primitive |                                                         |
 
 ### Define forms
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `define-constant`, `define-data-var`, `define-map` | form | |
-| `define-fungible-token`, `define-non-fungible-token` | form | |
-| `define-public`, `define-read-only`, `define-private` | form | private may be generic and overloaded |
-| `define-trait`, `impl-trait` | form | trait identifiers replace `<name>` syntax |
-| `use-trait` | removed | `(define-type name (trait id))` |
-| new: `define-type` | form | transparent type aliases |
-| new: `define-inline` | form | call-by-name, expanded at call site |
-| new: rest parameters `(name T...)` | form | private functions only; the rest arguments are bound as a list (2.6.5) |
+| Legacy                                                | vNEXT   | Notes                                                                  |
+| ----------------------------------------------------- | ------- | ---------------------------------------------------------------------- |
+| `define-constant`, `define-data-var`, `define-map`    | form    |                                                                        |
+| `define-fungible-token`, `define-non-fungible-token`  | form    |                                                                        |
+| `define-public`, `define-read-only`, `define-private` | form    | private may be generic and overloaded                                  |
+| `define-trait`, `impl-trait`                          | form    | trait identifiers replace `<name>` syntax                              |
+| `use-trait`                                           | removed | `(define-type name (trait id))`                                        |
+| new: `define-type`                                    | form    | transparent type aliases                                               |
+| new: `define-inline`                                  | form    | call-by-name, expanded at call site                                    |
+| new: rest parameters `(name T...)`                    | form    | private functions only; the rest arguments are bound as a list (2.6.5) |
 
 ### Native variables
 
-| Legacy | vNEXT | Notes |
-|---|---|---|
-| `tx-sender`, `contract-caller`, `tx-sponsor?`, `current-contract` | primitive | nullary |
-| `burn-block-height`, `stacks-block-height`, `tenure-height`, `stacks-block-time` | primitive | nullary |
-| `chain-id`, `is-in-mainnet`, `is-in-regtest`, `stx-liquid-supply` | primitive | nullary |
-| `block-height` | removed | already removed in Clarity 3 |
-| `none`, `true`, `false` | literal | |
+| Legacy                                                                           | vNEXT     | Notes                        |
+| -------------------------------------------------------------------------------- | --------- | ---------------------------- |
+| `tx-sender`, `contract-caller`, `tx-sponsor?`, `current-contract`                | primitive | nullary                      |
+| `burn-block-height`, `stacks-block-height`, `tenure-height`, `stacks-block-time` | primitive | nullary                      |
+| `chain-id`, `is-in-mainnet`, `is-in-regtest`, `stx-liquid-supply`                | primitive | nullary                      |
+| `block-height`                                                                   | removed   | already removed in Clarity 3 |
+| `none`, `true`, `false`                                                          | literal   |                              |
 
 ## 4.4 New in vNEXT
 
-Library additions with no legacy counterpart, included because they were
-common user-written helpers:
+Library additions with no legacy counterpart, included because they were common
+user-written helpers:
 
 - `max`, `min` (rest parameters), `abs`
 
 Primitive additions with no legacy counterpart: the four `*-to-buff-*`
-functions, `map-contains?`, and `principal-to-ascii` (chapter 3). Further candidates from the issue tracker are
-collected in [05-issue-tracker.md](05-issue-tracker.md).
+functions, `map-contains?`, and `principal-to-ascii` (chapter 3). Further
+candidates from the issue tracker are collected in
+[05-issue-tracker.md](05-issue-tracker.md).
 
 ## 4.5 What the prelude taught us about the core
 
 Writing the prelude is the test of the core design. Findings so far:
 
-- An earlier draft returned the conversion, search, and Merkle functions to
-  the core because their library versions cost more than a native under a
-  per-operation cost table. With fuel as the metric and optimization done by
-  a compiler linking faster code, that argument is gone, and they are
-  library again. The core is smaller and there is no per-construct cost
-  table.
-- Template checking of generic bodies carries more weight than planned. It
-  lets `index-of?` and the string parsers be one definition across sequence
-  kinds instead of four, at the price of errors reported inside the prelude
-  (2.6.2).
+- An earlier draft returned the conversion, search, and Merkle functions to the
+  core because their library versions cost more than a native under a
+  per-operation cost table. With fuel as the metric and optimization done by a
+  compiler linking faster code, that argument is gone, and they are library
+  again. The core is smaller and there is no per-construct cost table.
+- Template checking of generic bodies carries more weight than planned. It lets
+  `index-of?` and the string parsers be one definition across sequence kinds
+  instead of four, at the price of errors reported inside the prelude (2.6.2).
 - Per-kind constants (digit tables, the minus sign) need small overloaded
   helpers, because a generic body cannot write a literal of an unknown kind.
-- `replace-at?` exposed a gap in the size rules: an intermediate `concat`
-  has a larger bound than any value it can hold. Intermediate expressions
-  are checked against a separate, larger limit (2.3.1).
-- Rest parameters are strict: the extra arguments are built into a list
-  before the body runs. That is right for `max`, `+`, and `concat`, but it
-  means n-ary short-circuiting cannot be written in the language, so `and`
-  and `or` moved from the library into the core (chapter 2.5.3).
+- `replace-at?` exposed a gap in the size rules: an intermediate `concat` has a
+  larger bound than any value it can hold. Intermediate expressions are checked
+  against a separate, larger limit (2.3.1).
+- Rest parameters are strict: the extra arguments are built into a list before
+  the body runs. That is right for `max`, `+`, and `concat`, but it means n-ary
+  short-circuiting cannot be written in the language, so `and` and `or` moved
+  from the library into the core (chapter 2.5.3).
 - `never` as the type of `(return ...)` and `(panic)` makes every early-exit
   form typeable with ordinary lub rules, with no special cases.
-- Inline functions cannot be passed to `filter`, which forces predicates to
-  be private functions (2.6.3).
+- Inline functions cannot be passed to `filter`, which forces predicates to be
+  private functions (2.6.3).
 - Folds whose initial value has a smaller type than the step's result
   (`std-reverse-16` starts from `0x`, `std-render-decimal` from `""`,
-  `index-of?` from `none`) rely on instantiation finding the accumulator
-  type by iteration (2.6.2). Each closes in two steps; a fold that needs a
-  wider start states it with `as` (2.5.10).
-- Overloading and static reference kinds are each justified by a small
-  group of prelude functions (`unwrap!`/`try!` and the integer families;
-  `map-insert`).
+  `index-of?` from `none`) rely on instantiation finding the accumulator type by
+  iteration (2.6.2). Each closes in two steps; a fold that needs a wider start
+  states it with `as` (2.5.10).
+- Overloading and static reference kinds are each justified by a small group of
+  prelude functions (`unwrap!`/`try!` and the integer families; `map-insert`).
