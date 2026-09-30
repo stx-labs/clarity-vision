@@ -104,9 +104,10 @@ but its bounds cannot be stated until ABI v0 fixes the schedule.
    written with each chapter, and the compiler implements the spec, never the
    reverse silently.
 4. **Static bounds lost in compilation**: if the lowering obscures loop bounds,
-   the analyzer cannot prove them from the module. The analyzer therefore works
-   from verified source, and chapter 6 must carry the preservation argument that
-   the module stays within the bound its source implies.
+   the analyzer cannot prove them from the module. The analyzer therefore takes
+   loop bounds from verified source and fuel from the module, and chapter 6 must
+   carry the preservation argument that the module stays within the bound its
+   source implies.
 5. **Justification pressure**: if Phase 5 slips indefinitely, "just use Rust on
    the Wasm chain" wins by default. Treat the static cost analyzer as a headline
    deliverable with the same priority as the compiler.
