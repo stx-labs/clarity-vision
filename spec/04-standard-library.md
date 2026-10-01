@@ -52,7 +52,7 @@ representation. Every other construct a contract author uses is here.
 | Conversions  | `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le`                                          | `buff-to-uint-be`, a byte-reversing `fold-left`, two's-complement arithmetic sign-extended from the actual length |
 | Conversions  | `int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?`                             | digit tables, `element-at?`, `index-of?`, a 39-step `fold-left`                                                   |
 | Conversions  | `to-ascii?`                                                                                    | `int-to-ascii`, `principal-to-ascii`, `map` with a hex or character table, `concat` with a spread                 |
-| Principals   | `is-standard`, `principal-of?`                                                                 | `principal-destruct?`, `principal-construct?`, `hash160`                                                          |
+| Principals   | `is-current-network`, `is-standard`, `principal-of?`                                           | `principal-destruct?`, `principal-construct?`, `hash160`                                                          |
 | Cryptography | `verify-merkle-proof`                                                                          | `sha256`, `log2`, `fold-left` over the proof                                                                      |
 | Storage      | `map-insert?`                                                                                  | `map-get?`, `map-set`                                                                                             |
 | Assets       | `stx-get-balance`                                                                              | `stx-account`                                                                                                     |
@@ -181,7 +181,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | ---------------------- | --------- | -------------------------------------------------------------------------------------------------- |
 | `principal-construct?` | primitive | single signature with `(optional (string-ascii 40))` name; `error_code` field renamed `error-code` |
 | `principal-destruct?`  | primitive |                                                                                                    |
-| `is-standard`          | library   | `(is-ok (principal-destruct? p))`                                                                  |
+| `is-standard`          | library   | renamed `is-current-network`, since it tests the version byte against the current network and is true for contract principals too; vNEXT's `is-standard` tests for a standard (not contract) principal |
 | `principal-of?`        | library   | `hash160` plus `principal-construct?` with the network's version byte                              |
 | `contract-of`          | primitive |                                                                                                    |
 | `contract-hash?`       | primitive |                                                                                                    |

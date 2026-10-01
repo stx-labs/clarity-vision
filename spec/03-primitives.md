@@ -135,7 +135,7 @@ aliasing class at the language level.
 | `contract-of`          | `((trait X)) -> principal`                                                                                                        | the contract principal a trait-typed value refers to                                                                                                                                                                                                                                                 |
 | `contract-hash?`       | `(principal) -> (response (buff 32) uint)`                                                                                        | SHA-512/256 of the deployed contract's module; `err u1` if the principal is not a deployed contract. The chain never holds source; the source hash is available from the module's provenance section, off chain                                                                                      |
 
-Library, not primitive: `is-standard`, `principal-of?`.
+Library, not primitive: `is-current-network`, `is-standard`, `principal-of?`.
 
 `principal-to-ascii` is new. It is the principal case of `to-ascii?`, which is
 otherwise library (3.4). It stays in the host because c32check is a chain

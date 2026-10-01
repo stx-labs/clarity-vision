@@ -480,8 +480,18 @@
 ;; Principals
 ;; ---------------------------------------------------------------------------
 
-(define-private (is-standard (who principal))
+;; True if the principal's version byte is for the current network, whether it
+;; is a standard or a contract principal. This is what legacy `is-standard`
+;; tested, under a name that said otherwise.
+(define-private (is-current-network (who principal))
   (is-ok (principal-destruct? who)))
+
+;; True if the principal is a standard principal, not a contract principal,
+;; on any network.
+(define-private (is-standard (who principal))
+  (match (principal-destruct? who)
+    ((ok parts) (is-none (get name parts)))
+    ((err parts) (is-none (get name parts)))))
 
 ;; Version bytes for single-signature standard principals.
 (define-constant mainnet-p2pkh-version 0x16)
