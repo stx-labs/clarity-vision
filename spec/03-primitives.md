@@ -168,13 +168,13 @@ encoding.
 
 ## 3.7 Contract storage
 
-| Primitive       | Signature                       | Semantics                                               |
-| --------------- | ------------------------------- | ------------------------------------------------------- |
-| `var-get`       | `((var T)) -> T`                | current value                                           |
-| `var-set`       | `((var T) T) -> bool`           | stores the value; returns `true`                        |
-| `map-get?`      | `((map K V) K) -> (optional V)` | lookup                                                  |
-| `map-set`       | `((map K V) K V) -> bool`       | inserts or overwrites; returns `true`                   |
-| `map-delete`    | `((map K V) K) -> bool`         | removes the entry; returns `true` if it existed         |
+| Primitive    | Signature                       | Semantics                                       |
+| ------------ | ------------------------------- | ----------------------------------------------- |
+| `var-get`    | `((var T)) -> T`                | current value                                   |
+| `var-set`    | `((var T) T) -> bool`           | stores the value; returns `true`                |
+| `map-get?`   | `((map K V) K) -> (optional V)` | lookup                                          |
+| `map-set`    | `((map K V) K V) -> bool`       | inserts or overwrites; returns `true`           |
+| `map-delete` | `((map K V) K) -> bool`         | removes the entry; returns `true` if it existed |
 
 Library, not primitive: `map-insert?` (`map-get?` then `map-set`). A membership
 test is `(is-some (map-get? m k))`; a compiler MAY lower it to an existence
@@ -185,50 +185,69 @@ check that does not read the value, since the result is identical (P5).
 All asset primitives record movements in the transaction's asset map (for
 post-conditions and allowances) and emit events.
 
-| Primitive        | Signature                                                                 | Semantics                                                                                  | `err` codes                                                                                              |
-| ---------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `ft-mint?`       | `((fungible-token) uint principal) -> (response bool uint)`               | mints `amount` to the recipient; exceeding the supply cap is a runtime error, as in legacy | `u1` amount is zero                                                                                      |
-| `ft-burn?`       | `((fungible-token) uint principal) -> (response bool uint)`               | burns `amount` from the owner                                                              | `u1` insufficient balance or amount is zero                                                              |
-| `ft-transfer?`   | `((fungible-token) uint principal principal) -> (response bool uint)`     | moves `amount` from sender to recipient                                                    | `u1` insufficient balance; `u2` sender is recipient; `u3` amount is zero                                 |
-| `ft-get-balance` | `((fungible-token) principal) -> uint`                                    | balance                                                                                    |                                                                                                          |
-| `ft-get-supply`  | `((fungible-token)) -> uint`                                              | circulating supply                                                                         |                                                                                                          |
-| `nft-mint?`      | `((non-fungible-token T) T principal) -> (response bool uint)`            | mints the identifier to the recipient                                                      | `u1` already exists                                                                                      |
-| `nft-burn?`      | `((non-fungible-token T) T principal) -> (response bool uint)`            | burns the identifier owned by the owner                                                    | `u1` not owned by owner; `u3` does not exist                                                             |
-| `nft-transfer?`  | `((non-fungible-token T) T principal principal) -> (response bool uint)`  | changes the owner                                                                          | `u1` not owned by sender; `u2` sender is recipient; `u3` does not exist                                  |
-| `nft-get-owner?` | `((non-fungible-token T) T) -> (optional principal)`                      | owner                                                                                      |                                                                                                          |
-| `stx-transfer?`  | `(uint principal principal (optional (buff 34))) -> (response bool uint)` | moves uSTX with an optional memo (legacy `stx-transfer?` and `stx-transfer-memo?` merged)  | `u1` insufficient balance; `u2` sender is recipient; `u3` amount is zero; `u4` sender is not `tx-sender` |
-| `stx-burn?`      | `(uint principal) -> (response bool uint)`                                | burns uSTX                                                                                 | `u1` insufficient balance; `u3` amount is zero; `u4` sender is not `tx-sender`                           |
-| `stx-account`    | `(principal) -> { locked: uint, unlock-height: uint, unlocked: uint }`    | STX account state                                                                          |                                                                                                          |
+| Primitive        | Signature                                                                 | Semantics                                                                                  | `err` codes                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `ft-mint?`       | `((fungible-token) uint principal) -> (response bool uint)`               | mints `amount` to the recipient; exceeding the supply cap is a runtime error, as in legacy | `u1` amount is zero                                                                                                 |
+| `ft-burn?`       | `((fungible-token) uint principal) -> (response bool uint)`               | burns `amount` from the owner                                                              | `u1` insufficient balance or amount is zero                                                                         |
+| `ft-transfer?`   | `((fungible-token) uint principal principal) -> (response bool uint)`     | moves `amount` from sender to recipient                                                    | `u1` insufficient balance; `u2` sender is recipient; `u3` amount is zero                                            |
+| `ft-get-balance` | `((fungible-token) principal) -> uint`                                    | balance                                                                                    |                                                                                                                     |
+| `ft-get-supply`  | `((fungible-token)) -> uint`                                              | circulating supply                                                                         |                                                                                                                     |
+| `nft-mint?`      | `((non-fungible-token T) T principal) -> (response bool uint)`            | mints the identifier to the recipient                                                      | `u1` already exists                                                                                                 |
+| `nft-burn?`      | `((non-fungible-token T) T principal) -> (response bool uint)`            | burns the identifier owned by the owner                                                    | `u1` not owned by owner; `u3` does not exist                                                                        |
+| `nft-transfer?`  | `((non-fungible-token T) T principal principal) -> (response bool uint)`  | changes the owner                                                                          | `u1` not owned by sender; `u2` sender is recipient; `u3` does not exist                                             |
+| `nft-get-owner?` | `((non-fungible-token T) T) -> (optional principal)`                      | owner                                                                                      |                                                                                                                     |
+| `stx-transfer?`  | `(uint principal principal (optional (buff 34))) -> (response bool uint)` | moves uSTX with an optional memo (legacy `stx-transfer?` and `stx-transfer-memo?` merged)  | `u1` insufficient balance; `u2` sender is recipient; `u3` amount is zero; `u4` sender is not the context's `sender` |
+| `stx-burn?`      | `(uint principal) -> (response bool uint)`                                | burns uSTX                                                                                 | `u1` insufficient balance; `u3` amount is zero; `u4` sender is not the context's `sender`                           |
+| `stx-account`    | `(principal) -> { locked: uint, unlock-height: uint, unlocked: uint }`    | STX account state                                                                          |                                                                                                                     |
 
-`stx-transfer?` and `stx-burn?` require `sender` to be `tx-sender` (`err u4`).
-The `ft-*` and `nft-*` primitives do not check the sender; every movement is
-recorded in the asset map and is subject to transaction post-conditions and to
-any enclosing `as-contract?` or `restrict-assets?` allowance frame. Open
-question: whether vNEXT should require `tx-sender` for token transfers as well.
+`stx-transfer?` and `stx-burn?` require the `sender` argument to be the
+context's `sender` field (3.9), returning `err u4` otherwise. The `ft-*` and
+`nft-*` primitives do not check the sender; every movement is recorded in the
+asset map and is subject to transaction post-conditions and to any enclosing
+`as-contract?` or `restrict-assets?` allowance frame. Open question: whether
+vNEXT should require the context's `sender` for token transfers as well.
 
 Library, not primitive: `stx-get-balance`.
 
 ## 3.9 Transaction and chain context
 
-Nullary primitives are written as bare identifiers.
+The execution context is one record, read with a single primitive. Legacy's
+twelve bare context names (`tx-sender`, `stacks-block-height`, and so on) are
+its fields; `(get sender (get-current-context))` replaces `tx-sender`.
 
-| Primitive             | Type                   | Value                                                                                                                                                          |
-| --------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tx-sender`           | `principal`            | the transaction sender, or the current contract inside `as-contract?`                                                                                          |
-| `contract-caller`     | `principal`            | the principal that made the current call: the sender for the entry call, the calling contract for `contract-call?`, the current contract inside `as-contract?` |
-| `tx-sponsor?`         | `(optional principal)` | the sponsor, if the transaction is sponsored                                                                                                                   |
-| `current-contract`    | `principal`            | the contract being executed                                                                                                                                    |
-| `burn-block-height`   | `uint`                 | height of the burnchain block the current Stacks block is anchored to                                                                                          |
-| `stacks-block-height` | `uint`                 | height of the current Stacks block                                                                                                                             |
-| `tenure-height`       | `uint`                 | number of tenures elapsed                                                                                                                                      |
-| `stacks-block-time`   | `uint`                 | timestamp of the current Stacks block (seconds)                                                                                                                |
-| `chain-id`            | `uint`                 | chain identifier                                                                                                                                               |
-| `is-in-mainnet`       | `bool`                 | true on mainnet                                                                                                                                                |
-| `is-in-regtest`       | `bool`                 | true in regtest environments                                                                                                                                   |
-| `stx-liquid-supply`   | `uint`                 | total liquid uSTX                                                                                                                                              |
+| Primitive             | Signature       | Semantics                                                                                                                                       |
+| --------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get-current-context` | `() -> context` | the context of the current call frame; the fields are below. A compiler MAY lower `(get f (get-current-context))` to a read of that field alone |
 
-Chain data lookups return a whole record rather than a property selected by
-name, so their typing is uniform and there is no property-name mini-language.
+```
+context = { sender: principal, caller: principal, sponsor: (optional principal),
+            contract: principal,
+            stacks-height: uint, burn-height: uint, tenure-height: uint,
+            time: uint, liquid-supply: uint,
+            chain-id: uint, is-mainnet: bool, is-regtest: bool }
+```
+
+| Field           | Value                                                                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sender`        | the transaction sender, or the current contract inside `as-contract?`                                                                                          |
+| `caller`        | the principal that made the current call: the sender for the entry call, the calling contract for `contract-call?`, the current contract inside `as-contract?` |
+| `sponsor`       | the sponsor, if the transaction is sponsored                                                                                                                   |
+| `contract`      | the contract being executed                                                                                                                                    |
+| `stacks-height` | height of the current Stacks block                                                                                                                             |
+| `burn-height`   | height of the burnchain block the current Stacks block is anchored to                                                                                          |
+| `tenure-height` | number of tenures elapsed                                                                                                                                      |
+| `time`          | timestamp of the current Stacks block (seconds)                                                                                                                |
+| `liquid-supply` | total liquid uSTX                                                                                                                                              |
+| `chain-id`      | chain identifier                                                                                                                                               |
+| `is-mainnet`    | true on mainnet                                                                                                                                                |
+| `is-regtest`    | true in regtest environments                                                                                                                                   |
+
+`sender`, `caller`, and `contract` are frame-scoped: `as-contract?` (2.5.9) and
+`contract-call?` change them for the frames they create. The other fields are
+the same in every frame of a transaction.
+
+Context and chain data are records rather than properties selected by name, so
+their typing is uniform and there is no property-name mini-language.
 
 **Lookups are total.** Every chain-data lookup returns `none` for any height or
 input the host cannot serve, including heights before the chain's first block
@@ -237,12 +256,12 @@ error and MUST NOT make the transaction unmineable. (Legacy treated some such
 lookups as "problematic" transactions that miners drop, which desynchronizes the
 sender's nonce.)
 
-| Primitive                | Signature                                                                                                                                                                                                | Semantics                                                                                                                                                                                                                                                  |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get-stacks-block-info?` | `(uint) -> (optional { id-header-hash: (buff 32), header-hash: (buff 32), time: uint })`                                                                                                                 | `none` if the height is not less than the current height                                                                                                                                                                                                   |
-| `get-tenure-info?`       | `(uint) -> (optional { burnchain-header-hash: (buff 32), miner-address: principal, time: uint, vrf-seed: (buff 32), block-reward: (optional uint), miner-spend-total: uint, miner-spend-winner: uint })` | `block-reward` is `none` until the reward has matured. Maturity is defined by the host in terms of the coinbase (tenure) height at which the reward was recorded, so the lookup is total: it never fails for a height the host has no row for              |
-| `get-burn-block-info?`   | `(uint) -> (optional { header-hash: (buff 32), pox-addrs: { addrs: (list 2 { hashbytes: (buff 32), version: (buff 1) }), payout: uint } })`                                                              | `none` if the burn height is outside the known range                                                                                                                                                                                                       |
-| `get-bitcoin-tx-output?` | `((buff N) uint) -> (response { script: (buff 1024), amount: uint, txid: (buff 32) } uint)`                                                                                                              | parses raw Bitcoin transaction bytes (SegWit or not) and returns output `vout`, with `txid` in internal byte order; `err u1` the bytes do not deserialize as a transaction, `err u2` `vout` is out of range, `err u3` the output script exceeds 1024 bytes |
+| Primitive                | Signature                                                                                                                                                                                                | Semantics                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get-stacks-block-info?` | `(uint) -> (optional { id-header-hash: (buff 32), header-hash: (buff 32), time: uint })`                                                                                                                 | `none` if the height is not less than the current height: the current block's hashes do not exist until it is sealed, after this transaction runs. The current block's time is the context's `time` field                                                                                                                                                                       |
+| `get-tenure-info?`       | `(uint) -> (optional { burnchain-header-hash: (buff 32), miner-address: principal, time: uint, vrf-seed: (buff 32), block-reward: (optional uint), miner-spend-total: uint, miner-spend-winner: uint })` | serves every tenure up to and including the current one (the context's `tenure-height`), since all fields are fixed at sortition. `block-reward` is `none` until the reward has matured. Maturity is defined by the host in terms of the coinbase (tenure) height at which the reward was recorded, so the lookup is total: it never fails for a height the host has no row for |
+| `get-burn-block-info?`   | `(uint) -> (optional { header-hash: (buff 32), pox-addrs: { addrs: (list 2 { hashbytes: (buff 32), version: (buff 1) }), payout: uint } })`                                                              | serves every burn block up to and including the current one (the context's `burn-height`); `none` if the burn height is outside the known range                                                                                                                                                                                                                                 |
+| `get-bitcoin-tx-output?` | `((buff N) uint) -> (response { script: (buff 1024), amount: uint, txid: (buff 32) } uint)`                                                                                                              | parses raw Bitcoin transaction bytes (SegWit or not) and returns output `vout`, with `txid` in internal byte order; `err u1` the bytes do not deserialize as a transaction, `err u2` `vout` is out of range, `err u3` the output script exceeds 1024 bytes                                                                                                                      |
 
 ## 3.10 Events and control
 
@@ -259,13 +278,13 @@ sender's nonce.)
 | Comparison and equality | 5                                 |
 | Sequences               | 9                                 |
 | Conversions             | 8                                 |
-| Principals              | 4                                 |
+| Principals              | 5                                 |
 | Cryptography            | 10                                |
 | Storage                 | 5                                 |
 | Assets                  | 12                                |
-| Context                 | 12 nullary, 4 lookups             |
+| Context                 | 5                                 |
 | Events and control      | 2                                 |
-| **Total**               | **82**                            |
+| **Total**               | **72**                            |
 
 For comparison, legacy Clarity 6 has 126 native functions and 16 native
 variables, most with bespoke typing rules.

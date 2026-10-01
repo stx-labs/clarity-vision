@@ -339,11 +339,12 @@ special forms. Anything not listed here is either a primitive
 
 ### 2.5.1 Names
 
-A bare identifier denotes, in order of lookup: a `let`- or `match`-bound
-variable, a function parameter, a `define-constant`, or a nullary primitive (the
-context values `tx-sender`, `stacks-block-height`, and so on). Function, map,
-variable, and token names are not values and may appear only in application or
-reference-argument position.
+A bare identifier denotes a `let`- or `match`-bound variable, a function
+parameter, or a `define-constant`; because there is no shadowing (2.5.2), at
+most one of these applies at any point. Function, map, variable, and token names
+are not values and may appear only in application or reference-argument
+position. There are no other bare names: the execution context is read with
+`get-current-context` (3.9).
 
 ### 2.5.2 `let`
 
@@ -356,7 +357,7 @@ bindings and the body. The type is the type of the last body expression.
 
 **No shadowing.** A `let` binding, a `match` binding, or a function parameter
 MUST NOT reuse a name that is already in scope, including the names of top-level
-definitions, prelude definitions, and nullary primitives. Every name therefore
+definitions, prelude definitions, and primitives. Every name therefore
 has exactly one meaning at each point in the program, and the type checker and
 the evaluator cannot disagree about which one applies.
 
@@ -496,8 +497,8 @@ allowance ::= (with-stx amount)
 Both forms evaluate their body in a nested state frame and, on completion,
 compare the asset movements of a designated owner against the allowance list.
 
-- `as-contract?` sets `tx-sender` and `contract-caller` to `current-contract`
-  for the body; the designated owner is the current contract.
+- `as-contract?` sets the context's `sender` and `caller` fields (3.9) to the
+  current contract for the body; the designated owner is the current contract.
 - `restrict-assets?` leaves the context unchanged; the designated owner is the
   value of `owner-expr : principal`.
 
@@ -642,7 +643,7 @@ An inline function is expanded at each call site:
    is never referenced on the taken path is not evaluated. Because evaluation
    happens at the point of reference, an argument referenced inside an
    `as-contract?` or `restrict-assets?` form in the body is evaluated inside
-   that frame, with the frame's `tx-sender` and `contract-caller`, and the order
+   that frame, with the frame's `sender` and `caller`, and the order
    in which arguments are evaluated is the order of their references in the
    body, not their order at the call site. Prelude inline functions reference
    their parameters outside any such frame. Prelude functions whose names read
@@ -677,7 +678,8 @@ expansion is finite because the definition graph is acyclic (2.4.3).
 >     ((err ignored) (return (err code)))))
 >
 > (define-public (withdraw (amount uint))
->   (let ((balance (try-with! (get-balance tx-sender) ERR-NO-ACCOUNT)))
+>   (let ((balance (try-with! (get-balance (get sender (get-current-context)))
+>                             ERR-NO-ACCOUNT)))
 >     ...))
 > ```
 >
@@ -692,7 +694,7 @@ expansion is finite because the definition graph is acyclic (2.4.3).
 > `contract-call?`, a `var-set`, an abort) do not happen. Arguments are
 > evaluated in the order the body uses them, not the order they are written. An
 > argument used inside an `as-contract?` or `restrict-assets?` form in the body
-> sees that frame's `tx-sender`. A function whose name reads as an ordinary call
+> sees that frame's `sender`. A function whose name reads as an ordinary call
 > should not be inline unless its documentation states which arguments may go
 > unevaluated.
 

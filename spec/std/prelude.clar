@@ -493,7 +493,9 @@
   (if (not (is-eq (len public-key) u33))
     (err u1)
     (match (principal-construct?
-             (if is-in-mainnet mainnet-p2pkh-version testnet-p2pkh-version)
+             (if (get is-mainnet (get-current-context))
+               mainnet-p2pkh-version
+               testnet-p2pkh-version)
              (hash160 public-key)
              none)
       ((ok who) (ok who))

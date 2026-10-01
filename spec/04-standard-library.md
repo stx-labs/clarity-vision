@@ -246,9 +246,10 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 | Legacy                                                                           | vNEXT     | Notes                        |
 | -------------------------------------------------------------------------------- | --------- | ---------------------------- |
-| `tx-sender`, `contract-caller`, `tx-sponsor?`, `current-contract`                | primitive | nullary                      |
-| `burn-block-height`, `stacks-block-height`, `tenure-height`, `stacks-block-time` | primitive | nullary                      |
-| `chain-id`, `is-in-mainnet`, `is-in-regtest`, `stx-liquid-supply`                | primitive | nullary                      |
+| `tx-sender`, `contract-caller`, `tx-sponsor?`, `current-contract`                | removed   | fields `sender`, `caller`, `sponsor`, `contract` of `(get-current-context)` (3.9); `(get sender (get-current-context))` replaces `tx-sender` |
+| `burn-block-height`, `stacks-block-height`, `tenure-height`, `stacks-block-time` | removed   | fields `burn-height`, `stacks-height`, `tenure-height`, `time` of `(get-current-context)` |
+| `chain-id`, `is-in-mainnet`, `is-in-regtest`, `stx-liquid-supply`                | removed   | fields `chain-id`, `is-mainnet`, `is-regtest`, `liquid-supply` of `(get-current-context)` |
+| new: `get-current-context`                                                       | primitive | one record for the whole execution context; the twelve bare names are no longer reserved |
 | `block-height`                                                                   | removed   | already removed in Clarity 3 |
 | `none`, `true`, `false`                                                          | literal   |                              |
 

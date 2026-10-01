@@ -29,7 +29,7 @@ tests; otherwise it belongs in the standard library:
 
 1. **Host access.** It reads or writes contract state, moves assets, reads chain
    data, reads the transaction context, emits events, or calls another contract.
-   (Examples: `map-get?`, `ft-transfer?`, `stacks-block-height`, `print`,
+   (Examples: `map-get?`, `ft-transfer?`, `get-current-context`, `print`,
    `contract-call?`.)
 2. **Not expressible.** It cannot be written in the language at all because it
    introduces binding, branching, early exit, definitions, generics, or
