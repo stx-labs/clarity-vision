@@ -86,6 +86,9 @@ A deployed contract is one Wasm module plus its interface:
   exported function's name, parameter and result types in ABI types, and
   read-only mark; the traits the contract defines and claims to implement; its
   token definitions. This is what other contracts compile and dispatch against.
+  The ABI type grammar includes an empty type (`never` in Clarity, spec 2.3.3)
+  so that a function can declare that it never returns `err`; boundary
+  validation admits no value for it.
 - **Provenance** (section 2).
 
 At deploy the chain checks that the module is valid Wasm within size limits,
@@ -171,8 +174,8 @@ differ from the audited source. The defenses:
    deployed module only when that triple verifies. A cost bound also names the
    fuel-schedule version it was computed for (section 4). Bounds need both
    halves of the triple: loop and size bounds come from the verified source,
-   because only Clarity source guarantees bounded loops, and fuel comes from
-   the module, because that is what the chain meters. The chain sees only the
+   because only Clarity source guarantees bounded loops, and fuel comes from the
+   module, because that is what the chain meters. The chain sees only the
    module, so the ABI carries no bound certificates.
 
 ## 7. Legacy contracts
