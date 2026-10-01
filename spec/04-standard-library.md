@@ -171,7 +171,8 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | new: `uint-to-buff-be`, `uint-to-buff-le`, `int-to-buff-be`, `int-to-buff-le` | primitive | fixed width, abort if the value does not fit (issue #7312)                                                                                                                                                                                                                                                                                                                                                                                        |
 | `int-to-ascii`, `int-to-utf8`                                                 | library   |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `string-to-int?`, `string-to-uint?`                                           | library   |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `to-consensus-buff?`, `from-consensus-buff?`                                  | primitive |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `to-consensus-buff?`                                                          | primitive | renamed `to-consensus-buff`, total: legacy's `none` for a result over the value size limit is replaced by the static size limits on the result's position (2.3.1)                                                                                                                                                                                                                                                                                 |
+| `from-consensus-buff?`                                                        | primitive |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `to-ascii?`                                                                   | library   | six overloads (`int`, `uint`, `bool`, `principal`, `buff`, `string-utf8`) with legacy's text and bounds, except that the principal bound is 82 where legacy's is 170, because contract names are limited to 40 characters (2.2); the principal case uses the new `principal-to-ascii` primitive (chapter 3.5). A `string-utf8` containing U+000C (form feed) is now `err u1`: legacy accepted it, but a vNEXT `string-ascii` cannot hold it (2.2) |
 
 ### Principals
@@ -196,10 +197,10 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 ### Storage
 
-| Legacy                              | vNEXT     | Notes                                                                                                                                   |
-| ----------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `var-get`, `var-set`                | primitive |                                                                                                                                         |
-| `map-get?`, `map-set`, `map-delete` | primitive |                                                                                                                                         |
+| Legacy                              | vNEXT     | Notes                                                                                                                                                                                                                                                          |
+| ----------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `var-get`, `var-set`                | primitive |                                                                                                                                                                                                                                                                |
+| `map-get?`, `map-set`, `map-delete` | primitive |                                                                                                                                                                                                                                                                |
 | `map-insert`                        | library   | renamed `map-insert?`; returns `(optional V)`: the existing value if the key was present (nothing written), `none` if inserted, where legacy returned `bool`; private, so both arguments are evaluated; written with a `(map K V)` reference parameter (2.3.6) |
 
 ### Assets
@@ -249,14 +250,14 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 ### Native variables
 
-| Legacy                                                                           | vNEXT     | Notes                        |
-| -------------------------------------------------------------------------------- | --------- | ---------------------------- |
+| Legacy                                                                           | vNEXT     | Notes                                                                                                                                        |
+| -------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tx-sender`, `contract-caller`, `tx-sponsor?`, `current-contract`                | removed   | fields `sender`, `caller`, `sponsor`, `contract` of `(get-current-context)` (3.9); `(get sender (get-current-context))` replaces `tx-sender` |
-| `burn-block-height`, `stacks-block-height`, `tenure-height`, `stacks-block-time` | removed   | fields `burn-height`, `stacks-height`, `tenure-height`, `time` of `(get-current-context)` |
-| `chain-id`, `is-in-mainnet`, `is-in-regtest`, `stx-liquid-supply`                | removed   | fields `chain-id`, `is-mainnet`, `is-regtest`, `liquid-supply` of `(get-current-context)` |
-| new: `get-current-context`                                                       | primitive | one record for the whole execution context; the twelve bare names are no longer reserved |
-| `block-height`                                                                   | removed   | already removed in Clarity 3 |
-| `none`, `true`, `false`                                                          | literal   |                              |
+| `burn-block-height`, `stacks-block-height`, `tenure-height`, `stacks-block-time` | removed   | fields `burn-height`, `stacks-height`, `tenure-height`, `time` of `(get-current-context)`                                                    |
+| `chain-id`, `is-in-mainnet`, `is-in-regtest`, `stx-liquid-supply`                | removed   | fields `chain-id`, `is-mainnet`, `is-regtest`, `liquid-supply` of `(get-current-context)`                                                    |
+| new: `get-current-context`                                                       | primitive | one record for the whole execution context; the twelve bare names are no longer reserved                                                     |
+| `block-height`                                                                   | removed   | already removed in Clarity 3                                                                                                                 |
+| `none`, `true`, `false`                                                          | literal   |                                                                                                                                              |
 
 ## 4.4 New in vNEXT
 
@@ -265,10 +266,9 @@ user-written helpers:
 
 - `max`, `min` (rest parameters), `abs`
 
-Primitive additions with no legacy counterpart: the four `*-to-buff-*`
-functions and `principal-to-ascii` (chapter 3). Further
-candidates from the issue tracker are collected in
-[05-issue-tracker.md](05-issue-tracker.md).
+Primitive additions with no legacy counterpart: the four `*-to-buff-*` functions
+and `principal-to-ascii` (chapter 3). Further candidates from the issue tracker
+are collected in [05-issue-tracker.md](05-issue-tracker.md).
 
 ## 4.5 What the prelude taught us about the core
 
