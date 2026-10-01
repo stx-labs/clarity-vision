@@ -95,6 +95,11 @@ be written in the language, because everything else is written in terms of them:
 comparison on sequences. Moving them would lengthen the prelude without
 shrinking the set of things a compiler must implement.
 
+`principal-to-ascii` is also expressible (c32check is base-32 text with a
+double-SHA-256 checksum) and is kept primitive for a different reason: c32check
+is the chain's address encoding, defined and maintained with the chain, so the
+host renders it rather than the language fixing it in a frozen prelude.
+
 ## 4.3 Disposition of every legacy construct
 
 This table covers every native function, define form, and native variable in

@@ -17,9 +17,9 @@ vNEXT is specified as **a small core language plus a standard library written in
 that core language**. This is the single most important structural decision in
 the spec, and every chapter is organized around it:
 
-| Layer                | Contents                                                                                                                                                                                                                                                                        | Where specified                                                                        |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| **Core language**    | Syntax, types, a fixed set of _special forms_ (binding, branching, early exit, definitions, calls, context scoping) and a fixed set of _primitive operations_ (host access, cryptography, and the base operations on each type's representation)                                | [02-core-language.md](02-core-language.md), [03-primitives.md](03-primitives.md)       |
+| Layer                | Contents                                                                                                                                                                                                                                                                         | Where specified                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **Core language**    | Syntax, types, a fixed set of _special forms_ (binding, branching, early exit, definitions, calls, context scoping) and a fixed set of _primitive operations_ (host access, cryptography, and the base operations on each type's representation)                                 | [02-core-language.md](02-core-language.md), [03-primitives.md](03-primitives.md)       |
 | **Standard library** | Every other construct a contract author uses: `if`, `unwrap!`, `try!`, `asserts!`, `default-to`, `mod`, `pow`, `append`, `index-of?`, `map-insert?`, integer/string conversions, `verify-merkle-proof`, and so on. Written in vNEXT and linked into every module by the compiler | [04-standard-library.md](04-standard-library.md), [std/prelude.clar](std/prelude.clar) |
 
 ### The layering rule
@@ -36,7 +36,7 @@ tests; otherwise it belongs in the standard library:
    type-directed behavior, takes a type or size argument, or needs a function
    argument that the language cannot close over. (Examples: `let`, `match`,
    `return`, `define-map`, `is-eq`, `as-max-len?`, `from-consensus-buff?`,
-   `map`, `filter`.)
+   `uint-to-buff-be`, `map`, `filter`.)
 3. **Cryptographic standard.** It is a hash function or signature scheme defined
    by an external standard. These are implemented once, by audited host
    libraries, not reimplemented in the language. Constructions built from them
@@ -45,10 +45,11 @@ tests; otherwise it belongs in the standard library:
 4. **Representation base.** It is one of the minimal operations on a built-in
    type's representation that everything else is written in terms of: integer
    `+ - * /`, bitwise `and`/`or`/`xor` and shifts, comparison, one conversion
-   per pair of representations (`to-int`, `to-uint`, `buff-to-uint-be`,
-   `uint-to-buff-be`), and sequence length, concatenation, indexing, and
-   slicing. Anything derivable from these is library. (`mod`, `pow`, `sqrti`,
-   `buff-to-int-le`, and `int-to-ascii` are library.)
+   per pair of representations (`to-int`, `to-uint`, `buff-to-uint-be`), and
+   sequence length, concatenation, indexing, and slicing. Anything derivable
+   from these is library. (`mod`, `pow`, `sqrti`, `buff-to-int-le`, and
+   `int-to-ascii` are library. The `*-to-buff-*` family is core by test 2, not
+   this one: each takes a size argument.)
 
 Cost is not a test. Contracts are metered by the fuel their compiled Wasm
 consumes, so a library function costs what its code costs to run, and a function
