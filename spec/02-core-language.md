@@ -362,7 +362,7 @@ the evaluator cannot disagree about which one applies.
 
 Legacy is equally strict about locals, top-level definitions, and builtin names.
 Legacy source that uses a name reserved only in vNEXT (such as `max`, `min`,
-`abs`, `map-contains?`, `fold-left`, or `as`) as a local must rename it when
+`abs`, `fold-left`, or `as`) as a local must rename it when
 ported. The reserved names are fixed per language version, because the prelude
 is part of the language version (chapter 4).
 
@@ -646,7 +646,7 @@ An inline function is expanded at each call site:
    in which arguments are evaluated is the order of their references in the
    body, not their order at the call site. Prelude inline functions reference
    their parameters outside any such frame. Prelude functions whose names read
-   as ordinary calls (`default-to`, `map-insert`) are private, so their
+   as ordinary calls (`default-to`, `map-insert?`) are private, so their
    arguments are evaluated eagerly as in legacy; laziness is confined to
    control-flow forms, and the library documents each place where it changes
    legacy behavior (`unwrap!`, `unwrap-err!`).

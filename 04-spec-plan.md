@@ -34,7 +34,7 @@ in that language**.
 - The **standard library** is everything else: control flow (`if`, `unwrap!`,
   `try!`, `asserts!`, `default-to`), predicates, derived arithmetic (`mod`,
   `pow`, `sqrti`), sequence helpers (`append`, `index-of?`, `replace-at?`),
-  integer/string/byte conversions, `verify-merkle-proof`, `map-insert`, and
+  integer/string/byte conversions, `verify-merkle-proof`, `map-insert?`, and
   more, about forty definitions. It is ordinary Clarity source
   ([spec/std/prelude.clar](spec/std/prelude.clar)), versioned and frozen with
   the language, compiled and linked into each module like user code, and it has

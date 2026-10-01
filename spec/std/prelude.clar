@@ -547,12 +547,13 @@
 ;; Storage
 ;; ---------------------------------------------------------------------------
 
-;; Insert only if absent. Private, so `key` and `value` are both evaluated
-;; before the call, as in legacy.
-(define-private (map-insert (target (map K V)) (key K) (value V))
-  (if (map-contains? target key)
-      false
-      (map-set target key value)))
+;; Insert only if absent. Returns the existing value, and writes nothing, if
+;; the key already has one; `none` if the value was inserted. Private, so
+;; `key` and `value` are both evaluated before the call.
+(define-private (map-insert? (target (map K V)) (key K) (value V))
+  (match (map-get? target key)
+    ((some existing) (some existing))
+    (none (begin (map-set target key value) none))))
 
 ;; ---------------------------------------------------------------------------
 ;; Assets

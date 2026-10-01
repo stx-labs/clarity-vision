@@ -28,8 +28,9 @@ static analysis, and tractable proofs possible
 
 The core language contains only what passes the layering rule in
 [README.md](README.md): host access, constructs that cannot be expressed in the
-language, cryptographic standards, and the base operations on each type's
-representation. Everything else is standard library.
+language, hash functions and signature schemes defined by external standards,
+and the base operations on each type's representation. Everything else is
+standard library.
 
 The core is therefore small enough to hold in one head: about a dozen top-level
 definition forms, about a dozen expression forms, and about eighty primitive

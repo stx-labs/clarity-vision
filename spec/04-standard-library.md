@@ -54,7 +54,7 @@ representation. Every other construct a contract author uses is here.
 | Conversions  | `to-ascii?`                                                                                    | `int-to-ascii`, `principal-to-ascii`, `map` with a hex or character table, `concat` with a spread                 |
 | Principals   | `is-standard`, `principal-of?`                                                                 | `principal-destruct?`, `principal-construct?`, `hash160`                                                          |
 | Cryptography | `verify-merkle-proof`                                                                          | `sha256`, `log2`, `fold-left` over the proof                                                                      |
-| Storage      | `map-insert`                                                                                   | `map-contains?`, `map-set`                                                                                        |
+| Storage      | `map-insert?`                                                                                  | `map-get?`, `map-set`                                                                                             |
 | Assets       | `stx-get-balance`                                                                              | `stx-account`                                                                                                     |
 
 About forty public definitions, plus `std-*` helpers. Two conventions decide
@@ -195,7 +195,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | ----------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `var-get`, `var-set`                | primitive |                                                                                                                                         |
 | `map-get?`, `map-set`, `map-delete` | primitive |                                                                                                                                         |
-| `map-insert`                        | library   | private; `map-contains?` then `map-set`; both arguments evaluated, as in legacy; written with a `(map K V)` reference parameter (2.3.6) |
+| `map-insert`                        | library   | renamed `map-insert?`; returns `(optional V)`: the existing value if the key was present (nothing written), `none` if inserted, where legacy returned `bool`; private, so both arguments are evaluated; written with a `(map K V)` reference parameter (2.3.6) |
 
 ### Assets
 
@@ -260,7 +260,7 @@ user-written helpers:
 - `max`, `min` (rest parameters), `abs`
 
 Primitive additions with no legacy counterpart: the four `*-to-buff-*`
-functions, `map-contains?`, and `principal-to-ascii` (chapter 3). Further
+functions and `principal-to-ascii` (chapter 3). Further
 candidates from the issue tracker are collected in
 [05-issue-tracker.md](05-issue-tracker.md).
 
@@ -295,4 +295,4 @@ Writing the prelude is the test of the core design. Findings so far:
   iteration (2.6.2). Each closes in two steps; a fold that needs a wider start
   states it with `as` (2.5.10).
 - Overloading and static reference kinds are each justified by a small group of
-  prelude functions (`unwrap!`/`try!` and the integer families; `map-insert`).
+  prelude functions (`unwrap!`/`try!` and the integer families; `map-insert?`).

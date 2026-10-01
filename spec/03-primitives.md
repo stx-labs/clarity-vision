@@ -173,15 +173,12 @@ encoding.
 | `var-get`       | `((var T)) -> T`                | current value                                           |
 | `var-set`       | `((var T) T) -> bool`           | stores the value; returns `true`                        |
 | `map-get?`      | `((map K V) K) -> (optional V)` | lookup                                                  |
-| `map-contains?` | `((map K V) K) -> bool`         | `true` if the key has an entry; does not read the value |
 | `map-set`       | `((map K V) K V) -> bool`       | inserts or overwrites; returns `true`                   |
 | `map-delete`    | `((map K V) K) -> bool`         | removes the entry; returns `true` if it existed         |
 
-Library, not primitive: `map-insert` (`map-contains?` then `map-set`).
-
-`map-contains?` is new. It exists so that a membership test does not have to
-read, deserialize, and copy a value only to discard it, as
-`(is-some (map-get? m k))` does.
+Library, not primitive: `map-insert?` (`map-get?` then `map-set`). A membership
+test is `(is-some (map-get? m k))`; a compiler MAY lower it to an existence
+check that does not read the value, since the result is identical (P5).
 
 ## 3.8 Assets
 
