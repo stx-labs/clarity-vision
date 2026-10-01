@@ -229,11 +229,11 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 ### Chain data
 
-| Legacy                                                               | vNEXT     | Notes                                                   |
-| -------------------------------------------------------------------- | --------- | ------------------------------------------------------- |
-| `get-stacks-block-info?`, `get-tenure-info?`, `get-burn-block-info?` | primitive | return the whole record; property-name argument removed |
-| `get-block-info?`                                                    | removed   | already removed in Clarity 3                            |
-| `get-bitcoin-tx-output?`                                             | primitive |                                                         |
+| Legacy                                                               | vNEXT     | Notes                                                                                                                                                                                 |
+| -------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get-stacks-block-info?`, `get-tenure-info?`, `get-burn-block-info?` | primitive | return the whole record; property-name argument removed; `get-tenure-info?` and `get-burn-block-info?` serve the current tenure and burn block; the `hashbytes` field is `hash-bytes` |
+| `get-block-info?`                                                    | removed   | already removed in Clarity 3                                                                                                                                                          |
+| `get-bitcoin-tx-output?`                                             | primitive |                                                                                                                                                                                       |
 
 ### Define forms
 
