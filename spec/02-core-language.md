@@ -302,14 +302,18 @@ serve there. A runtime error in any top-level expression aborts the deploy.
 ### 2.4.3 The definition graph is acyclic
 
 Definition `a` depends on `b` if the body, type, or initializer of `a` mentions
-`b` by name, or passes `b` as a reference argument. The dependency graph over
-all definitions in a contract, computed after reference resolution and
-instantiation (2.6.2), MUST be acyclic. This single rule excludes recursion
-(direct, mutual, and through function references), recursive types, and
-recursive constants.
+the name `b` anywhere: in call position, in type position, or as a reference
+argument. The dependency graph over all definition names in a contract MUST be
+acyclic. This single rule excludes recursion (direct, mutual, and through
+function references), recursive types, and recursive constants.
 
-Each definition of an overloaded name is its own node, so one overload may use
-another as long as the graph stays acyclic.
+The graph is over names, not instances, and is computed from the source alone,
+before overload resolution and instantiation (2.6.2). All definitions of an
+overloaded name are one node, so one overload of a name MUST NOT use another;
+the shared part lives in a helper, as the prelude's `std-sqrti-uint` does for
+the two `sqrti` overloads. Because the graph is acyclic before instantiation
+begins, every chain of instantiations and inline expansions is finite (P1), and
+the deploy-order check of 2.4.2 can be made on the source.
 
 ### 2.4.4 Contract interface
 
@@ -600,10 +604,11 @@ resulting size that exceeds the limit for the call's position (2.3.1) is a type
 error.
 
 Each distinct `(candidate, σ, reference arguments)` triple is a distinct
-**instance**. Instances are what the compiler and the definition graph (2.4.3)
-operate on. Instance bodies are type-checked with the concrete substitution
-applied ("template" semantics): a generic body that is never instantiated is
-parsed and scope-checked but not type-checked.
+**instance**. Instances are what the compiler operates on; the definition graph
+(2.4.3) is over names and is checked before any instance exists. Instance bodies
+are type-checked with the concrete substitution applied ("template" semantics):
+a generic body that is never instantiated is parsed and scope-checked but not
+type-checked.
 
 A type error found while checking an instance body is reported at the call site
 that created the instance. The report MUST name the called definition and the
