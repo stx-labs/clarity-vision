@@ -570,10 +570,3 @@
   (match (map-get? target key)
     ((some existing) (some existing))
     (none (begin (map-set target key value) none))))
-
-;; ---------------------------------------------------------------------------
-;; Assets
-;; ---------------------------------------------------------------------------
-
-(define-private (stx-get-balance (owner principal))
-  (get unlocked (stx-account owner)))
