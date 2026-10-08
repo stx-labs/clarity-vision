@@ -32,8 +32,13 @@ interpreter) proceeds separately and is not covered here.
   sections.
 - Determinism from the first commit: golden build vectors in CI on every
   supported platform.
-- A direct evaluator of the spec's semantics, used only as a test oracle for
-  differential testing and fuzzing of the compiler.
+- A direct evaluator: an interpreter that runs Clarity source by applying the
+  spec's semantic rules one at a time, with no Wasm in the path. It exists only
+  as a test oracle. Differential testing runs the same contracts and calls
+  through the evaluator and through the compiler and compares the results, and
+  fuzzing generates those contracts and calls in volume
+  ([03-architecture.md](03-architecture.md) section 6). The evaluator never
+  runs on chain.
 - Exit criterion: the compiler passes the language vectors.
 
 ## Phase 3 — Chain integration

@@ -89,20 +89,92 @@ schedule.
 ## The conformance suite
 
 The suite is what makes the spec real, and it is the highest-leverage artifact
-of the effort. It has two layers:
+of the effort. Without it the spec is a description that implementations
+resemble to varying degrees; with it the spec is a contract that an
+implementation either meets or does not.
 
-- **Language vectors**: contract source plus the expected outcome (a compile
-  error of a specified class, or return values, events, asset movements, and
-  aborts for given calls). They do not pin fuel, because a better compiler is
-  allowed to produce cheaper code. Every normative rule cites the vectors that
-  exercise it. Every Clarity compiler must pass them.
-- **ABI vectors**: modules plus expected chain behavior (deploy validation,
-  boundary validation, rollback, reentrancy and read-only rejection, host
-  function results and charges). Every chain implementation must pass them, and
-  they are language-independent.
+### What a vector is
 
-Separately, each compiler release publishes **golden build vectors** (source to
-exact module bytes) so reproducibility is testable.
+A **conformance vector** is one test case written as data rather than as code:
+an input, the outcome the spec requires for that input, and the identifiers of
+the normative rules it exercises. Because a vector is data, every implementation
+runs the same vectors through its own runner, so the suite never depends on any
+one implementation's language or test framework. When a vector fails, it names
+the rule that was broken.
+
+An illustrative language vector (the concrete format is Phase 0 work in
+[05-roadmap.md](05-roadmap.md), and rule identifiers are not yet assigned):
+
+```text
+id:     lang/arith/add-uint-overflow
+rules:  03 §3.1 (+ overflows), 02 §2.7.2 (runtime errors abort)
+source: (define-public (f)
+          (ok (+ u340282366920938463463374607431768211455 u1)))
+call:   f
+expect: abort, class arithmetic-overflow
+```
+
+### Three kinds of vector
+
+| Kind             | Input                         | Expected outcome                                                                                                     | Who must pass                                              |
+| ---------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Language**     | Contract source, plus calls   | A compile error of a specified class, or for each call: return value, events, asset movements, and whether it aborts | Every Clarity compiler                                     |
+| **ABI**          | A module, plus chain actions  | Deploy and boundary validation, rollback, reentrancy and read-only rejection, host function results and charges      | Every chain implementation, independent of source language |
+| **Golden build** | Source and a compiler version | The exact module bytes                                                                                               | That compiler release, on every supported platform         |
+
+Language and ABI vectors are the suite proper: they pin behavior the
+specification requires, and they are written with the spec and versioned with
+it. Golden build vectors are different in kind. They pin nothing about the
+language; they pin a particular compiler release, so that reproducibility
+(section 6 of [03-architecture.md](03-architecture.md)) is testable rather than
+asserted. Each compiler release publishes its own.
+
+### What a vector deliberately does not pin
+
+The suite checks what the spec requires and nothing more, so that
+implementations keep room to improve:
+
+- **Fuel.** A language vector never states how much fuel a call consumes. A
+  better compiler is allowed to produce cheaper code, and a vector that pinned
+  fuel would forbid it. Charges for host functions are pinned by ABI vectors,
+  because the ABI's fuel schedule is normative for the chain.
+- **Module bytes.** A language vector never states what Wasm a compiler emits,
+  only how the result behaves. Byte-exactness is the job of golden build
+  vectors, and only for one release at a time.
+- **Error text.** A compile-error vector names the class of error (an arity
+  mismatch, an undefined name, a read-only violation), not a message. Messages
+  are a tool's own concern.
+
+### How rules and vectors bind each other
+
+Principle P8 ([spec/01-principles.md](spec/01-principles.md)) states the
+contract: every normative rule cites the vectors that exercise it, and no rule
+is frozen without vectors. The runner enforces this both ways. A rule that cites
+no vector is unfrozen and shows up in a coverage report. A vector that cites no
+rule is testing something the spec does not say, which is a spec bug to fix
+before the vector is accepted.
+
+Which side is the oracle depends on where the rule lives:
+
+- For the core language, the prose rule is normative. If a compiler and a
+  vector disagree, one of them has a bug, and the disagreement is adjudicated
+  explicitly and recorded (P8).
+- For the standard library, the prelude source is normative
+  ([spec/04-standard-library.md](spec/04-standard-library.md)). Library vectors
+  are derived from the source, and if a vector and the source disagree, the
+  vector is wrong. The same vectors are what hold a hand-written or
+  better-compiled replacement, linked by a later compiler in place of the
+  source, to identical results, events, and errors.
+- For the chain, the ABI document is normative, and ABI vectors are its suite.
+
+### Where the suite sits among the other defenses
+
+The suite is the floor, not the ceiling. It is a fixed set of cases, so it
+catches regressions and divergence on behavior someone thought to write down.
+Differential testing against the direct evaluator and fuzzing (section 6 of
+[03-architecture.md](03-architecture.md)) search above that floor for behavior
+nobody wrote down. Every bug they find becomes a vector, so the floor only
+rises.
 
 ## Language design opportunities
 
