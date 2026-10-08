@@ -87,8 +87,7 @@ parameters swapped.
 
 Library, not primitive: `append`, `index-of?`, `replace-at?`. Legacy
 multi-sequence `map` (`(map f l1 l2)`) is dropped. It cannot be written in the
-library, because a fold would have to carry `f` in its accumulator; if it is
-needed it can return as a primitive family (`map2`, `map3`).
+library, because a fold would have to carry `f` in its accumulator.
 
 ## 3.4 Conversions and serialization
 

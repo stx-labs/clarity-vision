@@ -117,7 +117,8 @@
 ;; Arithmetic
 ;; ---------------------------------------------------------------------------
 
-;; `T` is instantiated at int or uint. (max a b c) folds the binary helper
+;; `T` is any type `>` accepts: int, uint, or a buffer or string type, which
+;; compare in byte order (chapter 3.2). (max a b c) folds the binary helper
 ;; over (list b c) starting from a.
 (define-private (std-max-pair (left T) (right T))
   (if (> left right) left right))
@@ -347,7 +348,8 @@
     { rest: (/ (get rest acc) u10),
       text: (std-prepend-digit (mod (get rest acc) u10) (get text acc)) }))
 
-;; `X` is instantiated at the empty string of the result kind.
+;; `X` is instantiated at the type of the empty string of the result kind,
+;; `(string-ascii 0)` or `(string-utf8 0)`, and the fold widens it to 40.
 (define-private (std-render-decimal (value uint) (empty X))
   (get text (fold-left std-decimal-step { rest: value, text: empty }
               std-decimal-iterations)))
