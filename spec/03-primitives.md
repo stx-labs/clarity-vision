@@ -104,6 +104,18 @@ library, because a fold would have to carry `f` in its accumulator.
 `serialized-size(T)` is a type-level size function defined with the wire format
 in the chain ABI.
 
+### Bitcoin transaction parsing
+
+| Primitive                | Signature                                                                                   | Semantics                                                                                                                                                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get-bitcoin-tx-output?` | `((buff N) uint) -> (response { script: (buff 1024), amount: uint, txid: (buff 32) } uint)`                                                                                                              | parses raw Bitcoin transaction bytes (SegWit or not) and returns output `vout`, with `txid` in internal byte order; `err u1` the bytes do not deserialize as a transaction, `err u2` `vout` is out of range, `err u3` the output script exceeds 1024 bytes                                                                                                                      |
+
+This is pure parsing of a byte string, not a chain lookup, which is why it sits
+with the conversions. It is expressible in the language, so under the layering
+rule it is a candidate for the library; it stays primitive in this draft only
+because the parser (variable-length integers, SegWit markers, witness data) has
+not been written yet.
+
 `buff-to-uint-be` and `uint-to-buff-be` are the base conversions between
 integers and bytes. The `*-to-buff-*` family stays primitive because each takes
 a size argument, which a library function cannot. Library, not primitive:
@@ -257,7 +269,6 @@ sender's nonce.)
 | `get-stacks-block-info?` | `(uint) -> (optional { id-header-hash: (buff 32), header-hash: (buff 32), time: uint })`                                                                                                                 | `none` if the height is not less than the current height: the current block's hashes do not exist until it is sealed, after this transaction runs. The current block's time is the context's `time` field                                                                                                                                                                       |
 | `get-tenure-info?`       | `(uint) -> (optional { burnchain-header-hash: (buff 32), miner-address: principal, time: uint, vrf-seed: (buff 32), block-reward: (optional uint), miner-spend-total: uint, miner-spend-winner: uint })` | serves every tenure up to and including the current one (the context's `tenure-height`), since all fields are fixed at sortition. `block-reward` is `none` until the reward has matured. Maturity is defined by the host in terms of the coinbase (tenure) height at which the reward was recorded, so the lookup is total: it never fails for a height the host has no row for |
 | `get-burn-block-info?`   | `(uint) -> (optional { header-hash: (buff 32), pox-addrs: { addrs: (list 2 { hash-bytes: (buff 32), version: (buff 1) }), payout: uint } })`                                                             | serves every burn block up to and including the current one (the context's `burn-height`); `none` if the burn height is outside the known range. The `hashbytes` field of legacy is `hash-bytes` (P6)                                                                                                                                                                           |
-| `get-bitcoin-tx-output?` | `((buff N) uint) -> (response { script: (buff 1024), amount: uint, txid: (buff 32) } uint)`                                                                                                              | parses raw Bitcoin transaction bytes (SegWit or not) and returns output `vout`, with `txid` in internal byte order; `err u1` the bytes do not deserialize as a transaction, `err u2` `vout` is out of range, `err u3` the output script exceeds 1024 bytes                                                                                                                      |
 
 ## 3.10 Events and control
 
@@ -273,12 +284,12 @@ sender's nonce.)
 | Arithmetic              | 11 (each in two integer families) |
 | Comparison and equality | 5                                 |
 | Sequences               | 9                                 |
-| Conversions             | 8                                 |
+| Conversions             | 9                                 |
 | Principals              | 4                                 |
 | Cryptography            | 10                                |
 | Storage                 | 5                                 |
 | Assets                  | 12                                |
-| Context                 | 5                                 |
+| Context                 | 4                                 |
 | Events and control      | 2                                 |
 | **Total**               | **71**                            |
 
