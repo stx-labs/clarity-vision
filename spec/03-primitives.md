@@ -206,8 +206,6 @@ asset map and is subject to transaction post-conditions and to any enclosing
 `as-contract?` or `restrict-assets?` allowance frame. Open question: whether
 vNEXT should require the context's `sender` for token transfers as well.
 
-Library, not primitive: `stx-get-balance`.
-
 ## 3.9 Transaction and chain context
 
 The execution context is one record, read with a single primitive. Legacy's

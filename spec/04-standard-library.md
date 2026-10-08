@@ -55,7 +55,6 @@ representation. Every other construct a contract author uses is here.
 | Principals   | `is-current-network`, `is-standard`, `principal-of?`                                           | `principal-destruct?`, `principal-construct?`, `hash160`                                                          |
 | Cryptography | `verify-merkle-proof`                                                                          | `sha256`, `log2`, `fold-left` over the proof                                                                      |
 | Storage      | `map-insert?`                                                                                  | `map-get?`, `map-set`                                                                                             |
-| Assets       | `stx-get-balance`                                                                              | `stx-account`                                                                                                     |
 
 About forty public definitions, plus `std-*` helpers. Two conventions decide
 whether a prelude function is `define-inline` or `define-private`:
@@ -212,7 +211,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | `stx-transfer?`                                                           | primitive | takes `(optional (buff 34))` memo |
 | `stx-transfer-memo?`                                                      | removed   | merged into `stx-transfer?`       |
 | `stx-burn?`, `stx-account`                                                | primitive |                                   |
-| `stx-get-balance`                                                         | library   | `(get unlocked (stx-account p))`  |
+| `stx-get-balance`                                                         | removed   | `(get unlocked (stx-account p))`; a one-line alias (P6) |
 
 ### Calls, context, and allowances
 
