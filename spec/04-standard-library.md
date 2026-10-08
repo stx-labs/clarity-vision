@@ -183,7 +183,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | `principal-destruct?`  | primitive |                                                                                                    |
 | `is-standard`          | library   | renamed `is-current-network`, since it tests the version byte against the current network and is true for contract principals too; vNEXT's `is-standard` tests for a standard (not contract) principal |
 | `principal-of?`        | library   | `hash160` plus `principal-construct?` with the network's version byte                              |
-| `contract-of`          | primitive |                                                                                                    |
+| `contract-of`          | removed   | `(trait X) <: principal` (2.3.2), so a trait value is already a principal wherever one is expected; `(as principal t)` states it explicitly |
 | `contract-hash?`       | primitive |                                                                                                    |
 
 ### Cryptography
