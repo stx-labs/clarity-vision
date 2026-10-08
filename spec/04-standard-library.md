@@ -191,7 +191,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | Legacy                                                            | vNEXT     | Notes                                |
 | ----------------------------------------------------------------- | --------- | ------------------------------------ |
 | `hash160`, `sha256`, `sha512`, `sha512/256`, `keccak256`          | primitive | buffers only; integer inputs removed |
-| `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required                       |
+| `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required; `secp256k1-verify` takes a `(buff 64)` signature only, where legacy also accepted 65 bytes and ignored the recovery byte |
 | `secp256r1-verify`, `ed25519-verify`                              | primitive | low-S required for ECDSA             |
 | `verify-merkle-proof`                                             | library   | over `sha256`                        |
 
