@@ -889,7 +889,7 @@ source size and transaction budgets.
 | Maximum intermediate value size (2.3.1)                    | 8,388,608 bytes | new, provisional; MUST stay below the chain's Wasm memory limit |
 | Fixpoint step limit for fold accumulators (2.6.2)          | 8               | new, provisional                                                |
 | Maximum type nesting depth                                 | 32              | `MAX_TYPE_DEPTH`                                                |
-| Maximum identifier and string literal length               | 128 bytes       | `MAX_STRING_LEN`                                                |
+| Maximum identifier length                                  | 128 bytes       | `MAX_STRING_LEN`; string literals are bounded only by the value size limit, as every other value is |
 | Maximum call depth (functions and contract calls)          | 128             | `MAX_CALL_STACK_DEPTH`                                          |
 | Maximum allowances per `as-contract?` / `restrict-assets?` | 128             | `MAX_ALLOWANCES`                                                |
 
