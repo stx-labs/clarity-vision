@@ -985,3 +985,42 @@ module size. A compiler MUST report a contract whose module would exceed it as a
 compile error, and SHOULD stop expanding as soon as the limit is passed. A
 language-level cap would not make validity compiler-independent, since near the
 limit whether a contract fits already depends on code generation (P5).
+
+## 2.9 Open questions
+
+An item tagged **RFC** needs its own design RFC, with a decidability analysis,
+before this chapter can be frozen. The others are decisions this draft can take
+once the dependency named in each is settled.
+
+1. **Version numbering** (2.4.0). Whether `clarity-version` takes a single
+   integer or a major and minor pair depends on how language releases are cut:
+   any change to the prelude or to a rule is a new version for compatibility
+   purposes, which argues for one number.
+2. **RFC: explicit size parameters.** A reference kind such as `(width size)`
+   that accepts a size term at the call site, with the rule that a size variable
+   is usable as a `uint` value in the body. It would make `uint-to-buff-be` a
+   single `(uint) -> (buff 16)` primitive and move the four fixed-width
+   `*-to-buff-*` functions (3.4) into the prelude.
+3. **RFC: static closures.** Function templates that capture only reference-kind
+   parameters, never runtime values, whose instances are ordinary named
+   functions resolved at instantiation. They would make a generic `fold-right`,
+   a multi-sequence `map`, and `flip`-style adapters writable in the prelude
+   without function values at runtime or in the ABI.
+4. **RFC: bounded iteration.** The prelude drives several loops with constant
+   lists used as counters (`std-decimal-iterations`, `std-exponent-bits`). A
+   form that iterates a statically bounded number of times without a list, and
+   that preserves P1, would remove the pattern. This is the "richer bounded
+   iteration" item of the specification plan.
+5. **Allowance vocabulary** (2.5.9). `with-staking` and `with-pox` name
+   concepts of particular chain contracts in the language grammar. Whether the
+   set of allowance kinds belongs to the chain ABI, with the language taking it
+   as data, is a question for the ABI's authors.
+6. **RFC: host bindings in the prelude.** A `define-host` declaration form
+   would let the prelude declare every host-calling primitive (storage, assets,
+   context, chain data, signature schemes, `print`) by name and signature, with
+   semantics cited from the chain ABI rather than restated in chapter 3. The
+   same form could cover compiled primitives with ordinary signatures, leaving
+   chapter 3 with only the primitives whose typing cannot be written as a
+   signature. Parked; it requires an admission rule on the ABI side.
+7. **Formal presentation.** The judgment-style typing rules and the full EBNF
+   are pending the questions above.

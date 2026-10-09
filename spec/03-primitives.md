@@ -214,8 +214,10 @@ post-conditions and allowances) and emit events.
 context's `sender` field (3.9), returning `err u4` otherwise. The `ft-*` and
 `nft-*` primitives do not check the sender; every movement is recorded in the
 asset map and is subject to transaction post-conditions and to any enclosing
-`as-contract?` or `restrict-assets?` allowance frame. Open question: whether
-vNEXT should require the context's `sender` for token transfers as well.
+`as-contract?` or `restrict-assets?` allowance frame. The asymmetry is
+deliberate: STX is the chain's own asset and keeps the strict check, while a
+token's contract decides its own transfer rules, with post-conditions and
+allowances as the holder's protection.
 
 ## 3.9 Transaction and chain context
 
@@ -295,3 +297,30 @@ sender's nonce.)
 
 For comparison, legacy Clarity 6 has 126 native functions and 16 native
 variables, most with bespoke typing rules.
+
+## 3.12 Open questions
+
+An item tagged **RFC** needs its own design RFC before this chapter can be
+frozen. Issue numbers refer to the stacks-core tracker; the dispositions are in
+[../06-issue-tracker.md](../06-issue-tracker.md).
+
+1. **RFC: Schnorr verification** (#3568). BIP-340 over secp256k1, proposed as
+   `secp256k1-schnorr-verify : ((buff 32) (buff 64) (buff 32)) -> bool`,
+   `false` on malformed input, in 3.6. It passes the cryptographic-standard
+   test and is the natural fit for Taproot and FROST. Recommended for vNEXT.
+2. **Transaction fee** (#3849). A `fee` field of `get-current-context` (3.9).
+   Needs the host to expose the fee of the executing transaction, and a
+   decision on its value inside `contract-call?` frames of sponsored
+   transactions.
+3. **RFC: 256-bit arithmetic** (#3975). Either a library family over
+   `(buff 32)` (expressible, so library under the layering rule, replaceable
+   by faster Wasm later) or a new integer type, which is a core change. If
+   Schnorr ships as a primitive, the main motivation goes away.
+4. **RFC: per-definition code hashes** (#6320). `contract-hash?` covers the
+   whole module. A per-definition hash would be over compiled code, and so
+   compiler-dependent, unless the interface metadata carries per-definition
+   source hashes. The RFC chooses.
+5. **Bitcoin transaction parser in the prelude** (3.4). `get-bitcoin-tx-output?`
+   is expressible as a byte-at-a-time fold and belongs in the library under the
+   layering rule. It stays primitive until the parser is written and has its
+   own conformance vectors.

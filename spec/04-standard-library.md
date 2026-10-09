@@ -269,3 +269,11 @@ user-written helpers:
 Primitive additions with no legacy counterpart: the four `*-to-buff-*` functions
 and `principal-to-ascii` (chapter 3). Further candidates from the issue tracker
 are collected in [../06-issue-tracker.md](../06-issue-tracker.md).
+
+## 4.5 Open questions
+
+1. **User overloads of prelude names.** 2.4.5 forbids a contract from defining
+   any name the prelude defines, which also forbids adding an overload, such as
+   `to-ascii?` for a contract's own tuple type. Allowing overloads of prelude
+   names, while still forbidding redefinition of an existing overload, would be
+   backward compatible to add later and is left out of this draft.
