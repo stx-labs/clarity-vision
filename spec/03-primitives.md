@@ -30,19 +30,19 @@ compilation chapter, not here.
 
 For `I` in {`int`, `uint`}:
 
-| Primitive         | Signature       | Semantics                                                                                   | Runtime errors           |
-| ----------------- | --------------- | ------------------------------------------------------------------------------------------- | ------------------------ |
-| `+`               | `(I I...) -> I` | addition                                                                                    | overflow                 |
-| `-`               | `(I I...) -> I` | subtraction                                                                                 | overflow/underflow       |
-| `*`               | `(I I...) -> I` | multiplication                                                                              | overflow                 |
+| Primitive         | Signature       | Semantics                                                                                   | Runtime errors                                                      |
+| ----------------- | --------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `+`               | `(I I...) -> I` | addition                                                                                    | overflow                                                            |
+| `-`               | `(I I...) -> I` | subtraction                                                                                 | overflow/underflow                                                  |
+| `*`               | `(I I...) -> I` | multiplication                                                                              | overflow                                                            |
 | `/`               | `(I I...) -> I` | division truncating toward zero                                                             | divisor is zero; overflow (the most negative `int` divided by `-1`) |
-| `to-int`          | `(uint) -> int` | conversion                                                                                  | argument at least 2^127  |
-| `to-uint`         | `(int) -> uint` | conversion                                                                                  | argument negative        |
-| `bit-and`         | `(I I...) -> I` | bitwise and                                                                                 |                          |
-| `bit-or`          | `(I I...) -> I` | bitwise or                                                                                  |                          |
-| `bit-xor`         | `(I I...) -> I` | bitwise exclusive or                                                                        |                          |
-| `bit-shift-left`  | `(I uint) -> I` | shift left, discarding bits shifted out; the result reinterprets the 128-bit pattern as `I` | shift amount 128 or more |
-| `bit-shift-right` | `(I uint) -> I` | shift right; arithmetic for `int`, logical for `uint`                                       | shift amount 128 or more |
+| `to-int`          | `(uint) -> int` | conversion                                                                                  | argument at least 2^127                                             |
+| `to-uint`         | `(int) -> uint` | conversion                                                                                  | argument negative                                                   |
+| `bit-and`         | `(I I...) -> I` | bitwise and                                                                                 |                                                                     |
+| `bit-or`          | `(I I...) -> I` | bitwise or                                                                                  |                                                                     |
+| `bit-xor`         | `(I I...) -> I` | bitwise exclusive or                                                                        |                                                                     |
+| `bit-shift-left`  | `(I uint) -> I` | shift left, discarding bits shifted out; the result reinterprets the 128-bit pattern as `I` | shift amount 128 or more                                            |
+| `bit-shift-right` | `(I uint) -> I` | shift right; arithmetic for `int`, logical for `uint`                                       | shift amount 128 or more                                            |
 
 Library, not primitive: `mod`, `pow`, `sqrti`, `log2`, `bit-not`, `max`, `min`,
 `abs`. Their error conditions are the same as legacy and are defined by their
@@ -108,7 +108,7 @@ in the chain ABI.
 
 | Primitive                | Signature                                                                                   | Semantics                                                                                                                                                                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get-bitcoin-tx-output?` | `((buff N) uint) -> (response { script: (buff 1024), amount: uint, txid: (buff 32) } uint)`                                                                                                              | parses raw Bitcoin transaction bytes (SegWit or not) and returns output `vout`, with `txid` in internal byte order; `err u1` the bytes do not deserialize as a transaction, `err u2` `vout` is out of range, `err u3` the output script exceeds 1024 bytes                                                                                                                      |
+| `get-bitcoin-tx-output?` | `((buff N) uint) -> (response { script: (buff 1024), amount: uint, txid: (buff 32) } uint)` | parses raw Bitcoin transaction bytes (SegWit or not) and returns output `vout`, with `txid` in internal byte order; `err u1` the bytes do not deserialize as a transaction, `err u2` `vout` is out of range, `err u3` the output script exceeds 1024 bytes |
 
 This is pure parsing of a byte string, not a chain lookup, which is why it sits
 with the conversions. It is expressible in the language, so under the layering
@@ -156,18 +156,18 @@ address encoding that wallets and explorers must match byte for byte.
 Hash functions accept buffers only (P6, footguns table). Library, not primitive:
 `verify-merkle-proof`, a composition of `sha256` (chapter 4).
 
-| Primitive               | Signature                                            | Semantics                                                                                                                                                   |
-| ----------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hash160`               | `((buff N)) -> (buff 20)`                            | RIPEMD-160 of SHA-256                                                                                                                                       |
-| `sha256`                | `((buff N)) -> (buff 32)`                            | SHA-256                                                                                                                                                     |
-| `sha512`                | `((buff N)) -> (buff 64)`                            | SHA-512                                                                                                                                                     |
-| `sha512/256`            | `((buff N)) -> (buff 32)`                            | SHA-512/256 (distinct IV; not a truncation of SHA-512)                                                                                                      |
-| `keccak256`             | `((buff N)) -> (buff 32)`                            | Keccak-256                                                                                                                                                  |
-| `secp256k1-recover?`    | `((buff 32) (buff 65)) -> (response (buff 33) uint)` | recovers the compressed public key from a message hash and a recoverable signature; `err u1` malformed or non-canonical signature, `err u2` recovery failed |
+| Primitive               | Signature                                            | Semantics                                                                                                                                                                                                               |
+| ----------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hash160`               | `((buff N)) -> (buff 20)`                            | RIPEMD-160 of SHA-256                                                                                                                                                                                                   |
+| `sha256`                | `((buff N)) -> (buff 32)`                            | SHA-256                                                                                                                                                                                                                 |
+| `sha512`                | `((buff N)) -> (buff 64)`                            | SHA-512                                                                                                                                                                                                                 |
+| `sha512/256`            | `((buff N)) -> (buff 32)`                            | SHA-512/256 (distinct IV; not a truncation of SHA-512)                                                                                                                                                                  |
+| `keccak256`             | `((buff N)) -> (buff 32)`                            | Keccak-256                                                                                                                                                                                                              |
+| `secp256k1-recover?`    | `((buff 32) (buff 65)) -> (response (buff 33) uint)` | recovers the compressed public key from a message hash and a recoverable signature; `err u1` malformed or non-canonical signature, `err u2` recovery failed                                                             |
 | `secp256k1-verify`      | `((buff 32) (buff 64) (buff 33)) -> bool`            | verifies a 64-byte signature against a compressed public key; `false` for a signature that is not exactly 64 bytes or is non-canonical. A recoverable signature is verified by dropping its recovery byte with `slice?` |
-| `secp256k1-decompress?` | `((buff 33)) -> (response (buff 65) uint)`           | uncompressed form of a compressed public key                                                                                                                |
-| `secp256r1-verify`      | `((buff 32) (buff 64) (buff 33)) -> bool`            | P-256 signature verification; `false` for a non-canonical signature                                                                                         |
-| `ed25519-verify`        | `((buff N) (buff 64) (buff 32)) -> bool`             | Ed25519 signature verification over an arbitrary-length message                                                                                             |
+| `secp256k1-decompress?` | `((buff 33)) -> (response (buff 65) uint)`           | uncompressed form of a compressed public key                                                                                                                                                                            |
+| `secp256r1-verify`      | `((buff 32) (buff 64) (buff 33)) -> bool`            | P-256 signature verification; `false` for a non-canonical signature                                                                                                                                                     |
+| `ed25519-verify`        | `((buff N) (buff 64) (buff 32)) -> bool`             | Ed25519 signature verification over an arbitrary-length message                                                                                                                                                         |
 
 **Canonical signatures.** An ECDSA signature (secp256k1 or P-256) is canonical
 only if its `S` component is in the lower half of the curve order (low-S). The
@@ -305,22 +305,21 @@ frozen. Issue numbers refer to the stacks-core tracker; the dispositions are in
 [../06-issue-tracker.md](../06-issue-tracker.md).
 
 1. **RFC: Schnorr verification** (#3568). BIP-340 over secp256k1, proposed as
-   `secp256k1-schnorr-verify : ((buff 32) (buff 64) (buff 32)) -> bool`,
-   `false` on malformed input, in 3.6. It passes the cryptographic-standard
-   test and is the natural fit for Taproot and FROST. Recommended for vNEXT.
+   `secp256k1-schnorr-verify : ((buff 32) (buff 64) (buff 32)) -> bool`, `false`
+   on malformed input, in 3.6. It passes the cryptographic-standard test and is
+   the natural fit for Taproot and FROST. Recommended for vNEXT.
 2. **Transaction fee** (#3849). A `fee` field of `get-current-context` (3.9).
-   Needs the host to expose the fee of the executing transaction, and a
-   decision on its value inside `contract-call?` frames of sponsored
-   transactions.
-3. **RFC: 256-bit arithmetic** (#3975). Either a library family over
-   `(buff 32)` (expressible, so library under the layering rule, replaceable
-   by faster Wasm later) or a new integer type, which is a core change. If
-   Schnorr ships as a primitive, the main motivation goes away.
+   Needs the host to expose the fee of the executing transaction, and a decision
+   on its value inside `contract-call?` frames of sponsored transactions.
+3. **RFC: 256-bit arithmetic** (#3975). Either a library family over `(buff 32)`
+   (expressible, so library under the layering rule, replaceable by faster Wasm
+   later) or a new integer type, which is a core change. If Schnorr ships as a
+   primitive, the main motivation goes away.
 4. **RFC: per-definition code hashes** (#6320). `contract-hash?` covers the
    whole module. A per-definition hash would be over compiled code, and so
    compiler-dependent, unless the interface metadata carries per-definition
    source hashes. The RFC chooses.
 5. **Bitcoin transaction parser in the prelude** (3.4). `get-bitcoin-tx-output?`
    is expressible as a byte-at-a-time fold and belongs in the library under the
-   layering rule. It stays primitive until the parser is written and has its
-   own conformance vectors.
+   layering rule. It stays primitive until the parser is written and has its own
+   conformance vectors.

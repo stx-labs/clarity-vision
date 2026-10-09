@@ -36,10 +36,10 @@ vNEXT source is a sequence of S-expressions.
   `0xdeadbeef`).
 - **ASCII string literals**: `"..."` with escapes `\\`, `\"`, `\n`, `\t`, `\r`.
   The **`string-ascii` character set** is the printable ASCII characters 0x20
-  through 0x7E plus tab (0x09), line feed (0x0A), and carriage return (0x0D).
-  A literal may contain only these characters, the three control characters
-  only through their escapes, and no value of a `string-ascii` type ever holds
-  any other byte.
+  through 0x7E plus tab (0x09), line feed (0x0A), and carriage return (0x0D). A
+  literal may contain only these characters, the three control characters only
+  through their escapes, and no value of a `string-ascii` type ever holds any
+  other byte.
 - **UTF-8 string literals**: `u"..."` with the same escapes plus `\u{XXXX}` code
   point escapes.
 - **Principal literals**: standard principals `'SP...` / `'ST...` (c32check
@@ -95,21 +95,21 @@ size      ::= uint-literal | size-variable | static-constant-name
 
 Meaning of each type:
 
-| Type               | Values                                                                                                                      |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `int`              | signed 128-bit integers                                                                                                     |
-| `uint`             | unsigned 128-bit integers                                                                                                   |
-| `bool`             | `true`, `false`                                                                                                             |
-| `principal`        | standard or contract principals                                                                                             |
-| `never`            | no values. The type of `return`, `panic`, and the "other side" of `ok`/`err`/`none`; it stays in a type that nothing widens |
-| `(buff N)`         | byte sequences of length at most `N`                                                                                        |
-| `(string-ascii N)` | strings of at most `N` bytes from the `string-ascii` character set (2.2)                                                    |
-| `(string-utf8 N)`  | UTF-8 strings of at most `N` code points                                                                                    |
-| `(list N T)`       | sequences of at most `N` values of type `T`                                                                                 |
-| `(optional T)`     | `none` or `(some v)` with `v : T`                                                                                           |
-| `(response T E)`   | `(ok v)` with `v : T` or `(err e)` with `e : E`                                                                             |
-| `{ f: T, ... }`    | records with exactly the listed fields                                                                                      |
-| `(trait X)`        | contract principals whose interface implements trait `X`                                                                    |
+| Type               | Values                                                                                                                                                                                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `int`              | signed 128-bit integers                                                                                                                                                                                                                                                                                                         |
+| `uint`             | unsigned 128-bit integers                                                                                                                                                                                                                                                                                                       |
+| `bool`             | `true`, `false`                                                                                                                                                                                                                                                                                                                 |
+| `principal`        | standard or contract principals                                                                                                                                                                                                                                                                                                 |
+| `never`            | no values. The type of `return`, `panic`, and the "other side" of `ok`/`err`/`none`; it stays in a type that nothing widens                                                                                                                                                                                                     |
+| `(buff N)`         | byte sequences of length at most `N`                                                                                                                                                                                                                                                                                            |
+| `(string-ascii N)` | strings of at most `N` bytes from the `string-ascii` character set (2.2)                                                                                                                                                                                                                                                        |
+| `(string-utf8 N)`  | UTF-8 strings of at most `N` code points                                                                                                                                                                                                                                                                                        |
+| `(list N T)`       | sequences of at most `N` values of type `T`                                                                                                                                                                                                                                                                                     |
+| `(optional T)`     | `none` or `(some v)` with `v : T`                                                                                                                                                                                                                                                                                               |
+| `(response T E)`   | `(ok v)` with `v : T` or `(err e)` with `e : E`                                                                                                                                                                                                                                                                                 |
+| `{ f: T, ... }`    | records with exactly the listed fields                                                                                                                                                                                                                                                                                          |
+| `(trait X)`        | contract principals whose interface implements trait `X`                                                                                                                                                                                                                                                                        |
 | contract literal   | the one contract principal named by a literal `'SP...123.c` or `.c`, or by a static constant holding one (2.4.1). Internal: it cannot be written in source, is never an interface or storable type, and exists so that a literal can be used wherever a trait type is expected (2.3.2) and as a `contract-call?` target (2.5.8) |
 
 `(buff N)`, `(string-ascii N)`, `(string-utf8 N)`, and `(list N T)` are the four
@@ -564,9 +564,9 @@ come from a parameter, a variable, or a map entry, not only from a literal:
 
 | Argument      | Type               | Meaning                                                                                                                                                          |
 | ------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `amount`      | `uint`             | the most uSTX (`with-stx`), token units (`with-ft`), or uSTX locked for staking (`with-staking`) the body may move from the owner                                 |
+| `amount`      | `uint`             | the most uSTX (`with-stx`), token units (`with-ft`), or uSTX locked for staking (`with-staking`) the body may move from the owner                                |
 | `contract`    | `principal`        | the contract that defines the token; a non-contract principal, or one that defines no token of that name, matches no movement                                    |
-| `token-name`  | `(string-ascii N)` | the name the token was defined with (`define-fungible-token` or `define-non-fungible-token`); `N` is at most the identifier limit (2.8)                            |
+| `token-name`  | `(string-ascii N)` | the name the token was defined with (`define-fungible-token` or `define-non-fungible-token`); `N` is at most the identifier limit (2.8)                          |
 | `identifiers` | `(list N T)`       | the non-fungible token identifiers the body may move; `T` is any storable type, and an identifier matches a movement when their serialized forms (3.4) are equal |
 
 Both forms evaluate their body in a nested state frame and, on completion,
@@ -625,9 +625,9 @@ type a fold needs (2.6.2), and to give a type error a place to point:
 | `define-inline`    | no                            | yes                 | yes              | yes                          | expanded at call site, by name |
 
 Every invocation of a public function has the rollback semantics of 2.7.3,
-whether it is called from another contract, as the entry point of a
-transaction, or internally from the same contract. A public function's
-behavior on `err` therefore does not depend on who called it.
+whether it is called from another contract, as the entry point of a transaction,
+or internally from the same contract. A public function's behavior on `err`
+therefore does not depend on who called it.
 
 ### 2.6.2 Instantiation and overload resolution
 
@@ -721,14 +721,14 @@ An inline function is expanded at each call site:
    is never referenced on the taken path is not evaluated. Because evaluation
    happens at the point of reference, an argument referenced inside an
    `as-contract?` or `restrict-assets?` form in the body is evaluated inside
-   that frame, with the frame's `sender` and `caller`, and the order
-   in which arguments are evaluated is the order of their references in the
-   body, not their order at the call site. Prelude inline functions reference
-   their parameters outside any such frame. Prelude functions whose names read
-   as ordinary calls (`default-to`, `map-insert?`) are private, so their
-   arguments are evaluated eagerly as in legacy; laziness is confined to
-   control-flow forms, and the library documents each place where it changes
-   legacy behavior (`unwrap!`, `unwrap-err!`).
+   that frame, with the frame's `sender` and `caller`, and the order in which
+   arguments are evaluated is the order of their references in the body, not
+   their order at the call site. Prelude inline functions reference their
+   parameters outside any such frame. Prelude functions whose names read as
+   ordinary calls (`default-to`, `map-insert?`) are private, so their arguments
+   are evaluated eagerly as in legacy; laziness is confined to control-flow
+   forms, and the library documents each place where it changes legacy behavior
+   (`unwrap!`, `unwrap-err!`).
 3. Names bound inside the body (`let`, `match`) are fresh and cannot capture
    names in argument expressions. Free names in the body resolve in the defining
    contract's top-level scope.
@@ -900,21 +900,19 @@ Every invocation of a public function runs in its own state frame: its state
 changes (variables, maps, token balances, events) are buffered. If it returns
 `(ok v)`, they are committed to the caller's frame. If it returns `(err e)`,
 they are discarded and `(err e)` is returned to the caller, which continues
-executing. A `return` of an `err` value has the same effect as evaluating to
-it.
+executing. A `return` of an `err` value has the same effect as evaluating to it.
 
 For a call from another contract or a transaction entry point, the chain opens
-the frame and performs the commit or discard based on the returned value, so
-the rule holds for calls between modules of any source language. For an
-internal call, the compiled module opens and closes the frame itself through
-the chain ABI's frame facility, the one `as-contract?` and `restrict-assets?`
-use (2.5.9).
+the frame and performs the commit or discard based on the returned value, so the
+rule holds for calls between modules of any source language. For an internal
+call, the compiled module opens and closes the frame itself through the chain
+ABI's frame facility, the one `as-contract?` and `restrict-assets?` use (2.5.9).
 
-An internal call to a public function therefore costs a frame, which a call to
-a private function does not. Where that matters, the convention is to put the
-body in a private function and have the public function call it: internal
-callers use the private function and pay nothing, and external callers get the
-rollback through the public wrapper.
+An internal call to a public function therefore costs a frame, which a call to a
+private function does not. Where that matters, the convention is to put the body
+in a private function and have the public function call it: internal callers use
+the private function and pay nothing, and external callers get the rollback
+through the public wrapper.
 
 ### 2.7.4 Read-only enforcement
 
@@ -968,15 +966,15 @@ compiler:
 These are language-level limits. Hosts MAY impose stricter limits on contract
 source size and transaction budgets.
 
-| Limit                                                      | Value           | Inherited from                                                  |
-| ---------------------------------------------------------- | --------------- | --------------------------------------------------------------- |
-| Maximum serialized value size                              | 1,048,576 bytes | `MAX_VALUE_SIZE`                                                |
-| Maximum intermediate value size (2.3.1)                    | 8,388,608 bytes | new, provisional; MUST stay below the chain's Wasm memory limit |
-| Fixpoint step limit for fold accumulators (2.6.2)          | 8               | new, provisional                                                |
-| Maximum type nesting depth                                 | 32              | `MAX_TYPE_DEPTH`                                                |
+| Limit                                                      | Value           | Inherited from                                                                                      |
+| ---------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------- |
+| Maximum serialized value size                              | 1,048,576 bytes | `MAX_VALUE_SIZE`                                                                                    |
+| Maximum intermediate value size (2.3.1)                    | 8,388,608 bytes | new, provisional; MUST stay below the chain's Wasm memory limit                                     |
+| Fixpoint step limit for fold accumulators (2.6.2)          | 8               | new, provisional                                                                                    |
+| Maximum type nesting depth                                 | 32              | `MAX_TYPE_DEPTH`                                                                                    |
 | Maximum identifier length                                  | 128 bytes       | `MAX_STRING_LEN`; string literals are bounded only by the value size limit, as every other value is |
-| Maximum call depth (functions and contract calls)          | 128             | `MAX_CALL_STACK_DEPTH`                                          |
-| Maximum allowances per `as-contract?` / `restrict-assets?` | 128             | `MAX_ALLOWANCES`                                                |
+| Maximum call depth (functions and contract calls)          | 128             | `MAX_CALL_STACK_DEPTH`                                                                              |
+| Maximum allowances per `as-contract?` / `restrict-assets?` | 128             | `MAX_ALLOWANCES`                                                                                    |
 
 There is no limit on the size of a contract after inline expansion and
 instantiation, which can grow exponentially (definitions that each call the next
@@ -1011,12 +1009,12 @@ once the dependency named in each is settled.
    form that iterates a statically bounded number of times without a list, and
    that preserves P1, would remove the pattern. This is the "richer bounded
    iteration" item of the specification plan.
-5. **Allowance vocabulary** (2.5.9). `with-staking` and `with-pox` name
-   concepts of particular chain contracts in the language grammar. Whether the
-   set of allowance kinds belongs to the chain ABI, with the language taking it
-   as data, is a question for the ABI's authors.
-6. **RFC: host bindings in the prelude.** A `define-host` declaration form
-   would let the prelude declare every host-calling primitive (storage, assets,
+5. **Allowance vocabulary** (2.5.9). `with-staking` and `with-pox` name concepts
+   of particular chain contracts in the language grammar. Whether the set of
+   allowance kinds belongs to the chain ABI, with the language taking it as
+   data, is a question for the ABI's authors.
+6. **RFC: host bindings in the prelude.** A `define-host` declaration form would
+   let the prelude declare every host-calling primitive (storage, assets,
    context, chain data, signature schemes, `print`) by name and signature, with
    semantics cited from the chain ABI rather than restated in chapter 3. The
    same form could cover compiled primitives with ordinary signatures, leaving

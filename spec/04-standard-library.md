@@ -176,23 +176,23 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 ### Principals
 
-| Legacy                 | vNEXT     | Notes                                                                                              |
-| ---------------------- | --------- | -------------------------------------------------------------------------------------------------- |
-| `principal-construct?` | primitive | single signature with `(optional (string-ascii 40))` name; `error_code` field renamed `error-code` |
-| `principal-destruct?`  | primitive |                                                                                                    |
+| Legacy                 | vNEXT     | Notes                                                                                                                                                                                                  |
+| ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `principal-construct?` | primitive | single signature with `(optional (string-ascii 40))` name; `error_code` field renamed `error-code`                                                                                                     |
+| `principal-destruct?`  | primitive |                                                                                                                                                                                                        |
 | `is-standard`          | library   | renamed `is-current-network`, since it tests the version byte against the current network and is true for contract principals too; vNEXT's `is-standard` tests for a standard (not contract) principal |
-| `principal-of?`        | library   | `hash160` plus `principal-construct?` with the network's version byte                              |
-| `contract-of`          | removed   | `(trait X) <: principal` (2.3.2), so a trait value is already a principal wherever one is expected; `(as principal t)` states it explicitly |
-| `contract-hash?`       | primitive |                                                                                                    |
+| `principal-of?`        | library   | `hash160` plus `principal-construct?` with the network's version byte                                                                                                                                  |
+| `contract-of`          | removed   | `(trait X) <: principal` (2.3.2), so a trait value is already a principal wherever one is expected; `(as principal t)` states it explicitly                                                            |
+| `contract-hash?`       | primitive |                                                                                                                                                                                                        |
 
 ### Cryptography
 
-| Legacy                                                            | vNEXT     | Notes                                |
-| ----------------------------------------------------------------- | --------- | ------------------------------------ |
-| `hash160`, `sha256`, `sha512`, `sha512/256`, `keccak256`          | primitive | buffers only; integer inputs removed |
+| Legacy                                                            | vNEXT     | Notes                                                                                                                                    |
+| ----------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `hash160`, `sha256`, `sha512`, `sha512/256`, `keccak256`          | primitive | buffers only; integer inputs removed                                                                                                     |
 | `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required; `secp256k1-verify` takes a `(buff 64)` signature only, where legacy also accepted 65 bytes and ignored the recovery byte |
-| `secp256r1-verify`, `ed25519-verify`                              | primitive | low-S required for ECDSA             |
-| `verify-merkle-proof`                                             | library   | over `sha256`                        |
+| `secp256r1-verify`, `ed25519-verify`                              | primitive | low-S required for ECDSA                                                                                                                 |
+| `verify-merkle-proof`                                             | library   | over `sha256`                                                                                                                            |
 
 ### Storage
 
@@ -204,27 +204,27 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 ### Assets
 
-| Legacy                                                                    | vNEXT     | Notes                             |
-| ------------------------------------------------------------------------- | --------- | --------------------------------- |
-| `ft-mint?`, `ft-burn?`, `ft-transfer?`, `ft-get-balance`, `ft-get-supply` | primitive |                                   |
-| `nft-mint?`, `nft-burn?`, `nft-transfer?`, `nft-get-owner?`               | primitive |                                   |
-| `stx-transfer?`                                                           | primitive | takes `(optional (buff 34))` memo |
-| `stx-transfer-memo?`                                                      | removed   | merged into `stx-transfer?`       |
-| `stx-burn?`, `stx-account`                                                | primitive |                                   |
+| Legacy                                                                    | vNEXT     | Notes                                                   |
+| ------------------------------------------------------------------------- | --------- | ------------------------------------------------------- |
+| `ft-mint?`, `ft-burn?`, `ft-transfer?`, `ft-get-balance`, `ft-get-supply` | primitive |                                                         |
+| `nft-mint?`, `nft-burn?`, `nft-transfer?`, `nft-get-owner?`               | primitive |                                                         |
+| `stx-transfer?`                                                           | primitive | takes `(optional (buff 34))` memo                       |
+| `stx-transfer-memo?`                                                      | removed   | merged into `stx-transfer?`                             |
+| `stx-burn?`, `stx-account`                                                | primitive |                                                         |
 | `stx-get-balance`                                                         | removed   | `(get unlocked (stx-account p))`; a one-line alias (P6) |
 
 ### Calls, context, and allowances
 
-| Legacy                                                                                  | vNEXT           | Notes                                  |
-| --------------------------------------------------------------------------------------- | --------------- | -------------------------------------- |
-| `contract-call?`                                                                        | form            |                                        |
-| `as-contract?`                                                                          | form            |                                        |
-| `as-contract`                                                                           | removed         | unrestricted asset access              |
+| Legacy                                                                                  | vNEXT           | Notes                                                                                                                      |
+| --------------------------------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `contract-call?`                                                                        | form            |                                                                                                                            |
+| `as-contract?`                                                                          | form            |                                                                                                                            |
+| `as-contract`                                                                           | removed         | unrestricted asset access                                                                                                  |
 | `restrict-assets?`                                                                      | form            | takes `allowance` forms only; `with-all-assets-unsafe` is a `contract-allowance`, accepted by `as-contract?` alone (2.5.9) |
-| `with-stx`, `with-ft`, `with-nft`, `with-staking`, `with-pox`, `with-all-assets-unsafe` | allowance forms |                                        |
-| `with-stacking`                                                                         | removed         | renamed `with-staking` in Clarity 6    |
-| `at-block`                                                                              | removed         | disabled in legacy since epoch 3.4     |
-| `print`                                                                                 | primitive       |                                        |
+| `with-stx`, `with-ft`, `with-nft`, `with-staking`, `with-pox`, `with-all-assets-unsafe` | allowance forms |                                                                                                                            |
+| `with-stacking`                                                                         | removed         | renamed `with-staking` in Clarity 6                                                                                        |
+| `at-block`                                                                              | removed         | disabled in legacy since epoch 3.4                                                                                         |
+| `print`                                                                                 | primitive       |                                                                                                                            |
 
 ### Chain data
 
@@ -236,17 +236,17 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 ### Define forms
 
-| Legacy                                                | vNEXT   | Notes                                                                  |
-| ----------------------------------------------------- | ------- | ---------------------------------------------------------------------- |
+| Legacy                                                | vNEXT   | Notes                                                                                                                |
+| ----------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
 | new: `clarity-version`                                | form    | required first form of every contract (2.4.0); replaces the `clarity_version` field of the legacy deploy transaction |
-| `define-constant`, `define-data-var`, `define-map`    | form    |                                                                        |
-| `define-fungible-token`, `define-non-fungible-token`  | form    |                                                                        |
-| `define-public`, `define-read-only`, `define-private` | form    | private may be generic and overloaded                                  |
-| `define-trait`, `impl-trait`                          | form    | trait identifiers replace `<name>` syntax                              |
-| `use-trait`                                           | removed | `(define-type name (trait id))`                                        |
-| new: `define-type`                                    | form    | transparent type aliases                                               |
-| new: `define-inline`                                  | form    | call-by-name, expanded at call site                                    |
-| new: rest parameters `(name T...)`                    | form    | private functions only; the rest arguments are bound as a list (2.6.5) |
+| `define-constant`, `define-data-var`, `define-map`    | form    |                                                                                                                      |
+| `define-fungible-token`, `define-non-fungible-token`  | form    |                                                                                                                      |
+| `define-public`, `define-read-only`, `define-private` | form    | private may be generic and overloaded                                                                                |
+| `define-trait`, `impl-trait`                          | form    | trait identifiers replace `<name>` syntax                                                                            |
+| `use-trait`                                           | removed | `(define-type name (trait id))`                                                                                      |
+| new: `define-type`                                    | form    | transparent type aliases                                                                                             |
+| new: `define-inline`                                  | form    | call-by-name, expanded at call site                                                                                  |
+| new: rest parameters `(name T...)`                    | form    | private functions only; the rest arguments are bound as a list (2.6.5)                                               |
 
 ### Native variables
 

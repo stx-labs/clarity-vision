@@ -3,8 +3,8 @@
 Every open issue labeled `clarity` in stacks-core (as of 2026-09-09), with what
 the specification draft in [spec/](spec/) does about it. Issues are grouped by
 disposition. "Addressed" means the draft's rules make the reported problem
-impossible or the request part of the language; the referenced section is
-where. Section numbers refer to the specification chapters in [spec/](spec/).
+impossible or the request part of the language; the referenced section is where.
+Section numbers refer to the specification chapters in [spec/](spec/).
 
 ## Addressed by the draft
 
@@ -33,7 +33,7 @@ signature).
 | Issue                                                              | Request                                                    | Draft position                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------------------------------------------------------------ | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [#3568](https://github.com/stacks-network/stacks-core/issues/3568) | Schnorr (BIP-340) signature verification over secp256k1    | Strong fit for a Bitcoin-native language (Taproot, FROST). Proposed: `secp256k1-schnorr-verify : ((buff 32) (buff 64) (buff 32)) -> bool`, `false` on malformed input, placed in 3.6. Recommend including in vNEXT                                                                                                                                                                                                                                                               |
-| [#3849](https://github.com/stacks-network/stacks-core/issues/3849) | `tx-fee` context value                                     | A `fee` field of `(get-current-context)` (3.9); requires the host interface to expose the fee of the executing transaction. Recommend including; decide the value for `contract-call?` frames of sponsored transactions                                                                                                                                                                                                                                                         |
+| [#3849](https://github.com/stacks-network/stacks-core/issues/3849) | `tx-fee` context value                                     | A `fee` field of `(get-current-context)` (3.9); requires the host interface to expose the fee of the executing transaction. Recommend including; decide the value for `contract-call?` frames of sponsored transactions                                                                                                                                                                                                                                                          |
 | [#3975](https://github.com/stacks-network/stacks-core/issues/3975) | 256-bit integer arithmetic for Schnorr, ZK, and curve math | RFC. A `(buff 32)`-based `wide-add`/`wide-mul`/`wide-mod` family is expressible in the language, so under the layering rule it is library code, with a Wasm replacement later if it is hot. A new 256-bit integer type would instead be a core change. The RFC chooses between the two. If #3568 ships as a primitive, the most pressing motivation goes away                                                                                                                    |
 | [#6320](https://github.com/stacks-network/stacks-core/issues/6320) | `code-body-of?` / per-definition code hashes               | `contract-hash?` is in the draft (3.5). The thread converges on per-top-level-definition hashes (`has-definition-value?` or a MAST) as the safe version of introspection; returning source text invites contracts to parse Clarity in Clarity. The chain holds only the module, so an on-chain per-definition hash would be over compiled code and would depend on the compiler. The RFC decides between that and per-definition source hashes carried in the interface metadata |
 
@@ -51,9 +51,9 @@ signature).
 Three themes recur across the tracker and shaped rules in chapter 2:
 
 - **Checker and runtime disagree** (#4751, #4431, #3176, #6485). The draft's
-  answer is structural: one meaning per name, no shadowing,
-  declared arity, and a value model with no static type information at runtime,
-  so there is nothing for the two to disagree about.
+  answer is structural: one meaning per name, no shadowing, declared arity, and
+  a value model with no static type information at runtime, so there is nothing
+  for the two to disagree about.
 - **Literals where expressions should do** (#1638, #3350, #6831). Static
   constants and the "any trait-typed expression" rule remove the special cases.
 - **Traits are second-class** (#3566, #1981, #6485, #4622, #4751). Making
