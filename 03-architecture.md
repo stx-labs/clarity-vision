@@ -121,7 +121,7 @@ pass the layering rule's host-access test map onto them.
 | Context      | tx-sender, contract-caller, sponsor, current contract, block heights and time, chain id, network flags, liquid supply                                      |
 | Chain data   | Stacks block, tenure, and burn block lookups; Bitcoin transaction output parsing. All total: they return `none` rather than fail                           |
 | Calls        | contract-call by principal and function name, with argument and result validation (section 3)                                                              |
-| Frames       | `as-contract?` and `restrict-assets?` frames: context switch, nested rollback, allowance checks                                                            |
+| Frames       | nested state frames: open, commit, discard. Used by `as-contract?` and `restrict-assets?` (with context switch and allowance checks) and by a module's internal calls to its own public functions, which roll back on `err` (spec 2.7.3) |
 | Events       | print and asset events                                                                                                                                     |
 | Cryptography | signature schemes (secp256k1 recover/verify/decompress, secp256r1, ed25519). Hashes are compiled into the module (section 2)                               |
 

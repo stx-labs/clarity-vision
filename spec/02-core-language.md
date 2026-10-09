@@ -569,9 +569,10 @@ type a fold needs (2.6.2), and to give a type error a place to point:
 | `define-private`   | no                            | yes                 | yes              | yes                          | by value                       |
 | `define-inline`    | no                            | yes                 | yes              | yes                          | expanded at call site, by name |
 
-A public function called from another contract, or as the entry point of a
-transaction, has the rollback semantics of 2.7.3. Public functions called
-internally behave like private functions.
+Every invocation of a public function has the rollback semantics of 2.7.3,
+whether it is called from another contract, as the entry point of a
+transaction, or internally from the same contract. A public function's
+behavior on `err` therefore does not depend on who called it.
 
 ### 2.6.2 Instantiation and overload resolution
 
@@ -840,14 +841,25 @@ transaction still pays for the cost it consumed.
 
 ### 2.7.3 Public function results and rollback
 
-When a public function is invoked from another contract or as a transaction
-entry point, its state changes (variables, maps, token balances, events) are
-buffered. If it returns `(ok v)`, they are committed to the caller's frame. If
-it returns `(err e)`, they are discarded and `(err e)` is returned to the
-caller, which continues executing. A `return` of an `err` value has the same
-effect as evaluating to it. The chain performs the commit or discard based on
-the returned value, so the rule holds for calls between modules of any source
-language.
+Every invocation of a public function runs in its own state frame: its state
+changes (variables, maps, token balances, events) are buffered. If it returns
+`(ok v)`, they are committed to the caller's frame. If it returns `(err e)`,
+they are discarded and `(err e)` is returned to the caller, which continues
+executing. A `return` of an `err` value has the same effect as evaluating to
+it.
+
+For a call from another contract or a transaction entry point, the chain opens
+the frame and performs the commit or discard based on the returned value, so
+the rule holds for calls between modules of any source language. For an
+internal call, the compiled module opens and closes the frame itself through
+the chain ABI's frame facility, the one `as-contract?` and `restrict-assets?`
+use (2.5.9).
+
+An internal call to a public function therefore costs a frame, which a call to
+a private function does not. Where that matters, the convention is to put the
+body in a private function and have the public function call it: internal
+callers use the private function and pay nothing, and external callers get the
+rollback through the public wrapper.
 
 ### 2.7.4 Read-only enforcement
 
