@@ -136,7 +136,8 @@
   (if (< value 0) (- 0 value) value))
 
 ;; `T` is instantiated at int or uint. Division truncates toward zero, so the
-;; remainder takes the sign of the dividend. A zero divisor aborts in `/`.
+;; remainder takes the sign of the dividend. A zero divisor aborts in `/`, as
+;; does the most negative int with divisor -1, although its remainder is 0.
 (define-private (mod (dividend T) (divisor T))
   (- dividend (* (/ dividend divisor) divisor)))
 

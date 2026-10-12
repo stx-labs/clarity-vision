@@ -35,7 +35,7 @@ For `I` in {`int`, `uint`}:
 | `+`               | `(I I...) -> I` | addition                                                                                    | overflow                 |
 | `-`               | `(I I...) -> I` | subtraction                                                                                 | overflow/underflow       |
 | `*`               | `(I I...) -> I` | multiplication                                                                              | overflow                 |
-| `/`               | `(I I...) -> I` | division truncating toward zero                                                             | divisor is zero          |
+| `/`               | `(I I...) -> I` | division truncating toward zero                                                             | divisor is zero; overflow (the most negative `int` divided by `-1`) |
 | `to-int`          | `(uint) -> int` | conversion                                                                                  | argument at least 2^127  |
 | `to-uint`         | `(int) -> uint` | conversion                                                                                  | argument negative        |
 | `bit-and`         | `(I I...) -> I` | bitwise and                                                                                 |                          |
