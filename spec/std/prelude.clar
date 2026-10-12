@@ -480,8 +480,18 @@
 ;; Principals
 ;; ---------------------------------------------------------------------------
 
-(define-private (is-standard (who principal))
+;; True if the principal's version byte is for the current network, whether it
+;; is a standard or a contract principal. This is what legacy `is-standard`
+;; tested, under a name that said otherwise.
+(define-private (is-current-network (who principal))
   (is-ok (principal-destruct? who)))
+
+;; True if the principal is a standard principal, not a contract principal,
+;; on any network.
+(define-private (is-standard (who principal))
+  (match (principal-destruct? who)
+    ((ok parts) (is-none (get name parts)))
+    ((err parts) (is-none (get name parts)))))
 
 ;; Version bytes for single-signature standard principals.
 (define-constant mainnet-p2pkh-version 0x16)
@@ -493,7 +503,9 @@
   (if (not (is-eq (len public-key) u33))
     (err u1)
     (match (principal-construct?
-             (if is-in-mainnet mainnet-p2pkh-version testnet-p2pkh-version)
+             (if (get is-mainnet (get-current-context))
+               mainnet-p2pkh-version
+               testnet-p2pkh-version)
              (hash160 public-key)
              none)
       ((ok who) (ok who))
@@ -547,12 +559,13 @@
 ;; Storage
 ;; ---------------------------------------------------------------------------
 
-;; Insert only if absent. Private, so `key` and `value` are both evaluated
-;; before the call, as in legacy.
-(define-private (map-insert (target (map K V)) (key K) (value V))
-  (if (map-contains? target key)
-      false
-      (map-set target key value)))
+;; Insert only if absent. Returns the existing value, and writes nothing, if
+;; the key already has one; `none` if the value was inserted. Private, so
+;; `key` and `value` are both evaluated before the call.
+(define-private (map-insert? (target (map K V)) (key K) (value V))
+  (match (map-get? target key)
+    ((some existing) (some existing))
+    (none (begin (map-set target key value) none))))
 
 ;; ---------------------------------------------------------------------------
 ;; Assets
