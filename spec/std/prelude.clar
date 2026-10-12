@@ -455,7 +455,8 @@
 (define-private (to-ascii? (value (buff N)))
   (ok (concat "0x" (map std-hex-byte value)...)))
 
-;; The characters a string-ascii can hold, in the same order in both kinds.
+;; The string-ascii character set (chapter 2.2), in the same order in both
+;; kinds: 0x20 through 0x7E, then tab, line feed, carriage return.
 (define-constant std-ascii-chars
   " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\t\n\r")
 (define-constant std-ascii-chars-utf8

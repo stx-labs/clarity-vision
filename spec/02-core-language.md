@@ -35,7 +35,11 @@ vNEXT source is a sequence of S-expressions.
 - **Buffer literals**: `0x` followed by an even number of hex digits (`0x`,
   `0xdeadbeef`).
 - **ASCII string literals**: `"..."` with escapes `\\`, `\"`, `\n`, `\t`, `\r`.
-  Only printable ASCII is allowed.
+  The **`string-ascii` character set** is the printable ASCII characters 0x20
+  through 0x7E plus tab (0x09), line feed (0x0A), and carriage return (0x0D).
+  A literal may contain only these characters, the three control characters
+  only through their escapes, and no value of a `string-ascii` type ever holds
+  any other byte.
 - **UTF-8 string literals**: `u"..."` with the same escapes plus `\u{XXXX}` code
   point escapes.
 - **Principal literals**: standard principals `'SP...` / `'ST...` (c32check
@@ -81,7 +85,7 @@ Meaning of each type:
 | `principal`        | standard or contract principals                                                                                             |
 | `never`            | no values. The type of `return`, `panic`, and the "other side" of `ok`/`err`/`none`; it stays in a type that nothing widens |
 | `(buff N)`         | byte sequences of length at most `N`                                                                                        |
-| `(string-ascii N)` | printable-ASCII strings of at most `N` bytes                                                                                |
+| `(string-ascii N)` | strings of at most `N` bytes from the `string-ascii` character set (2.2)                                                    |
 | `(string-utf8 N)`  | UTF-8 strings of at most `N` code points                                                                                    |
 | `(list N T)`       | sequences of at most `N` values of type `T`                                                                                 |
 | `(optional T)`     | `none` or `(some v)` with `v : T`                                                                                           |
@@ -885,7 +889,7 @@ source size and transaction budgets.
 | Maximum intermediate value size (2.3.1)                    | 8,388,608 bytes | new, provisional; MUST stay below the chain's Wasm memory limit |
 | Fixpoint step limit for fold accumulators (2.6.2)          | 8               | new, provisional                                                |
 | Maximum type nesting depth                                 | 32              | `MAX_TYPE_DEPTH`                                                |
-| Maximum identifier and string literal length               | 128 bytes       | `MAX_STRING_LEN`                                                |
+| Maximum identifier length                                  | 128 bytes       | `MAX_STRING_LEN`; string literals are bounded only by the value size limit, as every other value is |
 | Maximum call depth (functions and contract calls)          | 128             | `MAX_CALL_STACK_DEPTH`                                          |
 | Maximum allowances per `as-contract?` / `restrict-assets?` | 128             | `MAX_ALLOWANCES`                                                |
 
