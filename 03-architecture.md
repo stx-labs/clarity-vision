@@ -162,8 +162,20 @@ differ from the audited source. The defenses:
 
 1. **Spec and conformance suite.** A correct compiler is defined by the spec,
    not by an implementation. Every compiler release passes the suite.
-2. **Differential testing and fuzzing** of the compiler against a direct
-   evaluator of the spec's semantics, used only as a test oracle.
+2. **Differential testing and fuzzing against a direct evaluator.** The
+   direct evaluator is an interpreter that runs Clarity source by applying the
+   spec's dynamic-semantics rules one at a time, with no lowering, no Wasm, and
+   no optimization. It is a much smaller program than the compiler and a
+   different kind of program, so the two are unlikely to share a bug.
+   Differential testing runs the same contract and the same calls through both
+   and compares every observable result: return values, events, asset
+   movements, and aborts. Fuzzing supplies those contracts and calls by
+   generating them, well-typed, in volume. Any disagreement is a bug in the
+   compiler, in the evaluator, or in the spec, and the spec adjudicates. The
+   evaluator is only a test oracle: it never runs on chain, is never a fallback
+   execution path, and has no authority over the compiler. A second production
+   implementation would make "whatever the implementation does" the de facto
+   spec again, which is the legacy situation this design leaves behind.
 3. **Reproducible builds and source verification.** Source is published in an
    off-chain registry keyed by the source hash in the module's provenance
    section; the chain stores only the module. `clarity-verify` rebuilds a module
