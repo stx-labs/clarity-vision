@@ -143,7 +143,7 @@ aliasing class at the language level.
 | `principal-construct?` | `((buff 1) (buff 20) (optional (string-ascii 40))) -> (response principal { error-code: uint, principal: (optional principal) })` | builds a standard principal (no name) or contract principal (with name) from a version byte and hash bytes. `(err {error-code: u0, principal: (some p)})` if the version byte is valid but for the other network; `u1` if the version byte is invalid; `u2` if the name is not a valid contract name |
 | `principal-destruct?`  | `(principal) -> (response D D)` where `D = { hash-bytes: (buff 20), name: (optional (string-ascii 40)), version: (buff 1) }`      | decomposes a principal. `ok` if the version byte matches the current network, `err` with the same payload otherwise                                                                                                                                                                                  |
 | `principal-to-ascii`   | `(principal) -> (string-ascii 82)`                                                                                                | the principal's text form: the c32check address of a standard principal, or the address, `.`, and the name of a contract principal (41 for the address, 1 for the dot, 40 for the name)                                                                                                              |
-| `contract-hash?`       | `(principal) -> (response (buff 32) uint)`                                                                                        | SHA-512/256 of the deployed contract's module; `err u1` if the principal is not a deployed contract. The chain never holds source; the source hash is available from the module's provenance section, off chain                                                                                      |
+| `contract-hash?`       | `(principal) -> (response (buff 32) uint)`                                                                                        | SHA-512/256 of the deployed contract's module; `err u1` if the principal is a standard principal, `err u2` if no such contract is deployed. The chain never holds source; the source hash is available from the module's provenance section, off chain                                               |
 
 Library, not primitive: `is-current-network`, `is-standard`, `principal-of?`.
 
@@ -308,18 +308,15 @@ frozen. Issue numbers refer to the stacks-core tracker; the dispositions are in
    `secp256k1-schnorr-verify : ((buff 32) (buff 64) (buff 32)) -> bool`, `false`
    on malformed input, in 3.6. It passes the cryptographic-standard test and is
    the natural fit for Taproot and FROST. Recommended for vNEXT.
-2. **Transaction fee** (#3849). A `fee` field of `get-current-context` (3.9).
-   Needs the host to expose the fee of the executing transaction, and a decision
-   on its value inside `contract-call?` frames of sponsored transactions.
-3. **RFC: 256-bit arithmetic** (#3975). Either a library family over `(buff 32)`
+2. **RFC: 256-bit arithmetic** (#3975). Either a library family over `(buff 32)`
    (expressible, so library under the layering rule, replaceable by faster Wasm
    later) or a new integer type, which is a core change. If Schnorr ships as a
    primitive, the main motivation goes away.
-4. **RFC: per-definition code hashes** (#6320). `contract-hash?` covers the
+3. **RFC: per-definition code hashes** (#6320). `contract-hash?` covers the
    whole module. A per-definition hash would be over compiled code, and so
    compiler-dependent, unless the interface metadata carries per-definition
    source hashes. The RFC chooses.
-5. **Bitcoin transaction parser in the prelude** (3.4). `get-bitcoin-tx-output?`
+4. **Bitcoin transaction parser in the prelude** (3.4). `get-bitcoin-tx-output?`
    is expressible as a byte-at-a-time fold and belongs in the library under the
    layering rule. It stays primitive until the parser is written and has its own
    conformance vectors.

@@ -126,7 +126,7 @@ only the canonical form.
 is exactly the encoding of some value of `T`:
 
 - the prefix is one that `T` admits; `(trait X)` and `principal` admit `0x05`
-  and `0x06` as the type allows, and the trait check is separate (section 5.3);
+  and `0x06` as the type allows, and the trait check is separate (section 5.4);
 - lengths and counts are within `T`'s bounds; `string-utf8` bounds count code
   points;
 - tuple fields are exactly `T`'s fields, in strictly ascending byte order of
@@ -334,15 +334,17 @@ contract's source or compiler. A language that wants untyped storage declares
 | `call` host function      | per the callee's kind               | unchanged / calling contract |
 | Read-only query (RPC)     | read-only frame                     | as the request states        |
 
-A contract-call transaction whose arguments do not decode canonically against
-the function's parameter types, or that names a missing or `read-only` function,
-fails before any code runs. It is included and pays its intrinsic charge (9.2),
-with the class `bad-arguments` or `no-such-function`.
+A contract-call transaction whose arguments fail boundary validation (5.4)
+against the function's parameter types, or that names a missing or `read-only`
+function, fails before any code runs. It is included and pays its intrinsic
+charge (9.2), with the class `bad-arguments`, `trait-mismatch`, or
+`no-such-function`.
 
-The node's read-only query runs in an explicit read-only frame, so a write is a
-`read-only-violation`, not a zeroed write budget surfacing as a cost error, as
-in legacy. It runs under the node's own fuel limit (9.1). Simulating a public
-function is a separate query that runs a public frame and discards it.
+The node's read-only query validates its arguments the same way, and runs in an
+explicit read-only frame, so a write is a `read-only-violation`, not a zeroed
+write budget surfacing as a cost error, as in legacy. It runs under the node's
+own fuel limit (9.1). Simulating a public function is a separate query that runs
+a public frame and discards it.
 
 ### 5.2 Arguments and results
 
@@ -354,9 +356,9 @@ Inside an entry point:
   The host has already validated them, so the module may decode them without
   checks.
 - `result_set(result)` sets the result. It is called exactly once before the
-  export returns. The host decodes it against the declared result type.
-  Returning without a result, setting one twice, or setting one that does not
-  decode is a `bad-result` runtime error.
+  export returns. The host validates it (5.4) against the declared result type.
+  Returning without a result, setting one twice, or setting one that fails
+  validation is a `bad-result` runtime error.
 
 The module chooses where the bytes go; the ABI defines no allocator and no
 exported buffer.
@@ -388,11 +390,10 @@ The host, in order:
 3. If the current frame is read-only, requires `fn` to be `read-only` (section
    7.4).
 4. Applies the reentrancy and depth rules (section 7.3).
-5. Decodes `args` canonically against the callee's parameter types, and checks
-   every principal in a trait-typed position conforms to its trait.
+5. Validates `args` (5.4) against the callee's parameter types.
 6. Opens the callee's frame, instantiates a fresh instance, runs the export,
-   decodes the result against the callee's result type, and closes the frame:
-   for a public function, commit on `ok` and discard on `err`.
+   validates the result (5.4) against the callee's result type, and closes the
+   frame: for a public function, commit on `ok` and discard on `err`.
 7. Writes the encoded result to `out` and returns its length. If `cap` is too
    small, it writes nothing, keeps the result, and returns the negated length;
    `result_read(dst)` then writes the kept result at `dst`. A kept result lasts
@@ -403,6 +404,22 @@ The host, in order:
 
 Steps 1–5 failing, and any runtime error in the callee, abort the transaction.
 There is no catch.
+
+### 5.4 Boundary validation
+
+Every value that crosses a call boundary is validated against a declared type: a
+transaction's or query's arguments (5.1), the arguments of a `call` (5.3), and
+the result of every entry point (5.2). Validating bytes against a type `T`:
+
+1. decodes them canonically against `T` (2.3);
+2. checks that every principal in a `(trait X)` position of `T` conforms to `X`
+   (4.2). A standard principal or a missing contract does not conform.
+
+For arguments, a failed decode is `bad-arguments` and a failed conformance check
+is `trait-mismatch`. For a result, either failure is `bad-result`, because the
+fault is the callee's. This is what lets a module rely on its declared parameter
+types whoever calls it, and a caller rely on the declared result type of the
+function it calls.
 
 ## 6. Host interface
 
@@ -483,7 +500,8 @@ abort(code: i32, msg: bytes)
 ```
 
 Aborts the transaction with a module-defined code and message, both recorded in
-the receipt as given (section 10). Does not return.
+the receipt as given (section 10). `msg` is at most 128 bytes; a longer one is
+`bad-host-argument`. Does not return.
 
 #### Context and chain data
 
@@ -857,8 +875,9 @@ functions themselves.
 
 Formats: an ECDSA signature is `r` then `s`, each 32 bytes big-endian; a
 recoverable signature appends one recovery-id byte, `0`–`3`. ECDSA public keys
-are SEC 1 points, 33 bytes compressed or 65 bytes uncompressed. Ed25519 keys and
-signatures are as in RFC 8032.
+are SEC 1 compressed points, 33 bytes; the verify functions accept no other
+form, and `secp256k1_decompress` is the only function that produces the 65-byte
+uncompressed form. Ed25519 keys and signatures are as in RFC 8032.
 
 An ECDSA signature is canonical only if its `S` is in the lower half of the
 curve order. The verify functions return `0`, and `secp256k1_recover` returns
@@ -1022,7 +1041,8 @@ without a check and returns `-1`.
 - Contract-call depth is at most 64. This counts frames the host opens for
   calls, not module-internal function calls, which the chain cannot see.
   Legacy's 128 counts every function application, builtins included, so the two
-  numbers are not comparable.
+  numbers are not comparable. A source language may bound its own internal call
+  depth separately.
 - Wasm stack depth is bounded separately and deterministically (section 9.3).
 
 ### 7.4 Read-only
@@ -1052,25 +1072,93 @@ and allowance frames are evaluated over it.
 Staking adds two more kinds of entry, recorded by the host when a module calls
 the chain's PoX contract, as legacy does:
 
-- **Stake**: the staker and the uSTX newly locked, from `stake`,
-  `register-for-bond`, and `stake-update`. A `staking` allowance covers their
-  sum within the frame.
-- **PoX action**: the staker, from `unstake`, `unstake-sbtc`,
-  `update-bond-registration`, and `announce-l1-early-exit`. It is recorded
-  whether or not the call succeeds, so an allowance gates even a failed attempt.
-  A `pox` allowance covers it.
+- **Stake**: the staker and the uSTX newly locked, recorded by every PoX
+  function that locks uSTX. A `staking` allowance covers their sum within the
+  frame.
+- **PoX action**: the staker, recorded by every PoX function that otherwise
+  changes or ends the staker's position. It is recorded whether or not the call
+  succeeds, so an allowance gates even a failed attempt. A `pox` allowance
+  covers it.
 
-The staker is the frame's `sender` at the call. Which PoX functions record which
-entry is fixed per ABI version, like everything else in it. Legacy records only
-outflows, merges burns into transfers for tokens, and does not record mints;
-recording everything costs little and lets post-conditions and allowances say
-what they mean.
+The staker is the frame's `sender` at the call. The ABI fixes what each kind of
+entry means; the PoX contract specifies which of its functions record which
+entry, so a later PoX contract can define its own. Legacy records only outflows,
+merges burns into transfers for tokens, and does not record mints; recording
+everything costs little and lets post-conditions and allowances say what they
+mean.
 
 ### 8.3 Events
 
 Events are `print` events and asset events, each tagged with the emitting
 contract. They live in the frame that emitted them and commit or discard with
 it.
+
+### 8.4 Post-conditions
+
+A transaction carries a post-condition mode and a list of post-conditions. Their
+wire layout belongs to the transaction format; their meaning is defined here,
+over the asset map (8.2), so they mean the same thing whatever module runs. The
+kinds, codes, and modes are legacy's, as extended by SIP-040 (originator mode,
+`may-send`) and SIP-045 (staking and PoX post-conditions).
+
+**When.** The host evaluates post-conditions once, when the entry point returns
+`ok` or `init` completes, over the asset map the transaction is about to commit.
+Entries from discarded frames are already gone, so post-conditions see exactly
+what would commit. A transaction whose entry point returns `err` commits nothing
+and its post-conditions are not evaluated.
+
+**Kinds.** Each post-condition names a principal, either explicitly or as the
+transaction's origin account, and constrains that principal's outgoing entries:
+transfers from it, burns from it, its stakes, and its PoX actions. The kinds
+mirror the allowance kinds (7.2):
+
+| Kind      | Fields                                         | Holds when                                                         |
+| --------- | ---------------------------------------------- | ------------------------------------------------------------------ |
+| `stx`     | principal, comparator, amount                  | the principal's uSTX transferred plus burned compares to `amount`  |
+| `ft`      | principal, contract, token, comparator, amount | the principal's transfers and burns of that token, summed, compare |
+| `nft`     | principal, contract, token, identifier, code   | the identifier's movement from the principal matches the code      |
+| `staking` | principal, comparator, amount                  | the uSTX the principal newly locked, summed, compares to `amount`  |
+| `pox`     | principal, code                                | whether the principal recorded a PoX action matches the code       |
+
+A comparator is one of `=`, `<`, `<=`, `>`, `>=`, applied as "actual comparator
+amount". Identifiers compare by canonical encoding, as in 7.2. The codes are:
+
+| Kind  | Code            | Holds when                                                 |
+| ----- | --------------- | ---------------------------------------------------------- |
+| `nft` | `sent`          | the identifier left the principal (transfer or burn)       |
+| `nft` | `not-sent`      | the identifier did not leave the principal                 |
+| `nft` | `may-send`      | always; it exists to cover the identifier (below)          |
+| `pox` | `performed`     | the principal recorded at least one PoX action             |
+| `pox` | `not-performed` | the principal recorded no PoX action                       |
+| `pox` | `may-perform`   | always; it exists to cover the principal's PoX actions     |
+
+**Coverage.** A post-condition covers the outgoing entries it constrains,
+whatever its comparator or code: an `stx` post-condition covers the principal's
+STX entries, an `ft` the principal's entries for that token, an `nft` the
+principal's entries for that one identifier, a `staking` the principal's
+stakes, and a `pox` the principal's PoX actions.
+
+**Modes.**
+
+- **Allow**: every listed post-condition must hold.
+- **Deny**: every listed post-condition must hold, and every outgoing entry in
+  the asset map must be covered.
+- **Originator**: every listed post-condition must hold, and every outgoing
+  entry of the origin account must be covered. Other principals' entries need
+  not be; a contract the user does not trust protects its own assets with
+  allowance frames (7.2).
+
+The **origin account** is the account of the transaction's origin spending
+condition. It is fixed for the transaction: it is not the frame's `sender`, does
+not change in an `as-contract` frame, and in a sponsored transaction is the
+origin, not the sponsor.
+
+A mint is not an outgoing entry for any principal, so recording mints (8.2)
+never fails a deny-mode or originator-mode transaction. A transfer is outgoing
+for its sender only.
+
+A post-condition that does not hold makes the transaction's outcome
+`post-condition failure` (10.1): state discarded, fee paid, no events.
 
 ## 9. Fuel, charges, and limits
 
@@ -1171,7 +1259,7 @@ Two of these need care beyond a number:
 | Outcome                       | Included | State               | Events in receipt |
 | ----------------------------- | -------- | ------------------- | ----------------- |
 | `ok`                          | yes      | committed           | yes               |
-| `err`                         | yes      | discarded           | no                |
+| `err`                         | yes      | discarded; fee paid | no                |
 | aborted (runtime error)       | yes      | discarded; fee paid | no                |
 | post-condition failure        | yes      | discarded; fee paid | no                |
 | failed before execution (5.1) | yes      | none; fee paid      | no                |
@@ -1199,9 +1287,9 @@ The receipt of an aborted transaction names one class:
 | `reentrancy`          | 7.3                                                               |
 | `read-only-violation` | 7.4                                                               |
 | `no-such-function`    | 5.1; 5.3, step 1                                                  |
-| `trait-mismatch`      | 5.3, steps 2 and 5                                                |
-| `bad-arguments`       | 5.1; 5.3, step 5                                                  |
-| `bad-result`          | 5.2                                                               |
+| `trait-mismatch`      | 5.3, step 2; 5.4                                                  |
+| `bad-arguments`       | 5.4                                                               |
+| `bad-result`          | 5.2; 5.4                                                          |
 | `bad-host-argument`   | 6.1                                                               |
 | `unbalanced-frame`    | 7.1                                                               |
 | `trap`                | any Wasm trap                                                     |
@@ -1223,6 +1311,11 @@ checked. Legacy and clarity-wasm signalled these through exported globals and
   ever accepted.
 - The fuel schedule is versioned separately and applies to all modules (9.2).
 - A module may target only one ABI version.
+- Modules of different versions call each other freely; the call semantics of
+  section 5 apply whichever version each side targets. The one limit is types: a
+  function whose interface uses a type that a version lacks cannot be called by
+  a module of that version, and an older module's interface only ever uses the
+  types of its own version.
 
 ## 12. Changes to the earlier documents
 
@@ -1260,8 +1353,24 @@ Adopting this proposal changes the following. None of the changes is made yet.
    ([03-architecture.md](03-architecture.md) section 7) targets the types in
    2.1, and its known mismatches (extra tuple fields, list union types, trait
    values carrying types) must each resolve to a rejection or a defined
-   conversion at the boundary.
-6. **Formal definition** (R8). The host interface in section 6 should be
+   conversion at the boundary. The mapping must also be deterministic and
+   frozen, and produce canonical interface bytes: tokens, PoX, and sBTC are
+   legacy contracts, so most Clarity builds read a legacy interface, and
+   provenance records its hash ([02-goals.md](02-goals.md) G5). If the mapping
+   changed, those builds would no longer reproduce.
+6. **Bounded and recoverable calls.** Two possible additions to `call` (5.3),
+   both needed only for callees the caller cannot vouch for, such as a trait
+   target or a module in another language:
+   - A **fuel cap** passed into the callee's frame, as an additional check like
+     an allowance. A callee that exceeds it stops having consumed at most the
+     cap, so the static cost analyzer can bound a trait call by its cap instead
+     of the remaining budget ([05-roadmap.md](05-roadmap.md) risk 7). Without
+     the second addition, exceeding the cap aborts the transaction.
+   - **Catching a runtime error** from the callee: the callee's frame is
+     discarded and the caller receives the error class instead of the
+     transaction aborting. This relaxes "there is no catch" (5.3) and needs its
+     own analysis against R6 and the language's abort semantics (spec 2.7.2).
+7. **Formal definition** (R8). The host interface in section 6 should be
    published as one machine-readable file (WIT or a smaller purpose-made format)
    from which the host bindings, each compiler's import declarations, and the
    ABI vectors' function list are generated.
