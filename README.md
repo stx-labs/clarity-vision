@@ -17,6 +17,7 @@ expected to eventually move to a dedicated language repository.
 | [04-spec-plan.md](04-spec-plan.md)         | Plan for the language specification, the chain ABI it depends on, and the conformance suite                                                                              |
 | [05-roadmap.md](05-roadmap.md)             | Phased execution plan with milestones, dependencies, and risks                                                                                                           |
 | [06-issue-tracker.md](06-issue-tracker.md) | Disposition of every open `clarity` issue against the spec draft, and candidate additions                                                                                |
+| [07-chain-abi.md](07-chain-abi.md)         | Proposal for the chain ABI shared by every source language: value encoding, module format, interface, host functions, frames, fuel, and outcomes                         |
 | [spec/](spec/)                             | The specification working draft: a minimal core language plus a standard library written in the language itself                                                          |
 
 ## One-paragraph summary

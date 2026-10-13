@@ -129,12 +129,17 @@ The allowance comparison for `as-contract?` and `restrict-assets?` is host code,
 not compiled code over a host-provided movement log, so the guarantee holds for
 every module whatever its source language.
 
-Each host function has a fuel charge, and storage operations are also charged in
-read/write count and length dimensions. The fuel schedule and charge table are
-part of the chain ABI. They may change at epoch boundaries, and a change applies
-to every deployed module: a module's cost depends only on its code and the
-engine's schedule, not on its source. Cost bounds are therefore stated per
-schedule version.
+Cost has one dimension, fuel. Wasm execution is metered by the engine, each host
+function has a fuel charge, and storage reads and writes are charged in fuel at
+a worst-case price; there are no separate read and write dimensions. A
+transaction states a fuel limit and a rate (uSTX per million fuel) and pays for
+the fuel it uses, so a miner can order transactions by rate and pack a block
+against one fuel limit. The fuel schedule and charge table are part of the chain
+ABI ([07-chain-abi.md](07-chain-abi.md) section 9). They may change at epoch
+boundaries, and a change applies to every deployed module: a module's cost
+depends only on its code and the schedule, not on its source. Cost bounds are
+therefore stated per schedule version, and the static cost analyzer's bound is
+what a wallet proposes as the transaction's fuel limit.
 
 ## 5. Where each guarantee lives
 
