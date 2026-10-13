@@ -21,7 +21,7 @@ interpreter) proceeds separately and is not covered here.
 - Write chapter 6 (compilation to Wasm) alongside the ABI, so the lowering and
   the host interface are designed against each other.
 - Write language vectors as each chapter lands, not after.
-- Reach ABI v0: enough to deploy and call a module, store data, move assets, and
+- Reach ABI v1: enough to deploy and call a module, store data, move assets, and
   call another contract.
 
 ## Phase 2 — Reference compiler
@@ -43,13 +43,10 @@ interpreter) proceeds separately and is not covered here.
 
 ## Phase 3 — Chain integration
 
-- Chain devnet executing Clarity-compiled modules through ABI v0.
+- Chain devnet executing Clarity-compiled modules through ABI v1.
 - Host functions, fuel metering, and every runtime guarantee in
   [03-architecture.md](03-architecture.md) section 5, each covered by ABI
   vectors.
-- A second source-language prototype (a small subset of Rust or AssemblyScript
-  is enough) deploying against the same ABI, to catch Clarity-shaped assumptions
-  before the ABI is frozen.
 
 ## Phase 4 — Trust path
 
@@ -80,7 +77,7 @@ behind launch, because it is the concrete answer to "why a dedicated language".
 
 ## Phase 6 — Launch
 
-- Freeze the language spec for the first version and ABI 1.0.
+- Freeze the language spec for the first version and ABI v1.
 - Publish the porting guide from Clarity 1–6, built on the disposition table in
   [spec/04-standard-library.md](spec/04-standard-library.md).
 
@@ -95,13 +92,13 @@ Phase 0 ──► Phase 1 ──► Phase 2 ──► Phase 3 ──► Phase 6
 
 Phase 4 needs only the compiler. Phase 5 needs the chain's fuel schedule and
 host-charge table from Phase 3, so the analyzer's design can start with Phase 2
-but its bounds cannot be stated until ABI v0 fixes the schedule.
+but its bounds cannot be stated until ABI v1 fixes the schedule.
 
 ## Top risks
 
 1. **ABI frozen too early**: a wrong surface forever, for every language. Gate
-   the freeze on Clarity plus the second-language prototype both shipping
-   against it.
+   the freeze on Clarity shipping against it, and review the ABI for
+   Clarity-shaped assumptions before freezing.
 2. **Compiler bugs**: deployed code differs from audited source. Conformance
    vectors, differential testing against the oracle, fuzzing, reproducible
    builds, and an external audit before launch.
