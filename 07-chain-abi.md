@@ -139,8 +139,7 @@ is exactly the encoding of some value of `T`:
 - no bytes remain after the value.
 
 There is no sanitizing and no untyped decoding at a boundary. Self-describing
-prefixes are kept for tooling and for `print`, whose payload has no declared
-type; every other decode in the chain is typed.
+prefixes are kept for tooling; every decode in the chain is typed.
 
 ### 2.4 Sizes
 
@@ -430,15 +429,15 @@ Signatures in 6.2 are written with typed parameters. Each parameter kind expands
 to a fixed sequence of Wasm parameters, in the order written, and the import's
 Wasm type is the concatenation:
 
-| Kind       | Wasm parameters      | Meaning                                                                                                                                             |
-| ---------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `i32`      | `i32`                | an integer, as the function describes                                                                                                               |
-| `u128`     | `i64 lo`, `i64 hi`   | an unsigned 128-bit integer, low 64 bits first                                                                                                      |
-| `val<T>`   | `i32 ptr`, `i32 len` | the canonical encoding (2.3) of a value of `T`, decoded against `T`; a failed decode is `bad-host-argument`. `val<*>` is any value, decoded untyped |
-| `bytes`    | `i32 ptr`, `i32 len` | raw bytes, not an encoded value                                                                                                                     |
-| `bytes<N>` | `i32 ptr`            | exactly `N` raw bytes                                                                                                                               |
-| `out<N>`   | `i32 ptr`            | the host writes exactly `N` bytes; a `u128` result is written as 16 bytes, little-endian                                                            |
-| `buf`      | `i32 ptr`, `i32 cap` | the host writes at most `cap` bytes and returns the length; what it writes (an encoded value, or raw bytes) is stated per function                  |
+| Kind       | Wasm parameters      | Meaning                                                                                                                            |
+| ---------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `i32`      | `i32`                | an integer, as the function describes                                                                                              |
+| `u128`     | `i64 lo`, `i64 hi`   | an unsigned 128-bit integer, low 64 bits first                                                                                     |
+| `val<T>`   | `i32 ptr`, `i32 len` | the canonical encoding (2.3) of a value of `T`, decoded against `T`; a failed decode is `bad-host-argument`.                       |
+| `bytes`    | `i32 ptr`, `i32 len` | raw bytes, not an encoded value                                                                                                    |
+| `bytes<N>` | `i32 ptr`            | exactly `N` raw bytes                                                                                                              |
+| `out<N>`   | `i32 ptr`            | the host writes exactly `N` bytes; a `u128` result is written as 16 bytes, little-endian                                           |
+| `buf`      | `i32 ptr`, `i32 cap` | the host writes at most `cap` bytes and returns the length; what it writes (an encoded value, or raw bytes) is stated per function |
 
 | Result   | Wasm result | Meaning                                                                                                                   |
 | -------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -947,11 +946,15 @@ contract principal is the address, `.`, and the name.
 ##### `print`
 
 ```
-print(value: val<*>)
+print(msg: bytes)
 ```
 
-Emits `value` as a contract event. Asset events are emitted by the asset
-functions themselves.
+Emits `msg` as a contract event. `msg` must be valid UTF-8 (no surrogates, no
+overlong forms) and at most the print message limit (section 9.3); anything else
+is `bad-host-argument`. It also counts toward the transaction's event bytes. The
+chain does not interpret the text: the source language decides how a value is
+rendered, and a module that wants to emit structured data formats it itself.
+Asset events are emitted by the asset functions themselves.
 
 #### Cryptography
 
@@ -1320,6 +1323,7 @@ chain pins the engine's behavior to the schedule.
 | Transaction memory          | 64 MiB              | sum over live instances; caps depth × instance memory              |
 | Wasm stack                  | TBD                 | in schedule-defined units, enforced by deploy-time instrumentation |
 | Module size                 | TBD                 | the only bound on a contract's size                                |
+| Print message               | 1 MiB               | bytes per `print`, the same as the value size limit                |
 | Allowances per frame        | 128                 |                                                                    |
 | Fuel per block              | TBD                 | 9.1                                                                |
 | Fuel per read-only query    | node's choice       | 9.1                                                                |
@@ -1415,6 +1419,10 @@ Adopting this proposal changes the following. None of the changes is made yet.
 3. **Interface metadata includes storage**, typed (4.3). Section 3 of the
    architecture lists only functions, traits, and tokens.
 4. **A fungible token's cap is set by a host call during `init`** (6.2).
+5. **`print` emits a string** (6.2). Legacy emits the printed value in SIP-005
+   encoding, and spec section 3 types `print` as `(T) -> T`. Under this ABI the
+   Clarity compiler renders the value as text, so the spec must define that
+   rendering, and tools that decode legacy print events need a second path.
 
 ## 13. Open questions
 
