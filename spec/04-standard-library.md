@@ -221,7 +221,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | `contract-call?`                                                                        | form            |                                        |
 | `as-contract?`                                                                          | form            |                                        |
 | `as-contract`                                                                           | removed         | unrestricted asset access              |
-| `restrict-assets?`                                                                      | form            | `with-all-assets-unsafe` not permitted |
+| `restrict-assets?`                                                                      | form            | takes `allowance` forms only; `with-all-assets-unsafe` is a `contract-allowance`, accepted by `as-contract?` alone (2.5.9) |
 | `with-stx`, `with-ft`, `with-nft`, `with-staking`, `with-pox`, `with-all-assets-unsafe` | allowance forms |                                        |
 | `with-stacking`                                                                         | removed         | renamed `with-staking` in Clarity 6    |
 | `at-block`                                                                              | removed         | disabled in legacy since epoch 3.4     |

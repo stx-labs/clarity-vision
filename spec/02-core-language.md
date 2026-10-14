@@ -505,16 +505,32 @@ therefore rely on its parameter types whoever calls it.
 ### 2.5.9 Context scoping and asset allowances
 
 ```
-(as-contract? (allowance ...) body-expr ...)
+(as-contract? (contract-allowance ...) body-expr ...)
 (restrict-assets? owner-expr (allowance ...) body-expr ...)
 
-allowance ::= (with-stx amount)
-            | (with-ft contract token-name amount)
-            | (with-nft contract asset-name identifier-list)
-            | (with-staking amount)
-            | (with-pox)
-            | (with-all-assets-unsafe)   ;; as-contract? only
+allowance          ::= (with-stx amount)
+                     | (with-ft contract token-name amount)
+                     | (with-nft contract token-name identifiers)
+                     | (with-staking amount)
+                     | (with-pox)
+contract-allowance ::= allowance
+                     | (with-all-assets-unsafe)
 ```
+
+`(with-all-assets-unsafe)` waives the check for the current contract's assets.
+Only `as-contract?` accepts it, because in `restrict-assets?` it would make the
+form a no-op; the grammar above encodes that, so writing it in
+`restrict-assets?` is a syntax error.
+
+Every allowance argument is an ordinary expression, so a contract or token can
+come from a parameter, a variable, or a map entry, not only from a literal:
+
+| Argument      | Type               | Meaning                                                                                                                                                          |
+| ------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `amount`      | `uint`             | the most uSTX (`with-stx`), token units (`with-ft`), or uSTX locked for staking (`with-staking`) the body may move from the owner                                 |
+| `contract`    | `principal`        | the contract that defines the token; a non-contract principal, or one that defines no token of that name, matches no movement                                    |
+| `token-name`  | `(string-ascii N)` | the name the token was defined with (`define-fungible-token` or `define-non-fungible-token`); `N` is at most the identifier limit (2.8)                            |
+| `identifiers` | `(list N T)`       | the non-fungible token identifiers the body may move; `T` is any storable type, and an identifier matches a movement when their serialized forms (3.4) are equal |
 
 Both forms evaluate their body in a nested state frame and, on completion,
 compare the asset movements of a designated owner against the allowance list.
@@ -538,11 +554,10 @@ Both have type `(response T uint)` where `T` is the body type. Outcome:
    committed and the `return` proceeds.
 4. A runtime error in the body aborts the transaction as usual.
 
-Allowance sub-forms are valid only in allowance position.
-`(with-all-assets-unsafe)` is valid only in `as-contract?`; in
-`restrict-assets?` it is a type error, since it would make the form a no-op. The
-other allowances' arguments are ordinary expressions evaluated before the body.
-The number of allowances is bounded (2.8).
+Allowance sub-forms are valid only in allowance position. Allowance arguments
+are evaluated left to right, allowance by allowance, before the body, in the
+enclosing context (for `as-contract?`, with the caller's `sender`, not the
+contract's). The number of allowances is bounded (2.8).
 
 ### 2.5.10 Type ascription
 
