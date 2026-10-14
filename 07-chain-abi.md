@@ -67,8 +67,6 @@ validation and sizing. A source language maps its own types onto these.
 | `(trait X)`        | contract principals that conform to trait `X` (section 4.2) |
 
 - Every type is closed: no type variables, no unknown parts.
-- A type is **storable** if it contains no trait type. Only storable types
-  appear in storage; trait types appear only in interface positions.
 - `never` may appear anywhere a type may; a position of type `never` can hold
   nothing, and validation admits nothing for it.
 - Tuples have exact field sets (R2). Zero-field tuples are allowed.
@@ -88,10 +86,10 @@ validation and sizing. A source language maps its own types onto these.
 
 ### 2.2 Names
 
-| Kind                                                              | Grammar                                                                       | Length      |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------- |
-| Function, storage, token, trait, parameter, and tuple-field names | ASCII letters, digits, and `- _ ! ? + < > = / * ^`, not starting with a digit | 1–128 bytes |
-| Contract names                                                    | an ASCII letter, then letters, digits, `-`, `_`                               | 1–40 bytes  |
+| Kind                                                     | Grammar                                                                       | Length      |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------- |
+| Function, token, trait, parameter, and tuple-field names | ASCII letters, digits, and `- _ ! ? + < > = / * ^`, not starting with a digit | 1–128 bytes |
+| Contract names                                           | an ASCII letter, then letters, digits, `-`, `_`                               | 1–40 bytes  |
 
 Every source language shares these rules. One contract-name limit applies
 everywhere: in deploys, in values, and on the wire. Legacy has 40 at deploy and
@@ -257,8 +255,6 @@ The chain, in order:
    (section 7) with `sender` and `caller` set to the deployer. The new contract
    has an active frame, so it cannot be called during its own `init` (section
    7.3).
-5. Requires every declared data variable to have been set. A variable read
-   before it is set is a runtime error.
 
 A runtime error in `init` aborts the deploy; nothing is stored. Deploy is
 charged for module bytes, validation, and compilation before step 1, and for the
@@ -277,8 +273,6 @@ The `abi.interface` section is one canonically encoded record:
 | `functions`   | per function: name, kind (`public` or `read-only`), parameters (name, type), result type    |
 | `traits`      | per defined trait: name; per function: name, parameter types, result type, `read-only` flag |
 | `implements`  | trait references the contract claims to implement                                           |
-| `vars`        | per data variable: name, type                                                               |
-| `maps`        | per map: name, key type, value type                                                         |
 | `fts`         | per fungible token: name                                                                    |
 | `nfts`        | per non-fungible token: name                                                                |
 
@@ -290,12 +284,11 @@ Rules:
   ([03-architecture.md](03-architecture.md) section 2).
 - A `public` function's result type is a `response`. A `read-only` function's
   result type is any interface type.
-- Parameter and result types are interface types. Storage types are storable
-  (section 2.1).
+- Parameter and result types are interface types.
 - At most 256 parameters per function and 256 functions per trait, as legacy.
-- A storage variable, map, or token is addressed by its index in its sorted
-  list. The index is a module-local handle; the chain keys state by name
-  (section 8.1), so the name, not the index, is the stable identity.
+- A token is addressed by its index in its sorted list. The index is a
+  module-local handle; the chain keys state by name (section 8.1), so the name,
+  not the index, is the stable identity.
 
 ### 4.2 Traits
 
@@ -313,14 +306,20 @@ implementations skip the runtime checks, including the result-type check, while
 undeclared ones are duck-typed. Interfaces never change, so the chain may cache
 a conformance result per (contract, trait) pair.
 
-### 4.3 Storage is declared and typed
+### 4.3 Storage is untyped
 
-Storage is part of the interface, and the host validates every value and key
-written against its declared type. This costs a decode per write, already paid
-for sizing. In exchange, every observer can read a contract's state: explorers,
-wallets, and the node's map and variable read endpoints decode it without the
-contract's source or compiler. A language that wants untyped storage declares
-`(buff N)` keys and values.
+Storage is not part of the interface. Each contract has one key-value store
+whose keys and values are bytes (6.2), and the host never decodes either. A
+source language lays its own variables and maps out over that store, for example
+by prefixing each key with the variable or map name. The chain does not need
+storage types, since it never acts on a stored value, and leaving them out
+removes a decode from every write and keeps the host independent of how any
+language structures its state.
+
+The cost is that state is not self-describing: an explorer, a wallet, or the
+node's state read endpoint returns raw bytes, and decoding them needs the source
+language's layout. A language that wants its state readable by tools publishes
+that layout, as the Clarity spec will (section 12).
 
 ## 5. Calls
 
@@ -455,8 +454,8 @@ imported with Wasm type `(param i64 i64 i32 i32) (result i32)`.
   call has any effect.
 - The host reads every input before it writes any output, so an output may
   overlap an input.
-- An index argument (`slot`, `token`, `kind`) outside its range is a
-  `bad-host-argument` runtime error.
+- An index argument (`token`, `kind`) outside its range is a `bad-host-argument`
+  runtime error.
 - Every host function has a charge (section 9.2).
 
 ### 6.2 Functions
@@ -673,56 +672,39 @@ Serves every burn block up to and including `burn-height`.
 
 #### Storage
 
-`slot` is an index into `vars` or `maps` (4.1). `V` is the slot's declared value
-type and `K` its declared key type.
+The current contract's key-value store (4.3). Keys and values are raw bytes,
+compared byte for byte. A key longer than the storage key limit, or a value
+longer than the storage value limit (section 9.3), is `bad-host-argument`.
 
-##### `var_get`
-
-```
-var_get(slot: i32, out: buf) -> len
-```
-
-Writes the variable's encoded value. Reading a variable that has not been set is
-a runtime error (3.5).
-
-##### `var_set`
+##### `kv_get`
 
 ```
-var_set(slot: i32, value: val<V>)
+kv_get(key: bytes, out: buf) -> len
 ```
 
-Stores the value.
+Writes the value stored under `key`, or returns `-1` if there is no entry.
 
-##### `map_get`
-
-```
-map_get(slot: i32, key: val<K>, out: buf) -> len
-```
-
-Writes the encoded value stored under `key`, or returns `-1` if there is no
-entry.
-
-##### `map_has`
+##### `kv_has`
 
 ```
-map_has(slot: i32, key: val<K>) -> bool
+kv_has(key: bytes) -> bool
 ```
 
 Whether an entry exists under `key`. Charged as a read without the value's
 length.
 
-##### `map_set`
+##### `kv_set`
 
 ```
-map_set(slot: i32, key: val<K>, value: val<V>)
+kv_set(key: bytes, value: bytes)
 ```
 
 Inserts or overwrites the entry under `key`.
 
-##### `map_delete`
+##### `kv_delete`
 
 ```
-map_delete(slot: i32, key: val<K>) -> bool
+kv_delete(key: bytes) -> bool
 ```
 
 Removes the entry under `key`; returns whether it existed.
@@ -1143,12 +1125,12 @@ analysis for asset functions; here every mutation is checked.
 
 ### 8.1 State layout
 
-State is keyed by contract, kind, name, and, for maps, the canonical encoding of
-the key, and for NFTs, the identifier's bytes. Values are stored in canonical
-encoding. Balances and supplies are `uint` in canonical encoding. Legacy uses
-serde JSON for principals in token-balance keys and for persisted type metadata;
-nothing here depends on a language's in-memory representation. The concrete key
-strings are the chain's choice, made once.
+Contract storage is keyed by contract and the key's bytes, and stores the
+value's bytes as given (4.3). Token state is keyed by contract, token name, and,
+for NFTs, the identifier's bytes. Balances and supplies are `uint` in canonical
+encoding. Legacy uses serde JSON for principals in token-balance keys and for
+persisted type metadata; nothing here depends on a language's in-memory
+representation. The concrete key strings are the chain's choice, made once.
 
 ### 8.2 Asset map
 
@@ -1317,7 +1299,7 @@ chain pins the engine's behavior to the schedule.
 
 | Limit                       | Value (provisional) | Notes                                                              |
 | --------------------------- | ------------------- | ------------------------------------------------------------------ |
-| Value size                  | 1 MiB               | `serialized-size` of any interface or storable type                |
+| Value size                  | 1 MiB               | `serialized-size` of any interface type                            |
 | Type nesting depth          | 32                  |                                                                    |
 | Contract-call depth         | 64                  | 7.3                                                                |
 | Instance memory             | 16 MiB              | bounds every intermediate value a module holds                     |
@@ -1326,6 +1308,8 @@ chain pins the engine's behavior to the schedule.
 | Wasm stack                  | TBD                 | in schedule-defined units, enforced by deploy-time instrumentation |
 | Module size                 | TBD                 | the only bound on a contract's size                                |
 | NFT identifier              | 1 MiB               | bytes per identifier, the same as the value size limit             |
+| Storage key                 | 1 KiB               | bytes per key                                                      |
+| Storage value               | 1 MiB               | bytes per value                                                    |
 | Print message               | 1 MiB               | bytes per `print`, the same as the value size limit                |
 | Allowances per frame        | 128                 |                                                                    |
 | Fuel per block              | TBD                 | 9.1                                                                |
@@ -1419,8 +1403,11 @@ Adopting this proposal changes the following. None of the changes is made yet.
 2. **Exports have one Wasm type.** [03-architecture.md](03-architecture.md)
    section 3 requires "matching Wasm signatures". Under section 3.3 every entry
    is `[] -> []` and the check is that the export exists.
-3. **Interface metadata includes storage**, typed (4.3). Section 3 of the
-   architecture lists only functions, traits, and tokens.
+3. **Storage is an untyped key-value store** (4.3). The Clarity spec must define
+   how `define-data-var` and `define-map` lay out keys and values in it, both
+   for the compiler and so tools can read a Clarity contract's state.
+   [03-architecture.md](03-architecture.md) section 4 lists data-var and map
+   host functions; they become one key-value store.
 4. **A fungible token's cap is set by a host call during `init`** (6.2).
 5. **`print` emits a string** (6.2). Legacy emits the printed value in SIP-005
    encoding, and spec section 3 types `print` as `(T) -> T`. Under this ABI the
@@ -1442,12 +1429,9 @@ Adopting this proposal changes the following. None of the changes is made yet.
 2. **Bulk memory.** Left out of `stacks-abi-v1` (3.1). Allowing it later needs a
    per-byte charge for `memory.copy` and `memory.fill`, either from the engine
    or from deploy-time instrumentation of just those operators.
-3. **Untyped storage.** Section 4.3 types storage. The alternative is
-   bytes-to-bytes storage with no declared types, which is smaller but leaves
-   state unreadable without the contract's toolchain.
-4. **Limit and price values** in 9.2 and 9.3, from benchmarks on the chosen
+3. **Limit and price values** in 9.2 and 9.3, from benchmarks on the chosen
    engine, including the fuel per block and the storage prices.
-5. **Legacy interop.** The mapping from legacy interfaces to this type grammar
+4. **Legacy interop.** The mapping from legacy interfaces to this type grammar
    ([03-architecture.md](03-architecture.md) section 7) targets the types in
    2.1, and its known mismatches (extra tuple fields, list union types, trait
    values carrying types) must each resolve to a rejection or a defined
@@ -1456,7 +1440,7 @@ Adopting this proposal changes the following. None of the changes is made yet.
    legacy contracts, so most Clarity builds read a legacy interface, and
    provenance records its hash ([02-goals.md](02-goals.md) G5). If the mapping
    changed, those builds would no longer reproduce.
-6. **Bounded and recoverable calls.** Two possible additions to `call` (5.3),
+5. **Bounded and recoverable calls.** Two possible additions to `call` (5.3),
    both needed only for callees the caller cannot vouch for, such as a trait
    target or a module in another language:
    - A **fuel cap** passed into the callee's frame, as an additional check like
@@ -1468,7 +1452,7 @@ Adopting this proposal changes the following. None of the changes is made yet.
      discarded and the caller receives the error class instead of the
      transaction aborting. This relaxes "there is no catch" (5.3) and needs its
      own analysis against R6 and the language's abort semantics (spec 2.7.2).
-7. **Formal definition** (R8). The host interface in section 6 should be
+6. **Formal definition** (R8). The host interface in section 6 should be
    published as one machine-readable file (WIT or a smaller purpose-made format)
    from which the host bindings, each compiler's import declarations, and the
    ABI vectors' function list are generated.
