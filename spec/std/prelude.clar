@@ -117,7 +117,9 @@
 ;; Arithmetic
 ;; ---------------------------------------------------------------------------
 
-;; `T` is instantiated at int or uint. (max a b c) folds the binary helper
+;; `T` is any type `>` accepts: int, uint, or a buffer or string type, which
+;; compare lexicographically (chapter 3.2: bytes for buffers and ASCII
+;; strings, code points for UTF-8 strings). (max a b c) folds the binary helper
 ;; over (list b c) starting from a.
 (define-private (std-max-pair (left T) (right T))
   (if (> left right) left right))
@@ -347,7 +349,8 @@
     { rest: (/ (get rest acc) u10),
       text: (std-prepend-digit (mod (get rest acc) u10) (get text acc)) }))
 
-;; `X` is instantiated at the empty string of the result kind.
+;; `X` is instantiated at the type of the empty string of the result kind,
+;; `(string-ascii 0)` or `(string-utf8 0)`, and the fold widens it to 40.
 (define-private (std-render-decimal (value uint) (empty X))
   (get text (fold-left std-decimal-step { rest: value, text: empty }
               std-decimal-iterations)))
@@ -496,8 +499,8 @@
     ((err parts) (is-none (get name parts)))))
 
 ;; Version bytes for single-signature standard principals.
-(define-constant mainnet-p2pkh-version 0x16)
-(define-constant testnet-p2pkh-version 0x1a)
+(define-constant std-mainnet-p2pkh-version 0x16)
+(define-constant std-testnet-p2pkh-version 0x1a)
 
 ;; Derive the standard principal for a compressed public key on the current
 ;; network. Returns (err u1) if the key is not 33 bytes.
@@ -506,8 +509,8 @@
     (err u1)
     (match (principal-construct?
              (if (get is-mainnet (get-current-context))
-               mainnet-p2pkh-version
-               testnet-p2pkh-version)
+               std-mainnet-p2pkh-version
+               std-testnet-p2pkh-version)
              (hash160 public-key)
              none)
       ((ok who) (ok who))
@@ -568,10 +571,3 @@
   (match (map-get? target key)
     ((some existing) (some existing))
     (none (begin (map-set target key value) none))))
-
-;; ---------------------------------------------------------------------------
-;; Assets
-;; ---------------------------------------------------------------------------
-
-(define-private (stx-get-balance (owner principal))
-  (get unlocked (stx-account owner)))

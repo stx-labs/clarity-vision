@@ -55,7 +55,6 @@ representation. Every other construct a contract author uses is here.
 | Principals   | `is-current-network`, `is-standard`, `principal-of?`                                           | `principal-destruct?`, `principal-construct?`, `hash160`                                                          |
 | Cryptography | `verify-merkle-proof`                                                                          | `sha256`, `log2`, `fold-left` over the proof                                                                      |
 | Storage      | `map-insert?`                                                                                  | `map-get?`, `map-set`                                                                                             |
-| Assets       | `stx-get-balance`                                                                              | `stx-account`                                                                                                     |
 
 About forty public definitions, plus `std-*` helpers. Two conventions decide
 whether a prelude function is `define-inline` or `define-private`:
@@ -183,7 +182,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | `principal-destruct?`  | primitive |                                                                                                    |
 | `is-standard`          | library   | renamed `is-current-network`, since it tests the version byte against the current network and is true for contract principals too; vNEXT's `is-standard` tests for a standard (not contract) principal |
 | `principal-of?`        | library   | `hash160` plus `principal-construct?` with the network's version byte                              |
-| `contract-of`          | primitive |                                                                                                    |
+| `contract-of`          | removed   | `(trait X) <: principal` (2.3.2), so a trait value is already a principal wherever one is expected; `(as principal t)` states it explicitly |
 | `contract-hash?`       | primitive |                                                                                                    |
 
 ### Cryptography
@@ -191,7 +190,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | Legacy                                                            | vNEXT     | Notes                                |
 | ----------------------------------------------------------------- | --------- | ------------------------------------ |
 | `hash160`, `sha256`, `sha512`, `sha512/256`, `keccak256`          | primitive | buffers only; integer inputs removed |
-| `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required                       |
+| `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required; `secp256k1-verify` takes a `(buff 64)` signature only, where legacy also accepted 65 bytes and ignored the recovery byte |
 | `secp256r1-verify`, `ed25519-verify`                              | primitive | low-S required for ECDSA             |
 | `verify-merkle-proof`                                             | library   | over `sha256`                        |
 
@@ -212,7 +211,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | `stx-transfer?`                                                           | primitive | takes `(optional (buff 34))` memo |
 | `stx-transfer-memo?`                                                      | removed   | merged into `stx-transfer?`       |
 | `stx-burn?`, `stx-account`                                                | primitive |                                   |
-| `stx-get-balance`                                                         | library   | `(get unlocked (stx-account p))`  |
+| `stx-get-balance`                                                         | removed   | `(get unlocked (stx-account p))`; a one-line alias (P6) |
 
 ### Calls, context, and allowances
 
@@ -239,6 +238,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 | Legacy                                                | vNEXT   | Notes                                                                  |
 | ----------------------------------------------------- | ------- | ---------------------------------------------------------------------- |
+| new: `clarity-version`                                | form    | required first form of every contract (2.4.0); replaces the `clarity_version` field of the legacy deploy transaction |
 | `define-constant`, `define-data-var`, `define-map`    | form    |                                                                        |
 | `define-fungible-token`, `define-non-fungible-token`  | form    |                                                                        |
 | `define-public`, `define-read-only`, `define-private` | form    | private may be generic and overloaded                                  |
@@ -268,37 +268,4 @@ user-written helpers:
 
 Primitive additions with no legacy counterpart: the four `*-to-buff-*` functions
 and `principal-to-ascii` (chapter 3). Further candidates from the issue tracker
-are collected in [05-issue-tracker.md](05-issue-tracker.md).
-
-## 4.5 What the prelude taught us about the core
-
-Writing the prelude is the test of the core design. Findings so far:
-
-- An earlier draft returned the conversion, search, and Merkle functions to the
-  core because their library versions cost more than a native under a
-  per-operation cost table. With fuel as the metric and optimization done by a
-  compiler linking faster code, that argument is gone, and they are library
-  again. The core is smaller and there is no per-construct cost table.
-- Template checking of generic bodies carries more weight than planned. It lets
-  `index-of?` and the string parsers be one definition across sequence kinds
-  instead of four, at the price of errors reported inside the prelude (2.6.2).
-- Per-kind constants (digit tables, the minus sign) need small overloaded
-  helpers, because a generic body cannot write a literal of an unknown kind.
-- `replace-at?` exposed a gap in the size rules: an intermediate `concat` has a
-  larger bound than any value it can hold. Intermediate expressions are checked
-  against a separate, larger limit (2.3.1).
-- Rest parameters are strict: the extra arguments are built into a list before
-  the body runs. That is right for `max`, `+`, and `concat`, but it means n-ary
-  short-circuiting cannot be written in the language, so `and` and `or` moved
-  from the library into the core (chapter 2.5.3).
-- `never` as the type of `(return ...)` and `(panic)` makes every early-exit
-  form typeable with ordinary lub rules, with no special cases.
-- Inline functions cannot be passed to `filter`, which forces predicates to be
-  private functions (2.6.3).
-- Folds whose initial value has a smaller type than the step's result
-  (`std-reverse-16` starts from `0x`, `std-render-decimal` from `""`,
-  `index-of?` from `none`) rely on instantiation finding the accumulator type by
-  iteration (2.6.2). Each closes in two steps; a fold that needs a wider start
-  states it with `as` (2.5.10).
-- Overloading and static reference kinds are each justified by a small group of
-  prelude functions (`unwrap!`/`try!` and the integer families; `map-insert?`).
+are collected in [../06-issue-tracker.md](../06-issue-tracker.md).

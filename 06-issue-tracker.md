@@ -1,11 +1,12 @@
-# 5. Issue Tracker Disposition
+# Issue Tracker Disposition
 
 Every open issue labeled `clarity` in stacks-core (as of 2026-09-09), with what
-this draft does about it. Issues are grouped by disposition. "Addressed" means
-the draft's rules make the reported problem impossible or the request part of
-the language; the referenced section is where.
+the specification draft in [spec/](spec/) does about it. Issues are grouped by
+disposition. "Addressed" means the draft's rules make the reported problem
+impossible or the request part of the language; the referenced section is
+where. Section numbers refer to the specification chapters in [spec/](spec/).
 
-## 5.1 Addressed by the draft
+## Addressed by the draft
 
 | Issue                                                                                    | Summary                                                                    | Where                                                                                                                                                                                                                                  |
 | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -23,7 +24,7 @@ the language; the referenced section is where.
 | [#1171](https://github.com/stacks-network/stacks-core/issues/1171)                       | Type aliases                                                               | `define-type`, 2.3.5                                                                                                                                                                                                                   |
 | [#3056](https://github.com/stacks-network/stacks-core/issues/3056) (referenced by #7312) | Variadic `concat`                                                          | `concat` has a rest parameter (3.3); rest parameters are a user feature (2.6.5)                                                                                                                                                        |
 
-## 5.2 Candidate additions
+## Candidate additions
 
 Feature requests that fit the language's positioning but are not yet in the
 draft because each deserves a short RFC (layer, host interface impact, exact
@@ -36,7 +37,7 @@ signature).
 | [#3975](https://github.com/stacks-network/stacks-core/issues/3975) | 256-bit integer arithmetic for Schnorr, ZK, and curve math | RFC. A `(buff 32)`-based `wide-add`/`wide-mul`/`wide-mod` family is expressible in the language, so under the layering rule it is library code, with a Wasm replacement later if it is hot. A new 256-bit integer type would instead be a core change. The RFC chooses between the two. If #3568 ships as a primitive, the most pressing motivation goes away                                                                                                                    |
 | [#6320](https://github.com/stacks-network/stacks-core/issues/6320) | `code-body-of?` / per-definition code hashes               | `contract-hash?` is in the draft (3.5). The thread converges on per-top-level-definition hashes (`has-definition-value?` or a MAST) as the safe version of introspection; returning source text invites contracts to parse Clarity in Clarity. The chain holds only the module, so an on-chain per-definition hash would be over compiled code and would depend on the compiler. The RFC decides between that and per-definition source hashes carried in the interface metadata |
 
-## 5.3 Out of scope for the language spec
+## Out of scope for the language spec
 
 | Issue                                                                                                                                                                                                      | Why                                                                                                                                                                                |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -45,12 +46,12 @@ signature).
 | [#4030](https://github.com/stacks-network/stacks-core/issues/4030)                                                                                                                                         | Boot-contract test infrastructure                                                                                                                                                  |
 | [#3350](https://github.com/stacks-network/stacks-core/issues/3350), [#3302](https://github.com/stacks-network/stacks-core/issues/3302)                                                                     | Diagnostic quality. Implementation concerns for the reference compiler, though #3350's root cause (a `uint` expression where a literal is required) is removed by static constants |
 
-## 5.4 Patterns worth noting
+## Patterns worth noting
 
 Three themes recur across the tracker and shaped rules in chapter 2:
 
-- **Checker and runtime disagree** (#4751, #4431, #3176, #6485, fixlist items 5
-  and 10). The draft's answer is structural: one lookup order, no shadowing,
+- **Checker and runtime disagree** (#4751, #4431, #3176, #6485). The draft's
+  answer is structural: one meaning per name, no shadowing,
   declared arity, and a value model with no static type information at runtime,
   so there is nothing for the two to disagree about.
 - **Literals where expressions should do** (#1638, #3350, #6831). Static
