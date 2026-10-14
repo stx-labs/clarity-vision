@@ -114,16 +114,16 @@ Everything a module can do beyond pure computation goes through host functions.
 The Clarity primitives in [spec/03-primitives.md](spec/03-primitives.md) that
 pass the layering rule's host-access test map onto them.
 
-| Group        | Host functions                                                                                                                                             |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Storage      | data-var get/set, map get/set/delete, keyed by the calling contract                                                                                        |
-| Assets       | fungible and non-fungible token mint/burn/transfer/balance/owner/supply, STX transfer/burn/account; every movement recorded in the transaction's asset map |
-| Context      | tx-sender, contract-caller, sponsor, current contract, block heights and time, chain id, network flags, liquid supply                                      |
-| Chain data   | Stacks block, tenure, and burn block lookups; Bitcoin transaction output parsing. All total: they return `none` rather than fail                           |
-| Calls        | contract-call by principal and function name, with argument and result validation (section 3)                                                              |
+| Group        | Host functions                                                                                                                                                                                                                           |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Storage      | data-var get/set, map get/set/delete, keyed by the calling contract                                                                                                                                                                      |
+| Assets       | fungible and non-fungible token mint/burn/transfer/balance/owner/supply, STX transfer/burn/account; every movement recorded in the transaction's asset map                                                                               |
+| Context      | tx-sender, contract-caller, sponsor, current contract, block heights and time, chain id, network flags, liquid supply                                                                                                                    |
+| Chain data   | Stacks block, tenure, and burn block lookups; Bitcoin transaction output parsing. All total: they return `none` rather than fail                                                                                                         |
+| Calls        | contract-call by principal and function name, with argument and result validation (section 3)                                                                                                                                            |
 | Frames       | nested state frames: open, commit, discard. Used by `as-contract?` and `restrict-assets?` (with context switch and allowance checks) and by a module's internal calls to its own public functions, which roll back on `err` (spec 2.7.3) |
-| Events       | print and asset events                                                                                                                                     |
-| Cryptography | signature schemes (secp256k1 recover/verify/decompress, secp256r1, ed25519). Hashes are compiled into the module (section 2)                               |
+| Events       | print and asset events                                                                                                                                                                                                                   |
+| Cryptography | signature schemes (secp256k1 recover/verify/decompress, secp256r1, ed25519). Hashes are compiled into the module (section 2)                                                                                                             |
 
 The allowance comparison for `as-contract?` and `restrict-assets?` is host code,
 not compiled code over a host-provided movement log, so the guarantee holds for
@@ -162,20 +162,20 @@ differ from the audited source. The defenses:
 
 1. **Spec and conformance suite.** A correct compiler is defined by the spec,
    not by an implementation. Every compiler release passes the suite.
-2. **Differential testing and fuzzing against a direct evaluator.** The
-   direct evaluator is an interpreter that runs Clarity source by applying the
-   spec's dynamic-semantics rules one at a time, with no lowering, no Wasm, and
-   no optimization. It is a much smaller program than the compiler and a
-   different kind of program, so the two are unlikely to share a bug.
-   Differential testing runs the same contract and the same calls through both
-   and compares every observable result: return values, events, asset
-   movements, and aborts. Fuzzing supplies those contracts and calls by
-   generating them, well-typed, in volume. Any disagreement is a bug in the
-   compiler, in the evaluator, or in the spec, and the spec adjudicates. The
-   evaluator is only a test oracle: it never runs on chain, is never a fallback
-   execution path, and has no authority over the compiler. A second production
-   implementation would make "whatever the implementation does" the de facto
-   spec again, which is the legacy situation this design leaves behind.
+2. **Differential testing and fuzzing against a direct evaluator.** The direct
+   evaluator is an interpreter that runs Clarity source by applying the spec's
+   dynamic-semantics rules one at a time, with no lowering, no Wasm, and no
+   optimization. It is a much smaller program than the compiler and a different
+   kind of program, so the two are unlikely to share a bug. Differential testing
+   runs the same contract and the same calls through both and compares every
+   observable result: return values, events, asset movements, and aborts.
+   Fuzzing supplies those contracts and calls by generating them, well-typed, in
+   volume. Any disagreement is a bug in the compiler, in the evaluator, or in
+   the spec, and the spec adjudicates. The evaluator is only a test oracle: it
+   never runs on chain, is never a fallback execution path, and has no authority
+   over the compiler. A second production implementation would make "whatever
+   the implementation does" the de facto spec again, which is the legacy
+   situation this design leaves behind.
 3. **Reproducible builds and source verification.** Source is published in an
    off-chain registry keyed by the source hash in the module's provenance
    section; the chain stores only the module. `clarity-verify` rebuilds a module

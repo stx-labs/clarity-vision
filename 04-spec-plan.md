@@ -156,8 +156,8 @@ before the vector is accepted.
 
 Which side is the oracle depends on where the rule lives:
 
-- For the core language, the prose rule is normative. If a compiler and a
-  vector disagree, one of them has a bug, and the disagreement is adjudicated
+- For the core language, the prose rule is normative. If a compiler and a vector
+  disagree, one of them has a bug, and the disagreement is adjudicated
   explicitly and recorded (P8).
 - For the standard library, the prelude source is normative
   ([spec/04-standard-library.md](spec/04-standard-library.md)). Library vectors
@@ -215,7 +215,8 @@ Writing the prelude is the test of the core design. Findings so far:
   again. The core is smaller and there is no per-construct cost table.
 - Template checking of generic bodies carries more weight than planned. It lets
   `index-of?` and the string parsers be one definition across sequence kinds
-  instead of four, at the price of errors reported inside the prelude (spec 2.6.2).
+  instead of four, at the price of errors reported inside the prelude (spec
+  2.6.2).
 - Per-kind constants (digit tables, the minus sign) need small overloaded
   helpers, because a generic body cannot write a literal of an unknown kind.
 - `replace-at?` exposed a gap in the size rules: an intermediate `concat` has a
@@ -232,7 +233,7 @@ Writing the prelude is the test of the core design. Findings so far:
 - Folds whose initial value has a smaller type than the step's result
   (`std-reverse-16` starts from `0x`, `std-render-decimal` from `""`,
   `index-of?` from `none`) rely on instantiation finding the accumulator type by
-  iteration (spec 2.6.2). Each closes in two steps; a fold that needs a wider start
-  states it with `as` (2.5.10).
+  iteration (spec 2.6.2). Each closes in two steps; a fold that needs a wider
+  start states it with `as` (2.5.10).
 - Overloading and static reference kinds are each justified by a small group of
   prelude functions (`unwrap!`/`try!` and the integer families; `map-insert?`).
