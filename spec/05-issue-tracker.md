@@ -49,8 +49,8 @@ signature).
 
 Three themes recur across the tracker and shaped rules in chapter 2:
 
-- **Checker and runtime disagree** (#4751, #4431, #3176, #6485, fixlist items 5
-  and 10). The draft's answer is structural: one lookup order, no shadowing,
+- **Checker and runtime disagree** (#4751, #4431, #3176, #6485). The draft's
+  answer is structural: one meaning per name, no shadowing,
   declared arity, and a value model with no static type information at runtime,
   so there is nothing for the two to disagree about.
 - **Literals where expressions should do** (#1638, #3350, #6831). Static

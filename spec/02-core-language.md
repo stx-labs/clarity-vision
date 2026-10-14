@@ -530,8 +530,11 @@ Both have type `(response T uint)` where `T` is the body type. Outcome:
    covered by an allowance, the frame is committed and the value is
    `(ok body-value)`.
 2. If any movement is not covered, the frame is rolled back and the value is
-   `(err i)`, where `i` is the index of the first violated allowance (defined
-   precisely in the semantics chapter).
+   `(err i)`, where `i` is the zero-based index in the allowance list of the
+   violated allowance. The allowance comparison is host code
+   ([../03-architecture.md](../03-architecture.md) section 4), so the chain ABI
+   defines which index is reported when several allowances are violated or a
+   movement matches no allowance at all.
 3. If the body is exited by a `return` that crosses the form, the allowance
    check still runs. On violation, the frame is rolled back, the `return` is
    cancelled, and the form's value is `(err i)`. Otherwise the frame is
