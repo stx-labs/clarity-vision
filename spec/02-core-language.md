@@ -71,6 +71,7 @@ type      ::= int | uint | bool | principal | never
             | (trait trait-identifier)
             | alias-name                       ;; introduced by define-type
             | type-variable                    ;; see 2.3.4
+            | contract-literal-type            ;; internal; see below
 
 size      ::= uint-literal | size-variable | static-constant-name
 ```
@@ -92,6 +93,7 @@ Meaning of each type:
 | `(response T E)`   | `(ok v)` with `v : T` or `(err e)` with `e : E`                                                                             |
 | `{ f: T, ... }`    | records with exactly the listed fields                                                                                      |
 | `(trait X)`        | contract principals whose interface implements trait `X`                                                                    |
+| contract literal   | the one contract principal named by a literal `'SP....c` or `.c`, or by a static constant holding one (2.4.1). Internal: it cannot be written in source, is never an interface or storable type, and exists so that a literal can be used wherever a trait type is expected (2.3.2) and as a `contract-call?` target (2.5.8) |
 
 `(buff N)`, `(string-ascii N)`, `(string-utf8 N)`, and `(list N T)` are the four
 **sequence types**. Their **element types** are `(buff 1)`, `(string-ascii 1)`,
@@ -132,9 +134,8 @@ reflexive, transitive relation such that:
 - `(response S1 S2) <: (response T1 T2)` when `S1 <: T1` and `S2 <: T2`.
 - `{ f1: S1, ... } <: { f1: T1, ... }` when both have exactly the same field
   names and `Si <: Ti` for every field.
-- A contract principal literal type `'SP....c` (the singleton type of one
-  contract principal literal) `<: (trait X)` when the interface of `c`
-  implements `X` (chain ABI trait rules).
+- The contract literal type of `c` (2.3.1) `<: (trait X)` when the interface of
+  `c` implements `X` (chain ABI trait rules), and `<: principal` always.
 - `(trait X) <: (trait Y)` when every function required by `Y` is present in `X`
   with an identical signature (structural sub-trait).
 - `(trait X) <: principal`.
@@ -143,6 +144,23 @@ reflexive, transitive relation such that:
 lub of components, and so on) and is undefined when `S` and `T` have different
 shapes (for example `int` and `uint`, or tuples with different field sets). An
 undefined lub where one is required is a type error.
+
+Among the principal-like types the join is always defined, and it is the most
+specific type the rules above name, falling back to `principal`:
+
+- `lub(S, S) = S`.
+- `lub(S, (trait X)) = (trait X)` when `S <: (trait X)`; symmetrically for the
+  other argument.
+- Otherwise `lub(S, T) = principal`, including two different contract literals,
+  two trait types neither of which is a sub-trait of the other, and anything
+  with `principal`.
+
+The join of two unrelated trait types is `principal` rather than an anonymous
+trait of their common functions, because such a trait has no name, could not be
+written in an interface, and would give a value a type no one declared. A list
+of contract literals meant as trait values therefore states the trait once:
+`(list (as (trait X) .a) .b .c)` has type `(list 3 (trait X))` when all three
+implement `X`.
 
 Because tuple subtyping requires identical field sets, every runtime tuple has
 exactly the fields of its static type. There are no hidden fields, so no value
