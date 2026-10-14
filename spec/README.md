@@ -88,7 +88,6 @@ user feature and is specified as such.
 | [02-core-language.md](02-core-language.md)       | Draft                                                            | 2, 3, 4, 5 (grammar, types, static and dynamic semantics)          |
 | [03-primitives.md](03-primitives.md)             | Draft                                                            | 7 (native reference, reduced to primitives)                        |
 | [04-standard-library.md](04-standard-library.md) | Draft                                                            | 7 (library), plus the legacy-to-vNEXT disposition table            |
-| [05-issue-tracker.md](05-issue-tracker.md)       | Draft                                                            | Disposition of every open `clarity` issue and candidate additions  |
 | [std/prelude.clar](std/prelude.clar)             | Draft                                                            | The library itself                                                 |
 | Compilation to Wasm                              | Not started                                                      | 6 (lowering, prelude linking, determinism, bound preservation)     |
 | Chain ABI                                        | Not started; a separate document shared by every source language | ABI (value encoding, module format, host functions, fuel schedule) |
