@@ -496,8 +496,8 @@
     ((err parts) (is-none (get name parts)))))
 
 ;; Version bytes for single-signature standard principals.
-(define-constant mainnet-p2pkh-version 0x16)
-(define-constant testnet-p2pkh-version 0x1a)
+(define-constant std-mainnet-p2pkh-version 0x16)
+(define-constant std-testnet-p2pkh-version 0x1a)
 
 ;; Derive the standard principal for a compressed public key on the current
 ;; network. Returns (err u1) if the key is not 33 bytes.
@@ -506,8 +506,8 @@
     (err u1)
     (match (principal-construct?
              (if (get is-mainnet (get-current-context))
-               mainnet-p2pkh-version
-               testnet-p2pkh-version)
+               std-mainnet-p2pkh-version
+               std-testnet-p2pkh-version)
              (hash160 public-key)
              none)
       ((ok who) (ok who))
