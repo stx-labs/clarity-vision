@@ -111,6 +111,18 @@ library, because a fold would have to carry `f` in its accumulator.
 `serialized-size(T)` is a type-level size function defined with the wire format
 in the chain ABI.
 
+### Bitcoin transaction parsing
+
+| Primitive                | Signature                                                                                   | Semantics                                                                                                                                                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get-bitcoin-tx-output?` | `((buff N) uint) -> (response { script: (buff 1024), amount: uint, txid: (buff 32) } uint)`                                                                                                              | parses raw Bitcoin transaction bytes (SegWit or not) and returns output `vout`, with `txid` in internal byte order; `err u1` the bytes do not deserialize as a transaction, `err u2` `vout` is out of range, `err u3` the output script exceeds 1024 bytes                                                                                                                      |
+
+This is pure parsing of a byte string, not a chain lookup, which is why it sits
+with the conversions. It is expressible in the language, so under the layering
+rule it is a candidate for the library; it stays primitive in this draft only
+because the parser (variable-length integers, SegWit markers, witness data) has
+not been written yet.
+
 `buff-to-uint-be` and `uint-to-buff-be` are the base conversions between
 integers and bytes. The `*-to-buff-*` family stays primitive because each takes
 a size argument, which a library function cannot. Library, not primitive:
@@ -138,7 +150,6 @@ aliasing class at the language level.
 | `principal-construct?` | `((buff 1) (buff 20) (optional (string-ascii 40))) -> (response principal { error-code: uint, principal: (optional principal) })` | builds a standard principal (no name) or contract principal (with name) from a version byte and hash bytes. `(err {error-code: u0, principal: (some p)})` if the version byte is valid but for the other network; `u1` if the version byte is invalid; `u2` if the name is not a valid contract name |
 | `principal-destruct?`  | `(principal) -> (response D D)` where `D = { hash-bytes: (buff 20), name: (optional (string-ascii 40)), version: (buff 1) }`      | decomposes a principal. `ok` if the version byte matches the current network, `err` with the same payload otherwise                                                                                                                                                                                  |
 | `principal-to-ascii`   | `(principal) -> (string-ascii 82)`                                                                                                | the principal's text form: the c32check address of a standard principal, or the address, `.`, and the name of a contract principal (41 for the address, 1 for the dot, 40 for the name)                                                                                                              |
-| `contract-of`          | `((trait X)) -> principal`                                                                                                        | the contract principal a trait-typed value refers to                                                                                                                                                                                                                                                 |
 | `contract-hash?`       | `(principal) -> (response (buff 32) uint)`                                                                                        | SHA-512/256 of the deployed contract's module; `err u1` if the principal is not a deployed contract. The chain never holds source; the source hash is available from the module's provenance section, off chain                                                                                      |
 
 Library, not primitive: `is-current-network`, `is-standard`, `principal-of?`.
@@ -160,7 +171,7 @@ Hash functions accept buffers only (P6, footguns table). Library, not primitive:
 | `sha512/256`            | `((buff N)) -> (buff 32)`                            | SHA-512/256 (distinct IV; not a truncation of SHA-512)                                                                                                      |
 | `keccak256`             | `((buff N)) -> (buff 32)`                            | Keccak-256                                                                                                                                                  |
 | `secp256k1-recover?`    | `((buff 32) (buff 65)) -> (response (buff 33) uint)` | recovers the compressed public key from a message hash and a recoverable signature; `err u1` malformed or non-canonical signature, `err u2` recovery failed |
-| `secp256k1-verify`      | `((buff 32) (buff 65) (buff 33)) -> bool`            | verifies a signature (64 bytes, or 65 with the recovery byte ignored) against a compressed public key; `false` for a non-canonical signature                |
+| `secp256k1-verify`      | `((buff 32) (buff 64) (buff 33)) -> bool`            | verifies a 64-byte signature against a compressed public key; `false` for a signature that is not exactly 64 bytes or is non-canonical. A recoverable signature is verified by dropping its recovery byte with `slice?` |
 | `secp256k1-decompress?` | `((buff 33)) -> (response (buff 65) uint)`           | uncompressed form of a compressed public key                                                                                                                |
 | `secp256r1-verify`      | `((buff 32) (buff 64) (buff 33)) -> bool`            | P-256 signature verification; `false` for a non-canonical signature                                                                                         |
 | `ed25519-verify`        | `((buff N) (buff 64) (buff 32)) -> bool`             | Ed25519 signature verification over an arbitrary-length message                                                                                             |
@@ -212,8 +223,6 @@ context's `sender` field (3.9), returning `err u4` otherwise. The `ft-*` and
 asset map and is subject to transaction post-conditions and to any enclosing
 `as-contract?` or `restrict-assets?` allowance frame. Open question: whether
 vNEXT should require the context's `sender` for token transfers as well.
-
-Library, not primitive: `stx-get-balance`.
 
 ## 3.9 Transaction and chain context
 
@@ -267,7 +276,6 @@ sender's nonce.)
 | `get-stacks-block-info?` | `(uint) -> (optional { id-header-hash: (buff 32), header-hash: (buff 32), time: uint })`                                                                                                                 | `none` if the height is not less than the current height: the current block's hashes do not exist until it is sealed, after this transaction runs. The current block's time is the context's `time` field                                                                                                                                                                       |
 | `get-tenure-info?`       | `(uint) -> (optional { burnchain-header-hash: (buff 32), miner-address: principal, time: uint, vrf-seed: (buff 32), block-reward: (optional uint), miner-spend-total: uint, miner-spend-winner: uint })` | serves every tenure up to and including the current one (the context's `tenure-height`), since all fields are fixed at sortition. `block-reward` is `none` until the reward has matured. Maturity is defined by the host in terms of the coinbase (tenure) height at which the reward was recorded, so the lookup is total: it never fails for a height the host has no row for |
 | `get-burn-block-info?`   | `(uint) -> (optional { header-hash: (buff 32), pox-addrs: { addrs: (list 2 { hash-bytes: (buff 32), version: (buff 1) }), payout: uint } })`                                                             | serves every burn block up to and including the current one (the context's `burn-height`); `none` if the burn height is outside the known range. The `hashbytes` field of legacy is `hash-bytes` (P6)                                                                                                                                                                           |
-| `get-bitcoin-tx-output?` | `((buff N) uint) -> (response { script: (buff 1024), amount: uint, txid: (buff 32) } uint)`                                                                                                              | parses raw Bitcoin transaction bytes (SegWit or not) and returns output `vout`, with `txid` in internal byte order; `err u1` the bytes do not deserialize as a transaction, `err u2` `vout` is out of range, `err u3` the output script exceeds 1024 bytes                                                                                                                      |
 
 ## 3.10 Events and control
 
@@ -283,14 +291,14 @@ sender's nonce.)
 | Arithmetic              | 11 (each in two integer families) |
 | Comparison and equality | 5                                 |
 | Sequences               | 9                                 |
-| Conversions             | 8                                 |
-| Principals              | 5                                 |
+| Conversions             | 9                                 |
+| Principals              | 4                                 |
 | Cryptography            | 10                                |
 | Storage                 | 5                                 |
 | Assets                  | 12                                |
-| Context                 | 5                                 |
+| Context                 | 4                                 |
 | Events and control      | 2                                 |
-| **Total**               | **72**                            |
+| **Total**               | **71**                            |
 
 For comparison, legacy Clarity 6 has 126 native functions and 16 native
 variables, most with bespoke typing rules.

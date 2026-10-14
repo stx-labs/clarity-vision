@@ -55,7 +55,6 @@ representation. Every other construct a contract author uses is here.
 | Principals   | `is-current-network`, `is-standard`, `principal-of?`                                           | `principal-destruct?`, `principal-construct?`, `hash160`                                                          |
 | Cryptography | `verify-merkle-proof`                                                                          | `sha256`, `log2`, `fold-left` over the proof                                                                      |
 | Storage      | `map-insert?`                                                                                  | `map-get?`, `map-set`                                                                                             |
-| Assets       | `stx-get-balance`                                                                              | `stx-account`                                                                                                     |
 
 About forty public definitions, plus `std-*` helpers. Two conventions decide
 whether a prelude function is `define-inline` or `define-private`:
@@ -183,7 +182,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | `principal-destruct?`  | primitive |                                                                                                    |
 | `is-standard`          | library   | renamed `is-current-network`, since it tests the version byte against the current network and is true for contract principals too; vNEXT's `is-standard` tests for a standard (not contract) principal |
 | `principal-of?`        | library   | `hash160` plus `principal-construct?` with the network's version byte                              |
-| `contract-of`          | primitive |                                                                                                    |
+| `contract-of`          | removed   | `(trait X) <: principal` (2.3.2), so a trait value is already a principal wherever one is expected; `(as principal t)` states it explicitly |
 | `contract-hash?`       | primitive |                                                                                                    |
 
 ### Cryptography
@@ -191,7 +190,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | Legacy                                                            | vNEXT     | Notes                                |
 | ----------------------------------------------------------------- | --------- | ------------------------------------ |
 | `hash160`, `sha256`, `sha512`, `sha512/256`, `keccak256`          | primitive | buffers only; integer inputs removed |
-| `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required                       |
+| `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required; `secp256k1-verify` takes a `(buff 64)` signature only, where legacy also accepted 65 bytes and ignored the recovery byte |
 | `secp256r1-verify`, `ed25519-verify`                              | primitive | low-S required for ECDSA             |
 | `verify-merkle-proof`                                             | library   | over `sha256`                        |
 
@@ -212,7 +211,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | `stx-transfer?`                                                           | primitive | takes `(optional (buff 34))` memo |
 | `stx-transfer-memo?`                                                      | removed   | merged into `stx-transfer?`       |
 | `stx-burn?`, `stx-account`                                                | primitive |                                   |
-| `stx-get-balance`                                                         | library   | `(get unlocked (stx-account p))`  |
+| `stx-get-balance`                                                         | removed   | `(get unlocked (stx-account p))`; a one-line alias (P6) |
 
 ### Calls, context, and allowances
 
