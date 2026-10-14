@@ -57,6 +57,23 @@ vNEXT source is a sequence of S-expressions.
 
 Parentheses delimit lists; `{`, `}`, `:`, `,` are used only by tuple syntax.
 
+**Keywords and reserved names.** Two kinds of identifier cannot be bound by a
+contract:
+
+- A **keyword** is an identifier whose meaning is fixed by the grammar. It is
+  never a name of anything and cannot appear where a name is expected: the
+  literals `true`, `false`, `none`; the heads of special forms (2.5) and
+  definition forms (2.4.1); the allowance forms (2.5.9); the pattern and
+  constructor heads `some`, `ok`, `err`, `list`; the type names and reference
+  kinds of 2.3.1 and 2.3.6; and the `read-only` marker in trait definitions.
+  Type names are keywords in value position too: `(let ((int u5)) ...)` is a
+  static error.
+- A **reserved name** is a definition that is in scope in every contract: every
+  primitive ([03-primitives.md](03-primitives.md)) and every prelude definition
+  (chapter 4). It behaves like a top-level definition of the contract itself and
+  so cannot be rebound (2.5.2). Reserved names are fixed per language version,
+  because the prelude is part of the language version.
+
 ## 2.3 Types
 
 ### 2.3.1 Type grammar
@@ -93,7 +110,7 @@ Meaning of each type:
 | `(response T E)`   | `(ok v)` with `v : T` or `(err e)` with `e : E`                                                                             |
 | `{ f: T, ... }`    | records with exactly the listed fields                                                                                      |
 | `(trait X)`        | contract principals whose interface implements trait `X`                                                                    |
-| contract literal   | the one contract principal named by a literal `'SP....c` or `.c`, or by a static constant holding one (2.4.1). Internal: it cannot be written in source, is never an interface or storable type, and exists so that a literal can be used wherever a trait type is expected (2.3.2) and as a `contract-call?` target (2.5.8) |
+| contract literal   | the one contract principal named by a literal `'SP...123.c` or `.c`, or by a static constant holding one (2.4.1). Internal: it cannot be written in source, is never an interface or storable type, and exists so that a literal can be used wherever a trait type is expected (2.3.2) and as a `contract-call?` target (2.5.8) |
 
 `(buff N)`, `(string-ascii N)`, `(string-utf8 N)`, and `(list N T)` are the four
 **sequence types**. Their **element types** are `(buff 1)`, `(string-ascii 1)`,
@@ -262,9 +279,29 @@ functions, or any primitive that is not a special form.
 
 ## 2.4 Contracts and top-level forms
 
-A contract is a sequence of top-level forms. A definition may refer to any other
-definition in the contract, earlier or later, as long as the definition graph is
-acyclic (2.4.3). Source order matters only for code evaluated at deploy (2.4.2).
+A contract is a version declaration followed by a sequence of top-level forms. A
+definition may refer to any other definition in the contract, earlier or later,
+as long as the definition graph is acyclic (2.4.3). Source order matters only
+for code evaluated at deploy (2.4.2).
+
+### 2.4.0 Version declaration
+
+```
+(clarity-version version)
+```
+
+The first form of every contract MUST be a version declaration naming the
+language version the contract is written for. There is no default: a contract
+without one is a syntax error, so a contract is never silently reinterpreted
+under a later version's prelude or rules. A compiler MUST reject a contract
+whose declared version it does not implement, and a compiler that implements
+several versions uses the declared one for the whole contract. The declared
+version is what the module's provenance section records as the language version
+([../03-architecture.md](../03-architecture.md) section 2).
+
+Nothing else in the language varies by version. The declaration selects one
+complete specification, with its prelude and reserved names (2.2), for the whole
+contract.
 
 ### 2.4.1 Definition forms
 
@@ -378,16 +415,16 @@ Bindings are evaluated left to right; each binding is in scope for the following
 bindings and the body. The type is the type of the last body expression.
 
 **No shadowing.** A `let` binding, a `match` binding, or a function parameter
-MUST NOT reuse a name that is already in scope, including the names of top-level
-definitions, prelude definitions, and primitives. Every name therefore
-has exactly one meaning at each point in the program, and the type checker and
-the evaluator cannot disagree about which one applies.
+MUST NOT reuse a name that is already in scope: a local, a parameter, a
+top-level definition of the contract, or a reserved name (2.2). A keyword (2.2)
+cannot be bound at all. Every name therefore has exactly one meaning at each
+point in the program, and the type checker and the evaluator cannot disagree
+about which one applies.
 
 Legacy is equally strict about locals, top-level definitions, and builtin names.
 Legacy source that uses a name reserved only in vNEXT (such as `max`, `min`,
-`abs`, `fold-left`, or `as`) as a local must rename it when
-ported. The reserved names are fixed per language version, because the prelude
-is part of the language version (chapter 4).
+`abs`, or `fold-left`) or a keyword new in vNEXT (such as `as`) as a local must
+rename it when ported.
 
 `(begin expr ...)` is sugar for `(let () expr ...)`.
 
@@ -530,8 +567,11 @@ Both have type `(response T uint)` where `T` is the body type. Outcome:
    covered by an allowance, the frame is committed and the value is
    `(ok body-value)`.
 2. If any movement is not covered, the frame is rolled back and the value is
-   `(err i)`, where `i` is the index of the first violated allowance (defined
-   precisely in the semantics chapter).
+   `(err i)`, where `i` is the zero-based index in the allowance list of the
+   violated allowance. The allowance comparison is host code
+   ([../03-architecture.md](../03-architecture.md) section 4), so the chain ABI
+   defines which index is reported when several allowances are violated or a
+   movement matches no allowance at all.
 3. If the body is exited by a `return` that crosses the form, the allowance
    check still runs. On violation, the frame is rolled back, the `return` is
    cancelled, and the form's value is `(err i)`. Otherwise the frame is

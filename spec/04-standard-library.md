@@ -239,6 +239,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 | Legacy                                                | vNEXT   | Notes                                                                  |
 | ----------------------------------------------------- | ------- | ---------------------------------------------------------------------- |
+| new: `clarity-version`                                | form    | required first form of every contract (2.4.0); replaces the `clarity_version` field of the legacy deploy transaction |
 | `define-constant`, `define-data-var`, `define-map`    | form    |                                                                        |
 | `define-fungible-token`, `define-non-fungible-token`  | form    |                                                                        |
 | `define-public`, `define-read-only`, `define-private` | form    | private may be generic and overloaded                                  |

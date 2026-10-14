@@ -52,9 +52,16 @@ source.
 
 For `C` in {`int`, `uint`, `(buff N)`, `(string-ascii N)`, `(string-utf8 N)`}:
 
-| Primitive            | Signature       | Semantics                                                          |
-| -------------------- | --------------- | ------------------------------------------------------------------ |
-| `<`, `<=`, `>`, `>=` | `(C C) -> bool` | numeric order for integers; lexicographic byte order for sequences |
+| Primitive            | Signature       | Semantics                                                             |
+| -------------------- | --------------- | --------------------------------------------------------------------- |
+| `<`, `<=`, `>`, `>=` | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
+
+Sequences compare element by element from the start; the first unequal pair
+decides, and a proper prefix is less than the longer sequence. Elements are
+ordered by unsigned byte value for `buff` and `string-ascii`, and by Unicode
+code point for `string-utf8`. Code point order is the order of the strings'
+UTF-8 encodings compared bytewise, so the result does not depend on how a host
+stores strings.
 
 | Primitive | Signature       | Semantics                                                                                                  |
 | --------- | --------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -87,8 +94,7 @@ parameters swapped.
 
 Library, not primitive: `append`, `index-of?`, `replace-at?`. Legacy
 multi-sequence `map` (`(map f l1 l2)`) is dropped. It cannot be written in the
-library, because a fold would have to carry `f` in its accumulator; if it is
-needed it can return as a primitive family (`map2`, `map3`).
+library, because a fold would have to carry `f` in its accumulator.
 
 ## 3.4 Conversions and serialization
 
