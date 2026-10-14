@@ -456,7 +456,7 @@ imported with Wasm type `(param i64 i64 i32 i32) (result i32)`.
   call has any effect.
 - The host reads every input before it writes any output, so an output may
   overlap an input.
-- An index argument (`slot`, `token`, `field`, `kind`) outside its range is a
+- An index argument (`slot`, `token`, `kind`) outside its range is a
   `bad-host-argument` runtime error.
 - Every host function has a charge (section 9.2).
 
@@ -507,32 +507,110 @@ the receipt as given (section 10). `msg` is at most 128 bytes; a longer one is
 
 #### Context and chain data
 
-##### `context`
+Each piece of transaction and block context has its own function, and new
+context arrives as a new function in a new ABI version (section 11). The
+frame-scoped functions return the value for the current frame; the others return
+the same value in every frame of a transaction.
+
+##### `sender`
 
 ```
-context(field: i32, out: buf) -> len
+sender(out: buf) -> len
 ```
 
-Writes the encoding of one context field, of that field's type. Field numbers
-are fixed per ABI version; a new field is a new number.
+Writes the encoded transaction sender, or the current contract inside an
+`as-contract` frame (7.2). Frame-scoped.
 
-| Field | Name            | Type                   | Value                                                                                                                            |
-| ----- | --------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | `sender`        | `principal`            | the transaction sender, or the current contract inside an `as-contract` frame (7.2)                                              |
-| 1     | `caller`        | `principal`            | the transaction sender for the entry call, the calling contract under `call`, the current contract inside an `as-contract` frame |
-| 2     | `sponsor`       | `(optional principal)` | the sponsor, if the transaction is sponsored                                                                                     |
-| 3     | `contract`      | `principal`            | the contract being executed                                                                                                      |
-| 4     | `stacks-height` | `uint`                 | height of the current Stacks block                                                                                               |
-| 5     | `burn-height`   | `uint`                 | height of the burn block the current Stacks block is anchored to                                                                 |
-| 6     | `tenure-height` | `uint`                 | number of tenures elapsed                                                                                                        |
-| 7     | `time`          | `uint`                 | timestamp of the current Stacks block, in seconds                                                                                |
-| 8     | `liquid-supply` | `uint`                 | total liquid uSTX                                                                                                                |
-| 9     | `chain-id`      | `uint`                 | chain identifier                                                                                                                 |
-| 10    | `is-mainnet`    | `bool`                 | true on mainnet                                                                                                                  |
-| 11    | `is-regtest`    | `bool`                 | true in regtest environments                                                                                                     |
+##### `caller`
 
-`sender`, `caller`, and `contract` are frame-scoped; the other fields are the
-same in every frame of a transaction.
+```
+caller(out: buf) -> len
+```
+
+Writes the encoded caller: the transaction sender for the entry call, the
+calling contract under `call`, or the current contract inside an `as-contract`
+frame. Frame-scoped.
+
+##### `sponsor`
+
+```
+sponsor(out: buf) -> len
+```
+
+Writes the encoded sponsor, or returns `-1` if the transaction is not sponsored.
+
+##### `contract`
+
+```
+contract(out: buf) -> len
+```
+
+Writes the encoded principal of the contract being executed. Frame-scoped.
+
+##### `stacks_height`
+
+```
+stacks_height(out: out<16>)
+```
+
+Writes the height of the current Stacks block as a `u128`.
+
+##### `burn_height`
+
+```
+burn_height(out: out<16>)
+```
+
+Writes the height of the burn block the current Stacks block is anchored to, as
+a `u128`.
+
+##### `tenure_height`
+
+```
+tenure_height(out: out<16>)
+```
+
+Writes the number of tenures elapsed as a `u128`.
+
+##### `time`
+
+```
+time(out: out<16>)
+```
+
+Writes the timestamp of the current Stacks block, in seconds, as a `u128`.
+
+##### `liquid_supply`
+
+```
+liquid_supply(out: out<16>)
+```
+
+Writes the total liquid uSTX as a `u128`.
+
+##### `chain_id`
+
+```
+chain_id(out: out<16>)
+```
+
+Writes the chain identifier as a `u128`.
+
+##### `is_mainnet`
+
+```
+is_mainnet() -> bool
+```
+
+Whether the chain is mainnet.
+
+##### `is_regtest`
+
+```
+is_regtest() -> bool
+```
+
+Whether the chain is a regtest environment.
 
 The three chain-data lookups below are total: each returns `-1` for any height
 the host cannot serve, and no height is ever a runtime error or a reason to drop
@@ -553,8 +631,8 @@ Writes the encoded record of the Stacks block at `height`:
 | `time`           | `uint`      |
 
 Serves heights below `stacks-height`. The current block's hashes do not exist
-until it is sealed, after this transaction runs; its time is the context's
-`time` field.
+until it is sealed, after this transaction runs; its time is what `time`
+returns.
 
 ##### `tenure_info`
 
