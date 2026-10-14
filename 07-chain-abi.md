@@ -350,11 +350,12 @@ a public frame and discards it.
 
 Inside an entry point:
 
-- `args_size()` returns the byte length of the arguments, and `args_read(dst)`
-  copies them into memory. The arguments are the canonical encodings of each
-  argument, concatenated in parameter order; the count comes from the interface.
-  The host has already validated them, so the module may decode them without
-  checks.
+- `args_size()` returns the byte length of the arguments, and
+  `args_read(dst, offset, len)` copies `len` bytes of them, starting at
+  `offset`, into memory, so a module can read them whole or piecewise. The
+  arguments are the canonical encodings of each argument, concatenated in
+  parameter order; the count comes from the interface. The host has already
+  validated them, so the module may decode them without checks.
 - `result_set(result)` sets the result. It is called exactly once before the
   export returns. The host validates it (5.4) against the declared result type.
   Returning without a result, setting one twice, or setting one that fails
@@ -396,10 +397,10 @@ The host, in order:
    frame: for a public function, commit on `ok` and discard on `err`.
 7. Writes the encoded result to `out` and returns its length. If `cap` is too
    small, it writes nothing, keeps the result, and returns the negated length;
-   `result_read(dst)` then writes the kept result at `dst`. A kept result lasts
-   until the next `call`; `result_read` with no kept result is a
-   `bad-host-argument` runtime error. The callee's frame has already closed
-   either way. A Clarity module never needs the second step, because the
+   `result_read(dst, offset, len)` then copies the kept result, whole or in
+   pieces. A kept result lasts until the next `call`; `result_read` with no kept
+   result is a `bad-host-argument` runtime error. The callee's frame has already
+   closed either way. A Clarity module never needs the second step, because the
    `serialized-size` of the declared result is known when it compiles.
 
 Steps 1–5 failing, and any runtime error in the callee, abort the transaction.
@@ -478,10 +479,11 @@ Returns the byte length of the current entry point's arguments (5.2).
 ##### `args_read`
 
 ```
-args_read(dst: i32)
+args_read(dst: i32, offset: i32, len: i32)
 ```
 
-Writes the arguments, `args_size()` bytes, at `dst` (5.2).
+Writes bytes `offset` to `offset + len` of the arguments (5.2) at `dst`. A range
+that extends past `args_size()` is `bad-host-argument`.
 
 ##### `result_set`
 
@@ -835,10 +837,12 @@ Calls a function of another contract and writes its encoded result (5.3).
 ##### `result_read`
 
 ```
-result_read(dst: i32)
+result_read(dst: i32, offset: i32, len: i32)
 ```
 
-Writes the result kept by the last `call` that returned a negated length (5.3).
+Writes bytes `offset` to `offset + len` of the result kept by the last `call`
+that returned a negated length (5.3) at `dst`. A range that extends past the
+kept result is `bad-host-argument`.
 
 ##### `contract_hash`
 
