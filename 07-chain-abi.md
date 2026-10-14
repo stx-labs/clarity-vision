@@ -280,7 +280,7 @@ The `abi.interface` section is one canonically encoded record:
 | `vars`        | per data variable: name, type                                                               |
 | `maps`        | per map: name, key type, value type                                                         |
 | `fts`         | per fungible token: name                                                                    |
-| `nfts`        | per non-fungible token: name, identifier type                                               |
+| `nfts`        | per non-fungible token: name                                                                |
 
 Rules:
 
@@ -290,8 +290,8 @@ Rules:
   ([03-architecture.md](03-architecture.md) section 2).
 - A `public` function's result type is a `response`. A `read-only` function's
   result type is any interface type.
-- Parameter and result types are interface types. Storage and token types are
-  storable (section 2.1).
+- Parameter and result types are interface types. Storage types are storable
+  (section 2.1).
 - At most 256 parameters per function and 256 functions per trait, as legacy.
 - A storage variable, map, or token is addressed by its index in its sorted
   list. The index is a module-local handle; the chain keys state by name
@@ -730,8 +730,10 @@ Removes the entry under `key`; returns whether it existed.
 #### Assets
 
 `token` is an index into `fts` or `nfts` (4.1). A contract can only operate its
-own tokens, because it can only name its own indices. `I` is the declared
-identifier type of an NFT `token`.
+own tokens, because it can only name its own indices. An NFT identifier `id` is
+raw bytes in an encoding the token's contract chooses; the chain compares
+identifiers byte for byte. An identifier longer than the NFT identifier limit
+(section 9.3) is `bad-host-argument`.
 
 Every successful mutation records an entry in the asset map (8.2) and emits an
 asset event. STX functions require `from` to be the frame's `sender`. Token
@@ -800,7 +802,7 @@ Writes the circulating supply as a `u128`.
 ##### `nft_mint`
 
 ```
-nft_mint(token: i32, id: val<I>, to: val<principal>) -> status
+nft_mint(token: i32, id: bytes, to: val<principal>) -> status
 ```
 
 Mints the identifier `id` to `to`.
@@ -810,7 +812,7 @@ Mints the identifier `id` to `to`.
 ##### `nft_burn`
 
 ```
-nft_burn(token: i32, id: val<I>, from: val<principal>) -> status
+nft_burn(token: i32, id: bytes, from: val<principal>) -> status
 ```
 
 Burns `id`, which `from` must own.
@@ -821,7 +823,7 @@ Burns `id`, which `from` must own.
 ##### `nft_transfer`
 
 ```
-nft_transfer(token: i32, id: val<I>, from: val<principal>, to: val<principal>) -> status
+nft_transfer(token: i32, id: bytes, from: val<principal>, to: val<principal>) -> status
 ```
 
 Changes the owner of `id` from `from` to `to`.
@@ -833,7 +835,7 @@ Changes the owner of `id` from `from` to `to`.
 ##### `nft_owner`
 
 ```
-nft_owner(token: i32, id: val<I>, out: buf) -> len
+nft_owner(token: i32, id: bytes, out: buf) -> len
 ```
 
 Writes the encoded owner of `id`, a `principal`, or returns `-1` if `id` does
@@ -1094,20 +1096,20 @@ both kinds:
 - a u8 count of allowances, at most 128;
 - per allowance, a kind byte, then its fields in the order of the table below,
   each as a canonical encoding of the field's type;
-- for `nft`, the `ids` field is a u32 BE count, then each identifier's canonical
-  encoding, decoded against the identifier type the token's contract declares.
+- for `nft`, the `ids` field is a u32 BE count, then per identifier a u32 BE
+  length and the identifier's bytes (6.2).
 
 No bytes may follow the last allowance. A descriptor that does not decode this
 way is a `bad-host-argument` runtime error. The allowance kinds are ABI data:
 
-| Byte | Kind      | Fields                                                                 | Covers                                                     |
-| ---- | --------- | ---------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `0`  | `stx`     | `amount: uint`                                                         | the owner's uSTX transferred plus burned                   |
-| `1`  | `ft`      | `contract: principal`, `token: (string-ascii 128)`, `amount: uint`     | the owner's movements of that token, summed                |
-| `2`  | `nft`     | `contract: principal`, `token: (string-ascii 128)`, `ids`: identifiers | each moved identifier must be listed, compared by encoding |
-| `3`  | `all`     | none                                                                   | everything; only in an `as-contract` frame                 |
-| `4`  | `staking` | `amount: uint`                                                         | the uSTX the owner locks for staking, summed               |
-| `5`  | `pox`     | none                                                                   | any position-altering PoX action by the owner              |
+| Byte | Kind      | Fields                                                                 | Covers                                                  |
+| ---- | --------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
+| `0`  | `stx`     | `amount: uint`                                                         | the owner's uSTX transferred plus burned                |
+| `1`  | `ft`      | `contract: principal`, `token: (string-ascii 128)`, `amount: uint`     | the owner's movements of that token, summed             |
+| `2`  | `nft`     | `contract: principal`, `token: (string-ascii 128)`, `ids`: identifiers | each moved identifier must be listed, compared by bytes |
+| `3`  | `all`     | none                                                                   | everything; only in an `as-contract` frame              |
+| `4`  | `staking` | `amount: uint`                                                         | the uSTX the owner locks for staking, summed            |
+| `5`  | `pox`     | none                                                                   | any position-altering PoX action by the owner           |
 
 `as-contract` also sets the frame's `sender` and `caller` to the current
 contract. `frame_close(1)` on an allowance frame compares the owner's outgoing
@@ -1141,12 +1143,12 @@ analysis for asset functions; here every mutation is checked.
 
 ### 8.1 State layout
 
-State is keyed by contract, kind, name, and, for maps and NFTs, the canonical
-encoding of the key. Values are stored in canonical encoding. Balances and
-supplies are `uint` in canonical encoding. Legacy uses serde JSON for principals
-in token-balance keys and for persisted type metadata; nothing here depends on a
-language's in-memory representation. The concrete key strings are the chain's
-choice, made once.
+State is keyed by contract, kind, name, and, for maps, the canonical encoding of
+the key, and for NFTs, the identifier's bytes. Values are stored in canonical
+encoding. Balances and supplies are `uint` in canonical encoding. Legacy uses
+serde JSON for principals in token-balance keys and for persisted type metadata;
+nothing here depends on a language's in-memory representation. The concrete key
+strings are the chain's choice, made once.
 
 ### 8.2 Asset map
 
@@ -1206,7 +1208,7 @@ mirror the allowance kinds (7.2):
 | `pox`     | principal, code                                | whether the principal recorded a PoX action matches the code       |
 
 A comparator is one of `=`, `<`, `<=`, `>`, `>=`, applied as "actual comparator
-amount". Identifiers compare by canonical encoding, as in 7.2. The codes are:
+amount". Identifiers compare byte for byte, as in 7.2. The codes are:
 
 | Kind  | Code            | Holds when                                             |
 | ----- | --------------- | ------------------------------------------------------ |
@@ -1323,6 +1325,7 @@ chain pins the engine's behavior to the schedule.
 | Transaction memory          | 64 MiB              | sum over live instances; caps depth × instance memory              |
 | Wasm stack                  | TBD                 | in schedule-defined units, enforced by deploy-time instrumentation |
 | Module size                 | TBD                 | the only bound on a contract's size                                |
+| NFT identifier              | 1 MiB               | bytes per identifier, the same as the value size limit             |
 | Print message               | 1 MiB               | bytes per `print`, the same as the value size limit                |
 | Allowances per frame        | 128                 |                                                                    |
 | Fuel per block              | TBD                 | 9.1                                                                |
@@ -1423,6 +1426,11 @@ Adopting this proposal changes the following. None of the changes is made yet.
    encoding, and spec section 3 types `print` as `(T) -> T`. Under this ABI the
    Clarity compiler renders the value as text, so the spec must define that
    rendering, and tools that decode legacy print events need a second path.
+6. **NFT identifiers are bytes** (6.2). The identifier type of
+   `define-non-fungible-token` stays in the Clarity spec but leaves the
+   interface. The Clarity compiler encodes identifiers canonically (2.3), so a
+   Clarity token's identifiers have the same bytes as in legacy and in
+   transaction post-conditions.
 
 ## 13. Open questions
 
