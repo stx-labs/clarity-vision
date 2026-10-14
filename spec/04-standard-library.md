@@ -268,37 +268,4 @@ user-written helpers:
 
 Primitive additions with no legacy counterpart: the four `*-to-buff-*` functions
 and `principal-to-ascii` (chapter 3). Further candidates from the issue tracker
-are collected in [05-issue-tracker.md](05-issue-tracker.md).
-
-## 4.5 What the prelude taught us about the core
-
-Writing the prelude is the test of the core design. Findings so far:
-
-- An earlier draft returned the conversion, search, and Merkle functions to the
-  core because their library versions cost more than a native under a
-  per-operation cost table. With fuel as the metric and optimization done by a
-  compiler linking faster code, that argument is gone, and they are library
-  again. The core is smaller and there is no per-construct cost table.
-- Template checking of generic bodies carries more weight than planned. It lets
-  `index-of?` and the string parsers be one definition across sequence kinds
-  instead of four, at the price of errors reported inside the prelude (2.6.2).
-- Per-kind constants (digit tables, the minus sign) need small overloaded
-  helpers, because a generic body cannot write a literal of an unknown kind.
-- `replace-at?` exposed a gap in the size rules: an intermediate `concat` has a
-  larger bound than any value it can hold. Intermediate expressions are checked
-  against a separate, larger limit (2.3.1).
-- Rest parameters are strict: the extra arguments are built into a list before
-  the body runs. That is right for `max`, `+`, and `concat`, but it means n-ary
-  short-circuiting cannot be written in the language, so `and` and `or` moved
-  from the library into the core (chapter 2.5.3).
-- `never` as the type of `(return ...)` and `(panic)` makes every early-exit
-  form typeable with ordinary lub rules, with no special cases.
-- Inline functions cannot be passed to `filter`, which forces predicates to be
-  private functions (2.6.3).
-- Folds whose initial value has a smaller type than the step's result
-  (`std-reverse-16` starts from `0x`, `std-render-decimal` from `""`,
-  `index-of?` from `none`) rely on instantiation finding the accumulator type by
-  iteration (2.6.2). Each closes in two steps; a fold that needs a wider start
-  states it with `as` (2.5.10).
-- Overloading and static reference kinds are each justified by a small group of
-  prelude functions (`unwrap!`/`try!` and the integer families; `map-insert?`).
+are collected in [../06-issue-tracker.md](../06-issue-tracker.md).
