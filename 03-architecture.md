@@ -56,10 +56,10 @@ Rules that bind every Clarity compiler:
   interfaces never change, so recording which ones were used is enough to
   reproduce the build.
 - **Provenance.** Each module carries a custom section with the compiler
-  identifier and version, the language version, a hash of the source, and the
-  hash of each callee interface the build read, keyed by contract principal.
-  `clarity-verify` fetches those interfaces from the chain and checks the hashes
-  before rebuilding.
+  identifier and version, the language version the source declares (spec 2.4.0),
+  a hash of the source, and the hash of each callee interface the build read,
+  keyed by contract principal. `clarity-verify` fetches those interfaces from
+  the chain and checks the hashes before rebuilding.
 - **The prelude is linked into each module.** Only the library instances a
   contract uses are included, compiled like user code. There is no
   chain-provided library module, so the chain carries no Clarity code.

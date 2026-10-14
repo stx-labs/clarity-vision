@@ -279,9 +279,29 @@ functions, or any primitive that is not a special form.
 
 ## 2.4 Contracts and top-level forms
 
-A contract is a sequence of top-level forms. A definition may refer to any other
-definition in the contract, earlier or later, as long as the definition graph is
-acyclic (2.4.3). Source order matters only for code evaluated at deploy (2.4.2).
+A contract is a version declaration followed by a sequence of top-level forms. A
+definition may refer to any other definition in the contract, earlier or later,
+as long as the definition graph is acyclic (2.4.3). Source order matters only
+for code evaluated at deploy (2.4.2).
+
+### 2.4.0 Version declaration
+
+```
+(clarity-version version)
+```
+
+The first form of every contract MUST be a version declaration naming the
+language version the contract is written for. There is no default: a contract
+without one is a syntax error, so a contract is never silently reinterpreted
+under a later version's prelude or rules. A compiler MUST reject a contract
+whose declared version it does not implement, and a compiler that implements
+several versions uses the declared one for the whole contract. The declared
+version is what the module's provenance section records as the language version
+([../03-architecture.md](../03-architecture.md) section 2).
+
+Nothing else in the language varies by version. The declaration selects one
+complete specification, with its prelude and reserved names (2.2), for the whole
+contract.
 
 ### 2.4.1 Definition forms
 
