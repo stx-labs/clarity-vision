@@ -197,6 +197,27 @@ Library, not primitive: `map-insert?` (`map-get?` then `map-set`). A membership
 test is `(is-some (map-get? m k))`; a compiler MAY lower it to an existence
 check that does not read the value, since the result is identical (P5).
 
+**Layout.** The chain's contract storage is an untyped key-value store
+([../07-chain-abi.md](../07-chain-abi.md) section 4.2). The compiler lays each
+data variable and map out in it by the interpretation layer's storage layout
+([../08-value-interpretation.md](../08-value-interpretation.md) section 7.2),
+and declares each one in the `storage` field of `abi.types` (2.4.4), so a tool
+can read a Clarity contract's state without its source. A definition's key
+prefix is a kind byte, `0x00` for a data variable and `0x01` for a map, then the
+name's length as one byte, then the name. The length byte keeps any prefix from
+being a prefix of another, as the layout requires.
+
+| Definition | Store key                                          | Store value                     |
+| ---------- | -------------------------------------------------- | ------------------------------- |
+| data var   | the prefix                                         | canonical encoding of the value |
+| map        | the prefix, then the canonical encoding of the key | canonical encoding of the entry |
+
+Canonical encoding is the interpretation layer's
+([../08-value-interpretation.md](../08-value-interpretation.md) section 3), the
+same as `to-consensus-buff` (3.4). A map entry that does not exist has no store
+key, so `map-delete` removes the store key and `map-get?` returns `none` when
+there is none. A data variable is set at deploy (2.4.1) and always has a value.
+
 ## 3.8 Assets
 
 All asset primitives record movements in the transaction's asset map (for
