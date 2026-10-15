@@ -69,7 +69,14 @@ each function of its traits, and of each NFT's identifiers in this grammar
 
 A `(trait X)` names trait `X` by its defining contract and its name (5.2). Its
 values are contract principals; that a value conforms to `X` is the declaring
-contract's expectation, which only the receiving module checks (chain ABI 5.4).
+contract's expectation, and nothing checks it at runtime. The chain does not
+read declared types, and a module cannot read another contract's `abi.types`. A
+compiler checks conformance where it can see both contracts, at compile time. At
+runtime a call through a trait relies on the host for what it checks: that the
+function exists, and, when the caller sets `call`'s `read_only` flag for a
+function the trait marks `read-only`, that the callee is `read-only` (chain ABI
+5.3). The caller validates the result against the trait's declared result type,
+as it validates any result (chain ABI 5.4).
 
 **Subtyping** on declared types is the smallest reflexive, transitive relation
 such that:

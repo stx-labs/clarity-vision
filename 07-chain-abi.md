@@ -262,23 +262,28 @@ exported buffer.
 ### 5.3 The `call` host function
 
 ```
-call(target: principal, fn: bytes, args: bytes, out: buf, ok: out<1>) -> len
+call(target: principal, fn: bytes, args: bytes, read_only: i32, out: buf,
+     ok: out<1>) -> len
 ```
 
 In the notation of 6.1, this is the Wasm type
-`(param i32 i32 i32 i32 i32 i32 i32 i32 i32) (result i32)`.
+`(param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32) (result i32)`.
 
 - `target` is the callee, a principal.
 - `fn` is the function name's bytes (2.1), not an encoded value.
 - `args` is the arguments as in 5.2, passed to the callee unchanged.
+- `read_only` is `1` to require the callee to be `read-only`, and `0` otherwise;
+  any other value is `bad-host-argument`. A caller sets it when it relies on the
+  callee not writing, as when it calls a function that a trait marks
+  `read-only`, so the host enforces that in any frame.
 - `ok` receives the callee's result flag (5.2), as one byte.
 
 The host, in order:
 
 1. Resolves the target. A standard principal, a missing contract, or a missing
    function is a runtime error (`no-such-function`).
-2. If the current frame is read-only, requires `fn` to be `read-only` (section
-   7.4).
+2. If the current frame is read-only, or `read_only` is `1`, requires `fn` to be
+   `read-only` (section 7.4).
 3. Applies the reentrancy and depth rules (section 7.3).
 4. Opens the callee's frame, instantiates a fresh instance, runs the export, and
    closes the frame: for a public function, commit if the result flag is ok and
@@ -303,9 +308,13 @@ The chain does not validate the values that cross a call boundary: the arguments
 of a transaction or query (5.1), the arguments of a `call` (5.3), and every
 result (5.2) pass through as bytes. A module validates what it receives. A
 callee validates its arguments, and a caller validates the result of every call,
-since nothing guarantees that either matches the declared types; that includes
-whatever a language requires of a principal it types as a trait. Validation is
-module code, charged as execution (9.2) like any other work.
+since nothing guarantees that either matches the declared types. A module cannot
+read another contract's declared types, so it cannot check at runtime that a
+principal it receives conforms to a trait. What it can rely on at a call through
+that principal is that the function exists (5.3, step 1) and, when it sets
+`read_only`, that the function is `read-only` (step 2), and it validates the
+result. Validation is module code, charged as execution (9.2) like any other
+work.
 
 Declared types and the encoding conventions that wallets, explorers, and
 compilers rely on are the interpretation layer's
@@ -875,7 +884,8 @@ allowance (7.2).
 ##### `call`
 
 ```
-call(target: principal, fn: bytes, args: bytes, out: buf, ok: out<1>) -> len
+call(target: principal, fn: bytes, args: bytes, read_only: i32, out: buf,
+     ok: out<1>) -> len
 ```
 
 Calls a function of another contract and writes its result flag and result
@@ -1106,8 +1116,9 @@ without a check and returns `-1`.
 
 In a read-only frame, every storage write, asset mutation, and `frame_open` of
 an allowance kind is a `read-only-violation` runtime error, and `call` accepts
-only `read-only` callees. Legacy checks storage writes at runtime but relies on
-analysis for asset functions; here every mutation is checked.
+only `read-only` callees. A `call` with `read_only` set (5.3) applies the same
+callee check from any frame. Legacy checks storage writes at runtime but relies
+on analysis for asset functions; here every mutation is checked.
 
 ## 8. State and effects
 
@@ -1434,9 +1445,12 @@ Adopting this proposal changes the following. None of the changes is made yet.
    reads a trait's definition from the defining contract's section, checks
    conformance at compile time by the rule of
    [08-value-interpretation.md](08-value-interpretation.md) section 5.2, and
-   validates trait-typed arguments and results at runtime (spec sections 2.4.4
-   and 2.5.8). Spec section 2.3.2 refers to "chain ABI trait rules" for when a
-   contract implements a trait; that becomes the same rule.
+   validates the result of every call through a trait against the trait's
+   declared result type (spec sections 2.4.4 and 2.5.8). A call to a function
+   the trait marks `read-only` sets `call`'s `read_only` flag (5.3), so the host
+   enforces the kind; the full signature is checked only at compile time. Spec
+   section 2.3.2 refers to "chain ABI trait rules" for when a contract
+   implements a trait; that becomes the same rule.
 
 10. **Typed signatures leave the chain's interface** (4.1). The earlier
     documents put each function's parameter and result types in interface
