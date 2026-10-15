@@ -4,7 +4,9 @@ This directory holds the working draft of the specification for the new Clarity
 language (working name **vNEXT**), which compiles to Wasm for the new chain. It
 follows the scope decision in [../04-spec-plan.md](../04-spec-plan.md): Clarity
 1–6 are not specified here, and the chain ABI that every source language shares
-is a separate document that this spec refers to.
+is specified separately, in [../07-chain-abi.md](../07-chain-abi.md) and
+[../08-value-interpretation.md](../08-value-interpretation.md), which this spec
+refers to.
 
 > [!IMPORTANT] Everything in this directory is a draft intended to seed the RFC
 > process. Nothing here is normative yet. A chapter with open questions lists
@@ -82,16 +84,16 @@ user feature and is specified as such.
 
 ## Chapters
 
-| Chapter                                          | Status                                                           | Maps to plan chapter                                               |
-| ------------------------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
-| [01-principles.md](01-principles.md)             | Draft                                                            | 1 (design principles)                                              |
-| [02-core-language.md](02-core-language.md)       | Draft                                                            | 2, 3, 4, 5 (grammar, types, static and dynamic semantics)          |
-| [03-primitives.md](03-primitives.md)             | Draft                                                            | 7 (native reference, reduced to primitives)                        |
-| [04-standard-library.md](04-standard-library.md) | Draft                                                            | 7 (library), plus the legacy-to-vNEXT disposition table            |
-| [std/prelude.clar](std/prelude.clar)             | Draft                                                            | The library itself                                                 |
-| Compilation to Wasm                              | Not started                                                      | 6 (lowering, prelude linking, determinism, bound preservation)     |
-| Chain ABI                                        | Not started; a separate document shared by every source language | ABI (value encoding, module format, host functions, fuel schedule) |
-| Conformance vectors                              | Not started                                                      | Conformance suite                                                  |
+| Chapter                                          | Status                                                                                                                                                                                        | Maps to plan chapter                                                                 |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [01-principles.md](01-principles.md)             | Draft                                                                                                                                                                                         | 1 (design principles)                                                                |
+| [02-core-language.md](02-core-language.md)       | Draft                                                                                                                                                                                         | 2, 3, 4, 5 (grammar, types, static and dynamic semantics)                            |
+| [03-primitives.md](03-primitives.md)             | Draft                                                                                                                                                                                         | 7 (native reference, reduced to primitives)                                          |
+| [04-standard-library.md](04-standard-library.md) | Draft                                                                                                                                                                                         | 7 (library), plus the legacy-to-vNEXT disposition table                              |
+| [std/prelude.clar](std/prelude.clar)             | Draft                                                                                                                                                                                         | The library itself                                                                   |
+| Compilation to Wasm                              | Not started                                                                                                                                                                                   | 6 (lowering, prelude linking, determinism, bound preservation)                       |
+| Chain ABI                                        | Proposal, shared by every source language: [../07-chain-abi.md](../07-chain-abi.md) (runtime layer) and [../08-value-interpretation.md](../08-value-interpretation.md) (interpretation layer) | ABI (module format, host functions, frames, fuel; declared types and value encoding) |
+| Conformance vectors                              | Not started                                                                                                                                                                                   | Conformance suite                                                                    |
 
 ## Conventions
 

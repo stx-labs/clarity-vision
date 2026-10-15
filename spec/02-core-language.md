@@ -1101,23 +1101,19 @@ once the dependency named in each is settled.
    form that iterates a statically bounded number of times without a list, and
    that preserves P1, would remove the pattern. This is the "richer bounded
    iteration" item of the specification plan.
-5. **Allowance vocabulary** (2.5.9). `with-staking` and `with-pox` name concepts
-   of particular chain contracts in the language grammar. Whether the set of
-   allowance kinds belongs to the chain ABI, with the language taking it as
-   data, is a question for the ABI's authors.
-6. **RFC: host bindings in the prelude.** A `define-host` declaration form would
+5. **RFC: host bindings in the prelude.** A `define-host` declaration form would
    let the prelude declare every host-calling primitive (storage, assets,
    context, chain data, signature schemes, `print`) by name and signature, with
    semantics cited from the chain ABI rather than restated in chapter 3. The
    same form could cover compiled primitives with ordinary signatures, leaving
    chapter 3 with only the primitives whose typing cannot be written as a
    signature. Parked; it requires an admission rule on the ABI side.
-7. **Static memory bound.** The intermediate size limit only has to stay below
+6. **Static memory bound.** The intermediate size limit only has to stay below
    the chain's instance memory limit, so whether a well-typed contract's live
    values fit in memory depends on code generation, and exceeding it is a
    runtime error. The compiler could instead compute each function's peak memory
    and reject a contract that cannot fit, as it already does for module size
    (2.8). The chain's transaction memory cap, which depends on the callers'
    memory, would remain a runtime error.
-8. **Formal presentation.** The judgment-style typing rules and the full EBNF
+7. **Formal presentation.** The judgment-style typing rules and the full EBNF
    are pending the questions above.
