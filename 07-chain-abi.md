@@ -202,7 +202,10 @@ Rejected at deploy:
   it.
 
 A later ABI version may allow more; a module states the version it targets
-(section 11).
+(section 11). The likely direction is the deterministic profile of the Wasm
+specification, which fixes the results the base specification leaves
+nondeterministic, such as NaN bit patterns, and would replace this hand-picked
+subset with a standard one (section 13).
 
 ### 3.2 Imports and memory
 
@@ -1434,9 +1437,15 @@ Adopting this proposal changes the following. None of the changes is made yet.
    conversion to fuel, and that conversion should deliberately overcharge legacy
    execution relative to Wasm, to encourage migration. How much, and whether the
    premium grows over time, are open.
-2. **Bulk memory.** Left out of `stacks-abi-v1` (3.1). Allowing it later needs a
-   per-byte charge for `memory.copy` and `memory.fill`, either from the engine
-   or from deploy-time instrumentation of just those operators.
+2. **Wasm profile.** Section 3.1 hand-picks a subset of Wasm. The alternative is
+   to adopt the deterministic profile of the Wasm specification, which would
+   admit floating point and other features whose results it pins down. Open are
+   which features that admits beyond 3.1, whether the chosen engine implements
+   the profile exactly, and how each admitted operator is metered. Bulk memory
+   is the known case: `memory.copy` and `memory.fill` need a per-byte charge,
+   either from the engine or from deploy-time instrumentation of just those
+   operators, and their real cost on the chosen engine, against the loops a
+   compiler emits instead, decides whether that is worth it.
 3. **Limit and price values** in 9.2 and 9.3, from benchmarks on the chosen
    engine, including the fuel per block and the storage prices.
 4. **Legacy interop.** The mapping from legacy interfaces to this type grammar
@@ -1466,3 +1475,13 @@ Adopting this proposal changes the following. None of the changes is made yet.
    published as one machine-readable file (WIT or a smaller purpose-made format)
    from which the host bindings, each compiler's import declarations, and the
    ABI vectors' function list are generated.
+7. **Converting values in Wasm.** Every entry point decodes its arguments from
+   canonical encoding into the module's memory layout, validating them on the
+   way (5.4), and encodes its result back; every caller does the same for the
+   result of each call. Whether that is fast enough as compiled Wasm, or whether
+   it needs host functions that convert between canonical encoding and a defined
+   memory layout, is open. Such functions would put one memory layout into the
+   ABI, against R1, so the related question is whether canonical encoding can be
+   brought closer to a natural Wasm layout (fixed-width little-endian integers,
+   aligned fields) so that conversion is cheap or unnecessary, at the cost of
+   SIP-005 compatibility (2.3).
