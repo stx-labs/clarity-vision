@@ -9,16 +9,17 @@ expected to eventually move to a dedicated language repository.
 
 ## Documents
 
-| Document                                   | Purpose                                                                                                                                                                  |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [01-why-clarity.md](01-why-clarity.md)     | Why a decidable language on a Wasm chain: what the VM provides, what only the language can provide, the honest gaps, and why not just compile a general-purpose language |
-| [02-goals.md](02-goals.md)                 | Goals, non-goals, and success criteria                                                                                                                                   |
-| [03-architecture.md](03-architecture.md)   | The Clarity toolchain, the module format and chain ABI, the guarantees the chain enforces for every module, and the compiler trust path                                  |
-| [04-spec-plan.md](04-spec-plan.md)         | Plan for the language specification, the chain ABI it depends on, and the conformance suite                                                                              |
-| [05-roadmap.md](05-roadmap.md)             | Phased execution plan with milestones, dependencies, and risks                                                                                                           |
-| [06-issue-tracker.md](06-issue-tracker.md) | Disposition of every open `clarity` issue against the spec draft, and candidate additions                                                                                |
-| [07-chain-abi.md](07-chain-abi.md)         | Proposal for the chain ABI shared by every source language: value encoding, module format, interface, host functions, frames, fuel, and outcomes                         |
-| [spec/](spec/)                             | The specification working draft: a minimal core language plus a standard library written in the language itself                                                          |
+| Document                                                 | Purpose                                                                                                                                                                    |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [01-why-clarity.md](01-why-clarity.md)                   | Why a decidable language on a Wasm chain: what the VM provides, what only the language can provide, the honest gaps, and why not just compile a general-purpose language   |
+| [02-goals.md](02-goals.md)                               | Goals, non-goals, and success criteria                                                                                                                                     |
+| [03-architecture.md](03-architecture.md)                 | The Clarity toolchain, the module format and chain ABI, the guarantees the chain enforces for every module, and the compiler trust path                                    |
+| [04-spec-plan.md](04-spec-plan.md)                       | Plan for the language specification, the chain ABI it depends on, and the conformance suite                                                                                |
+| [05-roadmap.md](05-roadmap.md)                           | Phased execution plan with milestones, dependencies, and risks                                                                                                             |
+| [06-issue-tracker.md](06-issue-tracker.md)               | Disposition of every open `clarity` issue against the spec draft, and candidate additions                                                                                  |
+| [07-chain-abi.md](07-chain-abi.md)                       | Proposal for the runtime layer of the chain ABI shared by every source language: host value encoding, module format, interface, host functions, frames, fuel, and outcomes |
+| [08-value-interpretation.md](08-value-interpretation.md) | Proposal for the interpretation layer of the chain ABI: declared types and the encoding conventions compilers, wallets, and explorers rely on                              |
+| [spec/](spec/)                                           | The specification working draft: a minimal core language plus a standard library written in the language itself                                                            |
 
 ## One-paragraph summary
 

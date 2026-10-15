@@ -9,7 +9,22 @@ question instead of listing options; the positions that change an earlier
 document are collected in section 12, and the questions it cannot settle alone
 are in section 13.
 
-It draws on two prior systems:
+The ABI has two layers, specified in two documents:
+
+- **The runtime layer**, this document: what the chain parses, executes, and
+  enforces. That is the module format, the host interface, calls and frames,
+  state, fuel, and outcomes, and the encoding of principals, the one structured
+  value the host reads and writes.
+- **The interpretation layer**,
+  [08-value-interpretation.md](08-value-interpretation.md): the types a contract
+  declares for its functions and the conventions compilers, wallets, and
+  explorers use to encode and decode the values it exchanges.
+
+The chain depends only on the runtime layer. Arguments, results, storage, and
+`print` messages are bytes to it (R1), and a module that follows no
+interpretation convention still deploys and runs. Tools depend on both layers.
+
+This document draws on two prior systems:
 
 - **The legacy interpreter** in stacks-core, which defines today's value model,
   wire format (SIP-005), storage layout, asset map, and call semantics.
@@ -33,148 +48,48 @@ Each rule answers a problem found in one of the two prior systems.
 | **R7. Semantics never change under a module.** A module binds to an ABI version, and that version's behavior is frozen; only the fuel schedule moves.                                                      | Legacy reinterprets `block-height`, `get-block-info?` heights, `secp256r1-verify` hashing, and argument sanitizing by epoch, under contracts already deployed.                                                                                                                     |
 | **R8. The ABI is a single formal definition.** Host and every compiler derive from it.                                                                                                                     | clarity-wasm's host interface was two hand-synchronized Rust files and a `.wat` import list.                                                                                                                                                                                       |
 
-## 2. Value model
+## 2. Host values
 
-### 2.1 Types
+The host reads and writes three kinds of value:
 
-```
-type ::= int | uint | bool | principal | never
-       | (buff N) | (string-ascii N) | (string-utf8 N)
-       | (list N type) | (optional type) | (response type type)
-       | { name: type, ... }
-```
+- **principals**, in the encoding of 2.2;
+- **unsigned 128-bit integers**, as fixed-width words (6.1);
+- **raw bytes**, whose length and meaning each function states.
 
-The grammar describes the values in an interface (section 4) and the values the
-host reads and writes itself (section 6). The chain does not check arguments or
-results against it (5.4): it is the shared vocabulary that compilers, wallets,
-and explorers use to describe and encode the values a contract exchanges. A
-source language maps its own types onto these.
+Nothing with more structure crosses the host interface. A block's fields, an
+account's balances, and an allowance's fields are each passed on their own (6.2,
+7.2), so the host has no record layout to decode or produce.
 
-| Type               | Values                                                 |
-| ------------------ | ------------------------------------------------------ |
-| `int`              | signed 128-bit integers                                |
-| `uint`             | unsigned 128-bit integers                              |
-| `bool`             | `true`, `false`                                        |
-| `principal`        | standard or contract principals                        |
-| `never`            | none                                                   |
-| `(buff N)`         | byte sequences of length at most `N`                   |
-| `(string-ascii N)` | at most `N` bytes from the ASCII set of section 2.3    |
-| `(string-utf8 N)`  | UTF-8 strings of at most `N` code points               |
-| `(list N T)`       | sequences of at most `N` values of `T`                 |
-| `(optional T)`     | `none`, or `(some v)` with `v` of `T`                  |
-| `(response T E)`   | `(ok v)` with `v` of `T`, or `(err e)` with `e` of `E` |
-| `{ f: T, ... }`    | records with exactly the listed fields                 |
+The values a contract exchanges are not host values: arguments, results,
+storage, and `print` messages are bytes the host passes through or stores (5.4,
+4.2, 6.2). The interpretation layer defines a type grammar and an encoding for
+them ([08-value-interpretation.md](08-value-interpretation.md) sections 2–3),
+whose encoding of a principal is the one in 2.2. Nothing in this document
+depends on that layer, except a call between a legacy and a Wasm contract
+(section 13, question 4).
 
-- Every type is closed: no type variables, no unknown parts.
-- `never` may appear anywhere a type may; a position of type `never` can hold
-  nothing, and validation admits nothing for it.
-- Tuples have exact field sets (R2). Zero-field tuples are allowed.
+### 2.1 Names
 
-There is no trait type and no subtyping. Traits are a source-language concept: a
-parameter that a language types as a trait is a `principal` in the interface,
-and the language checks whatever it requires of that principal (5.4). Whether
-one type may stand in for another is likewise the language's rule.
-
-### 2.2 Names
-
-| Kind                                              | Grammar                                                                       | Length      |
-| ------------------------------------------------- | ----------------------------------------------------------------------------- | ----------- |
-| Function, token, parameter, and tuple-field names | ASCII letters, digits, and `- _ ! ? + < > = / * ^`, not starting with a digit | 1–128 bytes |
-| Contract names                                    | an ASCII letter, then letters, digits, `-`, `_`                               | 1–40 bytes  |
+| Kind                     | Grammar                                                                       | Length      |
+| ------------------------ | ----------------------------------------------------------------------------- | ----------- |
+| Function and token names | ASCII letters, digits, and `- _ ! ? + < > = / * ^`, not starting with a digit | 1–128 bytes |
+| Contract names           | an ASCII letter, then letters, digits, `-`, `_`                               | 1–40 bytes  |
 
 Every source language shares these rules. One contract-name limit applies
-everywhere: in deploys, in values, and on the wire. Legacy has 40 at deploy and
-128 inside values before epoch 4.1.
+everywhere: in deploys, in principals, and on the wire. Legacy has 40 at deploy
+and 128 inside values before epoch 4.1.
 
-### 2.3 Canonical encoding
+### 2.2 Principals
 
-The encoding is SIP-005, byte for byte, for every value that exists in legacy,
-so values pass between legacy and Wasm contracts and between the chain and
-existing tooling without translation. The host uses it for every value it
-decodes or produces: the arguments of host functions (6.1), chain data, and
-allowance descriptors. It is also the standard encoding of arguments and results
-(5.4), which the chain passes through without decoding. What changes from legacy
-is decoding, which accepts only the canonical form.
+| Prefix | Principal | Payload                                    |
+| ------ | --------- | ------------------------------------------ |
+| `0x05` | standard  | version (1 byte, < 32), hash160 (20 bytes) |
+| `0x06` | contract  | version, hash160, u8 name length, name     |
 
-| Prefix | Value              | Payload                                                         |
-| ------ | ------------------ | --------------------------------------------------------------- |
-| `0x00` | `int`              | 16 bytes, two's complement, big-endian                          |
-| `0x01` | `uint`             | 16 bytes, big-endian                                            |
-| `0x02` | `buff`             | u32 BE length, bytes                                            |
-| `0x03` | `true`             |                                                                 |
-| `0x04` | `false`            |                                                                 |
-| `0x05` | standard principal | version (1 byte, < 32), hash160 (20 bytes)                      |
-| `0x06` | contract principal | version, hash160, u8 name length, name                          |
-| `0x07` | `(ok v)`           | encoding of `v`                                                 |
-| `0x08` | `(err v)`          | encoding of `v`                                                 |
-| `0x09` | `none`             |                                                                 |
-| `0x0A` | `(some v)`         | encoding of `v`                                                 |
-| `0x0B` | list               | u32 BE element count, elements                                  |
-| `0x0C` | tuple              | u32 BE field count, then per field: u8 name length, name, value |
-| `0x0D` | `string-ascii`     | u32 BE byte length, bytes                                       |
-| `0x0E` | `string-utf8`      | u32 BE byte length, UTF-8 bytes                                 |
-
-**Canonical decoding** of bytes `b` against type `T` succeeds if and only if `b`
-is exactly the encoding of some value of `T`:
-
-- the prefix is one that `T` admits; `principal` admits `0x05` and `0x06`;
-- lengths and counts are within `T`'s bounds; `string-utf8` bounds count code
-  points;
-- tuple fields are exactly `T`'s fields, in strictly ascending byte order of
-  name, with no duplicates;
-- `string-ascii` bytes are 0x20–0x7E, tab, line feed, or carriage return (legacy
-  also admits form feed), and `string-utf8` bytes are valid UTF-8 (no
-  surrogates, no overlong forms);
-- principals have a version below 32 and a valid contract name;
-- nesting depth is at most 32, counted the same way everywhere;
-- no bytes remain after the value.
-
-There is no sanitizing and no untyped decoding in the host. Self-describing
-prefixes are kept for tooling; every decode in the host is typed.
-
-### 2.4 Sizes
-
-`serialized-size(T)` is the largest encoding of any value of `T`:
-
-| Type                           | `serialized-size`              |
-| ------------------------------ | ------------------------------ |
-| `int`, `uint`                  | 17                             |
-| `bool`                         | 1                              |
-| `principal`                    | 63 (1 + 1 + 20 + 1 + 40)       |
-| `never`                        | 0                              |
-| `(buff N)`, `(string-ascii N)` | 5 + N                          |
-| `(string-utf8 N)`              | 5 + 4N                         |
-| `(list N T)`                   | 5 + N × size(T)                |
-| `(optional T)`                 | 1 + size(T)                    |
-| `(response T E)`               | 1 + max(size(T), size(E))      |
-| `{ f1: T1, ... }`              | 5 + Σ (1 + len(fi) + size(Ti)) |
-
-The **value size limit** (section 9.3, 1 MiB) is a limit on `serialized-size`.
-Legacy measures a separate abstract "size" that disagrees with the bytes (a
-principal is 148 there and up to 151 on the wire); the ABI has one measure.
-
-### 2.5 Type encoding
-
-Interfaces carry types in a binary encoding that reuses the value prefixes:
-
-| Tag    | Type               | Payload                                     |
-| ------ | ------------------ | ------------------------------------------- |
-| `0x00` | `int`              |                                             |
-| `0x01` | `uint`             |                                             |
-| `0x02` | `(buff N)`         | u32 BE `N`                                  |
-| `0x03` | `bool`             |                                             |
-| `0x05` | `principal`        |                                             |
-| `0x07` | `(response T E)`   | `T`, `E`                                    |
-| `0x0A` | `(optional T)`     | `T`                                         |
-| `0x0B` | `(list N T)`       | u32 BE `N`, `T`                             |
-| `0x0C` | tuple              | u32 BE count, per field: name, type; sorted |
-| `0x0D` | `(string-ascii N)` | u32 BE `N`                                  |
-| `0x0E` | `(string-utf8 N)`  | u32 BE `N`                                  |
-| `0x11` | `never`            |                                             |
-
-Names are a u8 length and the bytes. Like values, a type has one encoding, and
-an interface containing a type whose `serialized-size` exceeds the value size
-limit is rejected at deploy.
+This is the SIP-005 encoding of a principal, so a principal has the same bytes
+here as in legacy values, transaction post-conditions, and the interpretation
+layer. Decoding accepts exactly this form (R2): the prefix is `0x05` or `0x06`,
+the version is below 32, a contract name is valid (2.1), and no bytes remain.
 
 ## 3. Module format
 
@@ -228,14 +143,15 @@ is part of the ABI and no unused response arm can change a signature.
 
 ### 3.4 Custom sections
 
-| Section          | Required | Validated by the chain                                                                                                           |
-| ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `abi.interface`  | yes      | yes (section 4)                                                                                                                  |
-| `abi.provenance` | no       | only for size; contents are owned by the toolchain that produced the module ([03-architecture.md](03-architecture.md) section 2) |
+| Section          | Required | Validated by the chain                                                                                                               |
+| ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `abi.interface`  | yes      | yes (section 4)                                                                                                                      |
+| `abi.types`      | no       | only for size; contents are defined by the interpretation layer ([08-value-interpretation.md](08-value-interpretation.md) section 5) |
+| `abi.provenance` | no       | only for size; contents are owned by the toolchain that produced the module ([03-architecture.md](03-architecture.md) section 2)     |
 
 Any other custom section, including `name`, is rejected. The module is the unit
 that `contract-hash?` hashes and that `clarity-verify` compares, so it carries
-nothing that is not either executed, validated, or provenance.
+nothing that is not executed, validated, or metadata for tools.
 
 ### 3.5 Deploy
 
@@ -259,28 +175,30 @@ that pays its charges.
 
 ### 4.1 Contents
 
-The `abi.interface` section is one canonically encoded record:
+The `abi.interface` section records what the chain acts on: which functions
+exist, how each may be called, and which tokens the contract defines. Its bytes
+are, in order:
 
-| Field         | Contents                                                                                 |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| `abi-version` | the ABI version the module targets                                                       |
-| `functions`   | per function: name, kind (`public` or `read-only`), parameters (name, type), result type |
-| `fts`         | per fungible token: name                                                                 |
-| `nfts`        | per non-fungible token: name                                                             |
+| Field         | Encoding                                                                     |
+| ------------- | ---------------------------------------------------------------------------- |
+| `abi-version` | u32 BE, the ABI version the module targets                                   |
+| `functions`   | u32 BE count, then per function: name, kind byte (`0` public, `1` read-only) |
+| `fts`         | u32 BE count, then per fungible token: name                                  |
+| `nfts`        | u32 BE count, then per non-fungible token: name                              |
+
+A name is a u8 length and the name's bytes (2.1). No bytes may follow `nfts`.
 
 Rules:
 
-- Names are unique within each list. Lists are sorted by name, so the encoding
-  is canonical and an interface has one hash: `sha512/256` of the section bytes.
-  That hash is what provenance records for each callee
-  ([03-architecture.md](03-architecture.md) section 2).
-- A `public` function's result type is a `response`, whose arms describe the
-  result for each value of the flag that `result_set` takes (5.2). A `read-only`
-  function's result type is any type.
-- Parameter and result types are declarations, not checks: the chain uses the
-  interface to find functions, their kinds, and tokens, and does not check
-  values against the declared types (5.4).
-- At most 256 parameters per function, as legacy.
+- Names are unique within each list, and lists are sorted in strictly ascending
+  byte order of name, so an interface has exactly one encoding (R2) and one
+  hash: `sha512/256` of the section bytes.
+- The interface carries no types and no traits. A function's arguments and
+  result are bytes to the chain (5.2), and their declared types, the type of
+  each NFT's identifiers, and the contract's traits are in the `abi.types`
+  section, which the interpretation layer defines
+  ([08-value-interpretation.md](08-value-interpretation.md) section 5) and the
+  chain does not read.
 - A token is addressed by its index in its sorted list. The index is a
   module-local handle; the chain keys state by name (section 8.1), so the name,
   not the index, is the stable identity.
@@ -293,12 +211,9 @@ source language lays its own variables and maps out over that store, for example
 by prefixing each key with the variable or map name. The chain does not need
 storage types, since it never acts on a stored value, and leaving them out
 removes a decode from every write and keeps the host independent of how any
-language structures its state.
-
-The cost is that state is not self-describing: an explorer, a wallet, or the
-node's state read endpoint returns raw bytes, and decoding them needs the source
-language's layout. A language that wants its state readable by tools publishes
-that layout, as the Clarity spec will (section 12).
+language structures its state. Reading a contract's state therefore needs its
+language's layout ([08-value-interpretation.md](08-value-interpretation.md)
+section 7.2).
 
 ## 5. Calls
 
@@ -330,8 +245,9 @@ Inside an entry point:
   `offset`, into memory, so a module can read them whole or piecewise. The
   arguments are the bytes the caller passed, unchanged: a contract-call
   transaction and a read-only query carry them as one byte string, and `call`
-  takes them as `args`. The chain does not parse them. By convention they are
-  each argument's canonical encoding, concatenated in parameter order (5.4).
+  takes them as `args`. The chain does not parse them; how a caller lays them
+  out is the interpretation layer's convention
+  ([08-value-interpretation.md](08-value-interpretation.md) section 6.1).
 - `result_set(ok, result)` sets the result: a flag, `1` for ok and `0` for err,
   and the result's bytes. It does not return: the host ends the export there, as
   `abort` does, so no host function runs after the result is set and a result
@@ -346,14 +262,14 @@ exported buffer.
 ### 5.3 The `call` host function
 
 ```
-call(target: val<principal>, fn: bytes, args: bytes, out: buf, ok: out<1>) -> len
+call(target: principal, fn: bytes, args: bytes, out: buf, ok: out<1>) -> len
 ```
 
 In the notation of 6.1, this is the Wasm type
 `(param i32 i32 i32 i32 i32 i32 i32 i32 i32) (result i32)`.
 
 - `target` is the callee, a principal.
-- `fn` is the function name's bytes (2.2), not an encoded value.
+- `fn` is the function name's bytes (2.1), not an encoded value.
 - `args` is the arguments as in 5.2, passed to the callee unchanged.
 - `ok` receives the callee's result flag (5.2), as one byte.
 
@@ -372,10 +288,11 @@ The host, in order:
    the result, and returns the negated length; `result_read(dst, offset, len)`
    then copies the kept result, whole or in pieces. A kept result lasts until
    the next `call`; `result_read` with no kept result is a `bad-host-argument`
-   runtime error. The callee's frame has already closed either way. A Clarity
-   module sizes `out` for the `serialized-size` of the declared result and
-   treats a longer result as one that fails validation (5.4), so it never needs
-   the second step.
+   runtime error. The callee's frame has already closed either way. A module
+   that bounds the result in advance, as a Clarity module does from the declared
+   result type ([08-value-interpretation.md](08-value-interpretation.md) section
+   4.1), sizes `out` for that bound and treats a longer result as one that fails
+   validation (5.4), so it never needs the second step.
 
 Steps 1–3 failing, and any runtime error in the callee, abort the transaction.
 There is no catch.
@@ -390,12 +307,10 @@ since nothing guarantees that either matches the declared types; that includes
 whatever a language requires of a principal it types as a trait. Validation is
 module code, charged as execution (9.2) like any other work.
 
-The declared types still matter outside the chain. Wallets encode arguments and
-clear-sign transactions from them, explorers decode results with them, and
-compilers type calls against them. The standard encoding of an argument list or
-a result is canonical encoding (2.3), which is what every tool expects. A
-language that has no use for structured values declares `(buff N)` parameters
-and results and treats them as bytes.
+Declared types and the encoding conventions that wallets, explorers, and
+compilers rely on are the interpretation layer's
+([08-value-interpretation.md](08-value-interpretation.md) section 6). Nothing in
+this section depends on a module following them.
 
 Keeping validation out of the host keeps every language's type checker out of
 the host and the mempool. A transaction with malformed arguments is included,
@@ -412,15 +327,15 @@ Signatures in 6.2 are written with typed parameters. Each parameter kind expands
 to a fixed sequence of Wasm parameters, in the order written, and the import's
 Wasm type is the concatenation:
 
-| Kind       | Wasm parameters      | Meaning                                                                                                                            |
-| ---------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `i32`      | `i32`                | an integer, as the function describes                                                                                              |
-| `u128`     | `i64 lo`, `i64 hi`   | an unsigned 128-bit integer, low 64 bits first                                                                                     |
-| `val<T>`   | `i32 ptr`, `i32 len` | the canonical encoding (2.3) of a value of `T`, decoded against `T`; a failed decode is `bad-host-argument`                        |
-| `bytes`    | `i32 ptr`, `i32 len` | raw bytes, not an encoded value                                                                                                    |
-| `bytes<N>` | `i32 ptr`            | exactly `N` raw bytes                                                                                                              |
-| `out<N>`   | `i32 ptr`            | the host writes exactly `N` bytes; a `u128` result is written as 16 bytes, little-endian                                           |
-| `buf`      | `i32 ptr`, `i32 cap` | the host writes at most `cap` bytes and returns the length; what it writes (an encoded value, or raw bytes) is stated per function |
+| Kind        | Wasm parameters      | Meaning                                                                                                                                |
+| ----------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `i32`       | `i32`                | an integer, as the function describes                                                                                                  |
+| `u128`      | `i64 lo`, `i64 hi`   | an unsigned 128-bit integer, low 64 bits first                                                                                         |
+| `principal` | `i32 ptr`, `i32 len` | a principal's encoding (2.2); a failed decode is `bad-host-argument`                                                                   |
+| `bytes`     | `i32 ptr`, `i32 len` | raw bytes, not an encoded value                                                                                                        |
+| `bytes<N>`  | `i32 ptr`            | exactly `N` raw bytes                                                                                                                  |
+| `out<N>`    | `i32 ptr`            | the host writes exactly `N` bytes; a `u128` result is written as 16 bytes, little-endian                                               |
+| `buf`       | `i32 ptr`, `i32 cap` | the host writes at most `cap` bytes and returns the length; what it writes (an encoded principal, or raw bytes) is stated per function |
 
 | Result   | Wasm result | Meaning                                                                                                                   |
 | -------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -429,8 +344,8 @@ Wasm type is the concatenation:
 | `status` | `i32`       | `0` for success, otherwise one of the codes listed with the function                                                      |
 | `bool`   | `i32`       | `1` for true, `0` for false                                                                                               |
 
-For example, `stx_burn(amount: u128, from: val<principal>) -> status` is
-imported with Wasm type `(param i64 i64 i32 i32) (result i32)`.
+For example, `stx_burn(amount: u128, from: principal) -> status` is imported
+with Wasm type `(param i64 i64 i32 i32) (result i32)`.
 
 - Lengths and capacities are unsigned. Every range a call names (`ptr` to
   `ptr + len`, `ptr + N`, or `ptr + cap`) must lie inside the module's memory;
@@ -489,7 +404,7 @@ Aborts the transaction with a module-defined code and message, both recorded in
 the receipt as given (section 10). `msg` is at most 128 bytes; a longer one is
 `bad-host-argument`. Does not return.
 
-#### Context and chain data
+#### Context
 
 Each piece of transaction and block context has its own function, and new
 context arrives as a new function in a new ABI version (section 11). The
@@ -596,65 +511,138 @@ is_regtest() -> bool
 
 Whether the chain is a regtest environment.
 
-The three chain-data lookups below are total: each returns `-1` for any height
-the host cannot serve, and no height is ever a runtime error or a reason to drop
-the transaction.
+#### Block data
 
-##### `stacks_block_info`
+Lookups of Stacks blocks, tenures, and burn blocks by height. They are total:
+each reports a height the host cannot serve through its result, as status `1` or
+as `-1` for a function that writes a `buf`, and no height is ever a runtime
+error or a reason to drop the transaction. Like the context values, each field
+is its own function, so a later ABI version can add one without changing a
+layout.
 
-```
-stacks_block_info(height: u128, out: buf) -> len
-```
+The Stacks block lookups serve heights below `stacks_height`. The current
+block's hashes do not exist until it is sealed, after this transaction runs; its
+time is what `time` returns.
 
-Writes the encoded record of the Stacks block at `height`:
-
-| Field            | Type        |
-| ---------------- | ----------- |
-| `id-header-hash` | `(buff 32)` |
-| `header-hash`    | `(buff 32)` |
-| `time`           | `uint`      |
-
-Serves heights below `stacks_height`. The current block's hashes do not exist
-until it is sealed, after this transaction runs; its time is what `time`
-returns.
-
-##### `tenure_info`
+##### `stacks_block_id_header_hash`
 
 ```
-tenure_info(height: u128, out: buf) -> len
+stacks_block_id_header_hash(height: u128, out: out<32>) -> status
 ```
 
-Writes the encoded record of the tenure at `height`:
+Writes the index block hash of the Stacks block at `height`.
 
-| Field                   | Type              |
-| ----------------------- | ----------------- |
-| `burnchain-header-hash` | `(buff 32)`       |
-| `miner-address`         | `principal`       |
-| `time`                  | `uint`            |
-| `vrf-seed`              | `(buff 32)`       |
-| `block-reward`          | `(optional uint)` |
-| `miner-spend-total`     | `uint`            |
-| `miner-spend-winner`    | `uint`            |
-
-Serves every tenure up to and including `tenure_height`, since all fields are
-fixed at sortition. `block-reward` is `none` until the reward matures; maturity
-is defined by the host in terms of the tenure height at which the reward was
-recorded.
-
-##### `burn_block_info`
+##### `stacks_block_header_hash`
 
 ```
-burn_block_info(height: u128, out: buf) -> len
+stacks_block_header_hash(height: u128, out: out<32>) -> status
 ```
 
-Writes the encoded record of the burn block at `height`:
+Writes the header hash of the Stacks block at `height`.
 
-| Field         | Type                                                                             |
-| ------------- | -------------------------------------------------------------------------------- |
-| `header-hash` | `(buff 32)`                                                                      |
-| `pox-addrs`   | `{ addrs: (list 2 { hash-bytes: (buff 32), version: (buff 1) }), payout: uint }` |
+##### `stacks_block_time`
 
-Serves every burn block up to and including `burn_height`.
+```
+stacks_block_time(height: u128, out: out<16>) -> status
+```
+
+Writes the timestamp of the Stacks block at `height`, in seconds, as a `u128`.
+
+The tenure lookups serve every tenure up to and including `tenure_height`, since
+every field is fixed at sortition.
+
+##### `tenure_burnchain_header_hash`
+
+```
+tenure_burnchain_header_hash(height: u128, out: out<32>) -> status
+```
+
+Writes the header hash of the burn block associated with the tenure at `height`.
+
+##### `tenure_miner_address`
+
+```
+tenure_miner_address(height: u128, out: buf) -> len
+```
+
+Writes the encoded principal of the miner of the tenure at `height`.
+
+##### `tenure_time`
+
+```
+tenure_time(height: u128, out: out<16>) -> status
+```
+
+Writes the timestamp of the tenure at `height`, in seconds, as a `u128`.
+
+##### `tenure_vrf_seed`
+
+```
+tenure_vrf_seed(height: u128, out: out<32>) -> status
+```
+
+Writes the VRF seed of the tenure at `height`.
+
+##### `tenure_block_reward`
+
+```
+tenure_block_reward(height: u128, out: out<16>) -> status
+```
+
+Writes the block reward of the tenure at `height`, in uSTX, as a `u128`.
+Maturity is defined by the host in terms of the tenure height at which the
+reward was recorded.
+
+- `1` height not served
+- `2` the reward has not matured
+
+##### `tenure_miner_spend_total`
+
+```
+tenure_miner_spend_total(height: u128, out: out<16>) -> status
+```
+
+Writes the total spent by all miners in the sortition of the tenure at `height`,
+as a `u128`.
+
+##### `tenure_miner_spend_winner`
+
+```
+tenure_miner_spend_winner(height: u128, out: out<16>) -> status
+```
+
+Writes the amount spent by the winning miner in the sortition of the tenure at
+`height`, as a `u128`.
+
+The burn block lookups serve every burn block up to and including `burn_height`.
+
+##### `burn_block_header_hash`
+
+```
+burn_block_header_hash(height: u128, out: out<32>) -> status
+```
+
+Writes the header hash of the burn block at `height`.
+
+##### `burn_block_pox_addr`
+
+```
+burn_block_pox_addr(height: u128, index: i32, out: buf) -> len
+```
+
+Writes PoX reward address `index` of the burn block at `height`: its version
+byte, then its hash bytes (at most 32), as raw bytes. Returns `-1` if the height
+is not served or the block has no address at `index`. A block has at most two
+addresses, so an `index` above 1 is `bad-host-argument`.
+
+##### `burn_block_pox_payout`
+
+```
+burn_block_pox_payout(height: u128, out: out<16>) -> status
+```
+
+Writes the amount paid to each PoX reward address of the burn block at `height`,
+as a `u128`.
 
 #### Storage
 
@@ -722,7 +710,7 @@ because deploy-time code computes it.
 ##### `ft_mint`
 
 ```
-ft_mint(token: i32, amount: u128, to: val<principal>) -> status
+ft_mint(token: i32, amount: u128, to: principal) -> status
 ```
 
 Mints `amount` to `to`. Exceeding the supply cap is a runtime error.
@@ -732,7 +720,7 @@ Mints `amount` to `to`. Exceeding the supply cap is a runtime error.
 ##### `ft_burn`
 
 ```
-ft_burn(token: i32, amount: u128, from: val<principal>) -> status
+ft_burn(token: i32, amount: u128, from: principal) -> status
 ```
 
 Burns `amount` from `from`.
@@ -742,7 +730,7 @@ Burns `amount` from `from`.
 ##### `ft_transfer`
 
 ```
-ft_transfer(token: i32, amount: u128, from: val<principal>, to: val<principal>) -> status
+ft_transfer(token: i32, amount: u128, from: principal, to: principal) -> status
 ```
 
 Moves `amount` from `from` to `to`.
@@ -754,7 +742,7 @@ Moves `amount` from `from` to `to`.
 ##### `ft_balance`
 
 ```
-ft_balance(token: i32, owner: val<principal>, out: out<16>)
+ft_balance(token: i32, owner: principal, out: out<16>)
 ```
 
 Writes `owner`'s balance as a `u128`.
@@ -770,7 +758,7 @@ Writes the circulating supply as a `u128`.
 ##### `nft_mint`
 
 ```
-nft_mint(token: i32, id: bytes, to: val<principal>) -> status
+nft_mint(token: i32, id: bytes, to: principal) -> status
 ```
 
 Mints the identifier `id` to `to`.
@@ -780,7 +768,7 @@ Mints the identifier `id` to `to`.
 ##### `nft_burn`
 
 ```
-nft_burn(token: i32, id: bytes, from: val<principal>) -> status
+nft_burn(token: i32, id: bytes, from: principal) -> status
 ```
 
 Burns `id`, which `from` must own.
@@ -791,7 +779,7 @@ Burns `id`, which `from` must own.
 ##### `nft_transfer`
 
 ```
-nft_transfer(token: i32, id: bytes, from: val<principal>, to: val<principal>) -> status
+nft_transfer(token: i32, id: bytes, from: principal, to: principal) -> status
 ```
 
 Changes the owner of `id` from `from` to `to`.
@@ -812,12 +800,12 @@ not exist.
 ##### `stx_transfer`
 
 ```
-stx_transfer(amount: u128, from: val<principal>, to: val<principal>,
-             memo: val<(optional (buff 34))>) -> status
+stx_transfer(amount: u128, from: principal, to: principal, memo: bytes) -> status
 ```
 
-Moves `amount` uSTX from `from` to `to`, recording the memo in the event if it
-is `some`.
+Moves `amount` uSTX from `from` to `to`, recording `memo` in the event. `memo`
+is at most 34 bytes, and a longer one is `bad-host-argument`; an empty memo is
+recorded as no memo.
 
 - `1` insufficient balance
 - `2` `from` is `to`
@@ -827,7 +815,7 @@ is `some`.
 ##### `stx_burn`
 
 ```
-stx_burn(amount: u128, from: val<principal>) -> status
+stx_burn(amount: u128, from: principal) -> status
 ```
 
 Burns `amount` uSTX from `from`.
@@ -836,19 +824,30 @@ Burns `amount` uSTX from `from`.
 - `3` amount is zero
 - `4` `from` is not the frame's `sender`
 
-##### `stx_account`
+##### `stx_locked`
 
 ```
-stx_account(owner: val<principal>, out: buf) -> len
+stx_locked(owner: principal, out: out<16>)
 ```
 
-Writes `owner`'s STX account state, encoded as a record:
+Writes the uSTX `owner` has locked for staking, as a `u128`.
 
-| Field           | Type   |
-| --------------- | ------ |
-| `locked`        | `uint` |
-| `unlock-height` | `uint` |
-| `unlocked`      | `uint` |
+##### `stx_unlock_height`
+
+```
+stx_unlock_height(owner: principal, out: out<16>)
+```
+
+Writes the burn height at which `owner`'s locked uSTX unlock, as a `u128`, or
+`0` if none are locked.
+
+##### `stx_unlocked`
+
+```
+stx_unlocked(owner: principal, out: out<16>)
+```
+
+Writes `owner`'s unlocked uSTX balance, as a `u128`.
 
 #### Frames
 
@@ -876,7 +875,7 @@ allowance (7.2).
 ##### `call`
 
 ```
-call(target: val<principal>, fn: bytes, args: bytes, out: buf, ok: out<1>) -> len
+call(target: principal, fn: bytes, args: bytes, out: buf, ok: out<1>) -> len
 ```
 
 Calls a function of another contract and writes its result flag and result
@@ -896,7 +895,7 @@ kept result is `bad-host-argument`.
 ##### `contract_hash`
 
 ```
-contract_hash(contract: val<principal>, out: out<32>) -> status
+contract_hash(contract: principal, out: out<32>) -> status
 ```
 
 Writes the `sha512/256` of the contract's module.
@@ -907,7 +906,7 @@ Writes the `sha512/256` of the contract's module.
 ##### `principal_to_ascii`
 
 ```
-principal_to_ascii(p: val<principal>, out: buf) -> len
+principal_to_ascii(p: principal, out: buf) -> len
 ```
 
 Writes the c32check text form of `p` as raw ASCII bytes, not an encoded value. A
@@ -925,8 +924,9 @@ Emits `msg` as a contract event. `msg` must be valid UTF-8 (no surrogates, no
 overlong forms) and at most the print message limit (section 9.3); anything else
 is `bad-host-argument`. It also counts toward the transaction's event bytes. The
 chain does not interpret the text: the source language decides how a value is
-rendered, and a module that wants to emit structured data formats it itself.
-Asset events are emitted by the asset functions themselves.
+rendered ([08-value-interpretation.md](08-value-interpretation.md) section 7.1),
+and a module that wants to emit structured data formats it itself. Asset events
+are emitted by the asset functions themselves.
 
 #### Cryptography
 
@@ -1060,26 +1060,26 @@ back.
 ### 7.2 Allowance frames
 
 `frame_open(1 | 2, desc)` takes an allowance descriptor. For a `restrict` frame,
-`desc` starts with the owner's canonical encoding (a `principal`). Then, for
-both kinds:
+`desc` starts with the owner's encoding (2.2). Then, for both kinds:
 
 - a u8 count of allowances, at most 128;
-- per allowance, a kind byte, then its fields in the order of the table below,
-  each as a canonical encoding of the field's type;
+- per allowance, a kind byte, then its fields in the order of the table below: a
+  `principal` as its encoding (2.2), a `name` as a u8 length and the name's
+  bytes (2.1), and a `u128` as 16 bytes, little-endian (6.1);
 - for `nft`, the `ids` field is a u32 BE count, then per identifier a u32 BE
   length and the identifier's bytes (6.2).
 
 No bytes may follow the last allowance. A descriptor that does not decode this
 way is a `bad-host-argument` runtime error. The allowance kinds are ABI data:
 
-| Byte | Kind      | Fields                                                                 | Covers                                                  |
-| ---- | --------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
-| `0`  | `stx`     | `amount: uint`                                                         | the owner's uSTX transferred plus burned                |
-| `1`  | `ft`      | `contract: principal`, `token: (string-ascii 128)`, `amount: uint`     | the owner's movements of that token, summed             |
-| `2`  | `nft`     | `contract: principal`, `token: (string-ascii 128)`, `ids`: identifiers | each moved identifier must be listed, compared by bytes |
-| `3`  | `all`     | none                                                                   | everything; only in an `as-contract` frame              |
-| `4`  | `staking` | `amount: uint`                                                         | the uSTX the owner locks for staking, summed            |
-| `5`  | `pox`     | none                                                                   | any position-altering PoX action by the owner           |
+| Byte | Kind      | Fields                                                   | Covers                                                  |
+| ---- | --------- | -------------------------------------------------------- | ------------------------------------------------------- |
+| `0`  | `stx`     | `amount: u128`                                           | the owner's uSTX transferred plus burned                |
+| `1`  | `ft`      | `contract: principal`, `token: name`, `amount: u128`     | the owner's movements of that token, summed             |
+| `2`  | `nft`     | `contract: principal`, `token: name`, `ids`: identifiers | each moved identifier must be listed, compared by bytes |
+| `3`  | `all`     | none                                                     | everything; only in an `as-contract` frame              |
+| `4`  | `staking` | `amount: u128`                                           | the uSTX the owner locks for staking, summed            |
+| `5`  | `pox`     | none                                                     | any position-altering PoX action by the owner           |
 
 `as-contract` also sets the frame's `sender` and `caller` to the current
 contract. `frame_close(1)` on an allowance frame compares the owner's outgoing
@@ -1115,10 +1115,10 @@ analysis for asset functions; here every mutation is checked.
 
 Contract storage is keyed by contract and the key's bytes, and stores the
 value's bytes as given (4.2). Token state is keyed by contract, token name, and,
-for NFTs, the identifier's bytes. Balances and supplies are `uint` in canonical
-encoding. Legacy uses serde JSON for principals in token-balance keys and for
-persisted type metadata; nothing here depends on a language's in-memory
-representation. The concrete key strings are the chain's choice, made once.
+for NFTs, the identifier's bytes. Legacy uses serde JSON for principals in
+token-balance keys and for persisted type metadata; nothing here depends on a
+language's in-memory representation. The concrete key strings and the encoding
+of balances and supplies are the chain's choice, made once.
 
 ### 8.2 Asset map
 
@@ -1287,20 +1287,18 @@ chain pins the engine's behavior to the schedule.
 
 | Limit                       | Value (provisional) | Notes                                                              |
 | --------------------------- | ------------------- | ------------------------------------------------------------------ |
-| Value size                  | 1 MiB               | `serialized-size` of any type in an interface                      |
-| Type nesting depth          | 32                  |                                                                    |
 | Contract-call depth         | 64                  | 7.3                                                                |
 | Instance memory             | 16 MiB              | bounds every intermediate value a module holds                     |
 | Table entries               | TBD                 | bounds the allocation at instantiation                             |
 | Transaction memory          | 64 MiB              | sum over live instances; caps depth × instance memory              |
 | Wasm stack                  | TBD                 | in schedule-defined units, enforced by deploy-time instrumentation |
 | Module size                 | TBD                 | the only bound on a contract's size                                |
-| NFT identifier              | 1 MiB               | bytes per identifier, the same as the value size limit             |
+| NFT identifier              | 1 MiB               | bytes per identifier                                               |
 | Storage key                 | 1 KiB               | bytes per key                                                      |
 | Storage value               | 1 MiB               | bytes per value                                                    |
 | Arguments                   | 1 MiB               | bytes per transaction, query, or `call`                            |
 | Result                      | 1 MiB               | bytes per `result_set`                                             |
-| Print message               | 1 MiB               | bytes per `print`, the same as the value size limit                |
+| Print message               | 1 MiB               | bytes per `print`                                                  |
 | Allowances per frame        | 128                 |                                                                    |
 | Fuel per block              | TBD                 | 9.1                                                                |
 | Fuel per read-only query    | node's choice       | 9.1                                                                |
@@ -1375,9 +1373,10 @@ clarity-wasm signalled these through exported globals and `unreachable`.
 - A module may target only one ABI version.
 - Modules of different versions call each other freely; the call semantics of
   section 5 apply whichever version each side targets. Arguments and results are
-  bytes the chain does not interpret (5.4), so a type that one version's
-  interfaces can declare and another's cannot is a matter for the caller's
-  compiler, not a limit on the call.
+  bytes the chain does not interpret (5.4), and interfaces carry no types (4.1),
+  so the declared types are versioned with the interpretation layer
+  ([08-value-interpretation.md](08-value-interpretation.md) section 8), not
+  here, and never limit a call.
 
 ## 12. Changes to the earlier documents
 
@@ -1403,8 +1402,10 @@ Adopting this proposal changes the following. None of the changes is made yet.
    Clarity compiler renders the value as text, so the spec must define that
    rendering, and tools that decode legacy print events need a second path.
 6. **NFT identifiers are bytes** (6.2). The identifier type of
-   `define-non-fungible-token` stays in the Clarity spec but leaves the
-   interface. The Clarity compiler encodes identifiers canonically (2.3), so a
+   `define-non-fungible-token` stays in the Clarity spec and in the `abi.types`
+   section, for tools, but leaves the interface the chain reads. The Clarity
+   compiler encodes identifiers canonically
+   ([08-value-interpretation.md](08-value-interpretation.md) section 3), so a
    Clarity token's identifiers have the same bytes as in legacy and in
    transaction post-conditions.
 7. **Modules validate values; the chain does not** (5.4). The earlier documents
@@ -1420,15 +1421,31 @@ Adopting this proposal changes the following. None of the changes is made yet.
    (5.2). The legacy payload is a count and a list of encoded values, which the
    node decodes. Under this ABI the node passes the bytes to the entry point
    without parsing them, so the transaction format needs a payload that carries
-   them opaquely. Wallets still build the bytes from canonical encodings (5.4).
-9. **The chain has no traits** (2.1). Trait definitions, `impl-trait` claims,
-   and trait-typed parameters leave the interface, which
-   [03-architecture.md](03-architecture.md) section 3 lists, and the chain
-   checks conformance nowhere. The Clarity spec must say where a compiler reads
-   a trait's definition from, for example the defining contract's
-   `abi.provenance` section (3.4), and its compiler checks conformance at
-   compile time and validates trait-typed arguments and results at runtime (spec
-   sections 2.4.4 and 2.5.8).
+   them opaquely. Wallets still build the bytes from canonical encodings
+   ([08-value-interpretation.md](08-value-interpretation.md) section 6.1).
+9. **The chain has no traits**
+   ([08-value-interpretation.md](08-value-interpretation.md) section 5.2). Trait
+   definitions, `impl-trait` claims, and trait-typed parameters leave the
+   interface the chain reads, which [03-architecture.md](03-architecture.md)
+   section 3 lists, and the chain checks conformance nowhere except in the
+   legacy bridge (section 13, question 4). They move to `abi.types`: a compiler
+   reads a trait's definition from the defining contract's section, checks
+   conformance at compile time by the rule of
+   [08-value-interpretation.md](08-value-interpretation.md) section 5.2, and
+   validates trait-typed arguments and results at runtime (spec sections 2.4.4
+   and 2.5.8). Spec section 2.3.2 refers to "chain ABI trait rules" for when a
+   contract implements a trait; that becomes the same rule.
+
+10. **Typed signatures leave the chain's interface** (4.1). The earlier
+    documents put each function's parameter and result types in interface
+    metadata that the chain validates: [02-goals.md](02-goals.md) (the single
+    ABI), [03-architecture.md](03-architecture.md) section 3, and
+    [04-spec-plan.md](04-spec-plan.md) (the ABI chapter). Under this ABI they
+    are in `abi.types`, defined by
+    [08-value-interpretation.md](08-value-interpretation.md), which the chain
+    does not read. Provenance ([03-architecture.md](03-architecture.md)
+    section 2) records, for each callee, the hash of both sections, since a
+    build types its calls against `abi.types`.
 
 ## 13. Open questions
 
@@ -1448,17 +1465,32 @@ Adopting this proposal changes the following. None of the changes is made yet.
    compiler emits instead, decides whether that is worth it.
 3. **Limit and price values** in 9.2 and 9.3, from benchmarks on the chosen
    engine, including the fuel per block and the storage prices.
-4. **Legacy interop.** The mapping from legacy interfaces to this type grammar
-   ([03-architecture.md](03-architecture.md) section 7) targets the types in
-   2.1, and its known mismatches (extra tuple fields, list union types, trait
+4. **Legacy interop.** The mapping from legacy interfaces
+   ([03-architecture.md](03-architecture.md) section 7) produces both an
+   interface (4.1) and typed signatures
+   ([08-value-interpretation.md](08-value-interpretation.md) section 5), and the
+   type mapping's known mismatches (extra tuple fields, list union types, trait
    values carrying types) must each resolve to a rejection or a defined
-   conversion. A call between a legacy and a Wasm contract is the one place the
-   host must still decode arguments and results, because the interpreter works
-   on typed values; the conversion happens there. The mapping must also be
-   deterministic and frozen, and produce canonical interface bytes: tokens, PoX,
-   and sBTC are legacy contracts, so most Clarity builds read a legacy
-   interface, and provenance records its hash ([02-goals.md](02-goals.md) G5).
-   If the mapping changed, those builds would no longer reproduce.
+   conversion. Legacy traits and `impl-trait` claims map to the `traits` and
+   `implements` of `abi.types`. A call between a legacy and a Wasm contract is
+   the one place the chain must interpret contract values, because the
+   interpreter works on typed values: the host decodes the bytes coming from the
+   Wasm side against the declared types, by canonical decoding
+   ([08-value-interpretation.md](08-value-interpretation.md) section 3), and
+   encodes the values coming from the legacy side the same way. That makes the
+   interpretation layer's encoding consensus-critical, and the bridge the one
+   part of this document that depends on it. For a Wasm contract calling a
+   legacy one, the declared types are the legacy callee's own. For a legacy
+   contract calling a Wasm one, they come from the callee's `abi.types`, so the
+   chain must read and validate that section for any contract a legacy contract
+   can call. When that call is through a trait, the bridge also checks, as the
+   interpreter does for a legacy callee, that the callee conforms to the trait
+   by the rule of [08-value-interpretation.md](08-value-interpretation.md)
+   section 5.2. The mapping must also be deterministic and frozen, and produce
+   canonical bytes for both sections: tokens, PoX, and sBTC are legacy
+   contracts, so most Clarity builds read a legacy interface, and provenance
+   records its hashes ([02-goals.md](02-goals.md) G5). If the mapping changed,
+   those builds would no longer reproduce.
 5. **Bounded and recoverable calls.** Two possible additions to `call` (5.3),
    both needed only for callees the caller cannot vouch for, such as a contract
    passed in as an argument or a module in another language:
@@ -1484,4 +1516,5 @@ Adopting this proposal changes the following. None of the changes is made yet.
    ABI, against R1, so the related question is whether canonical encoding can be
    brought closer to a natural Wasm layout (fixed-width little-endian integers,
    aligned fields) so that conversion is cheap or unnecessary, at the cost of
-   SIP-005 compatibility (2.3).
+   SIP-005 compatibility
+   ([08-value-interpretation.md](08-value-interpretation.md) section 3).
