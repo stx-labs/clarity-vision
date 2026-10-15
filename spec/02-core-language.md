@@ -109,16 +109,17 @@ Meaning of each type:
 | `(optional T)`     | `none` or `(some v)` with `v : T`                                                                                                                                                                                                                                                                                               |
 | `(response T E)`   | `(ok v)` with `v : T` or `(err e)` with `e : E`                                                                                                                                                                                                                                                                                 |
 | `{ f: T, ... }`    | records with exactly the listed fields                                                                                                                                                                                                                                                                                          |
-| `(trait X)`        | contract principals whose interface implements trait `X`                                                                                                                                                                                                                                                                        |
+| `(trait X)`        | contract principals that conform to trait `X` (2.3.2); checked at compile time, not at runtime (2.5.8)                                                                                                                                                                                                                          |
 | contract literal   | the one contract principal named by a literal `'SP...123.c` or `.c`, or by a static constant holding one (2.4.1). Internal: it cannot be written in source, is never an interface or storable type, and exists so that a literal can be used wherever a trait type is expected (2.3.2) and as a `contract-call?` target (2.5.8) |
 
 `(buff N)`, `(string-ascii N)`, `(string-utf8 N)`, and `(list N T)` are the four
 **sequence types**. Their **element types** are `(buff 1)`, `(string-ascii 1)`,
 `(string-utf8 1)`, and `T` respectively.
 
-Every type has a statically known maximum serialized size (defined in the chain
-ABI's wire format). Two limits (2.8) apply to it, depending on where the type
-occurs:
+Every type has a statically known maximum serialized size, `serialized-size` of
+the interpretation layer
+([../08-value-interpretation.md](../08-value-interpretation.md) section 4.1).
+Two limits (2.8) apply to it, depending on where the type occurs:
 
 - The **value size limit** applies to the type of every name (a `let` or `match`
   binding, or a parameter of a function that is not inline), every function
@@ -151,8 +152,11 @@ reflexive, transitive relation such that:
 - `(response S1 S2) <: (response T1 T2)` when `S1 <: T1` and `S2 <: T2`.
 - `{ f1: S1, ... } <: { f1: T1, ... }` when both have exactly the same field
   names and `Si <: Ti` for every field.
-- The contract literal type of `c` (2.3.1) `<: (trait X)` when the interface of
-  `c` implements `X` (chain ABI trait rules), and `<: principal` always.
+- The contract literal type of `c` (2.3.1) `<: (trait X)` when `c` conforms to
+  `X`: its declared signatures in `abi.types` (2.4.4) satisfy the rule of
+  `impl-trait` (2.4.1), which is the interpretation layer's conformance rule
+  ([../08-value-interpretation.md](../08-value-interpretation.md) section 5.2).
+  It is `<: principal` always.
 - `(trait X) <: (trait Y)` when every function required by `Y` is present in `X`
   with an identical signature (structural sub-trait).
 - `(trait X) <: principal`.
@@ -213,13 +217,16 @@ lifting it later is backward compatible and restoring it would not be.
 
 A type is an **interface type** if it contains no type or size variable. Trait
 types are allowed. Only interface types may appear in the parameter and result
-types of public and read-only functions and in trait definitions.
+types of public and read-only functions and in trait definitions. They are the
+types the compiler declares in `abi.types` (2.4.4), and each is a type of the
+interpretation layer's grammar
+([../08-value-interpretation.md](../08-value-interpretation.md) section 2).
 
 An interface type may contain `never`. A public function whose body is
 `(ok true)` has the result type `(response bool never)`, which states that the
-function cannot return `err`. The chain ABI's type grammar includes `never`, and
-boundary validation (2.5.8) admits no value for it. An author who wants a wider
-type in the interface states it with `as` (2.5.10):
+function cannot return `err`. The interpretation layer's grammar includes
+`never`, and argument and result validation (2.5.8) admits no value for it. An
+author who wants a wider type in the interface states it with `as` (2.5.10):
 `(as (response bool uint) (ok true))`.
 
 ### 2.3.4 Type variables and size variables
@@ -844,10 +851,10 @@ expression and the types of the operands of every `return` reachable in its body
 (after inline expansion). If the lub is undefined, it is a type error. For
 `define-public`, the result type MUST be a `response` type.
 
-The result type is not declared, and may contain `never` (2.3.3). A function
-with no `err` path has an error type of `never`; a function with no `ok` path
-has a value type of `never`. Either is a valid interface type and is what the
-compiler emits in the module's interface (2.4.4).
+The result type is not written in source, and may contain `never` (2.3.3). A
+function with no `err` path has an error type of `never`; a function with no
+`ok` path has a value type of `never`. Either is a valid interface type and is
+what the compiler declares in `abi.types` (2.4.4).
 
 ### 2.6.5 Rest parameters
 
@@ -919,10 +926,10 @@ Rules:
   a cycle (2.4.3). The binary operation lives in a helper, as `std-max-pair`
   above, or in a primitive.
 - **Private only.** Public and read-only functions MUST NOT have rest
-  parameters, because their interface has a fixed arity in the chain ABI. Inline
-  functions MUST NOT have them either: rest arguments are evaluated as a list
-  before the body runs, which would silently make an inline function strict in
-  those arguments.
+  parameters, because their declared signatures have a fixed arity (2.4.4).
+  Inline functions MUST NOT have them either: rest arguments are evaluated as a
+  list before the body runs, which would silently make an inline function strict
+  in those arguments.
 - **Primitives** whose chapter 3 signature ends in `I...` or `S...` follow the
   same rules, including spread. Their result type may be tighter than a user
   definition could state; `concat`'s bound, for example, is the exact sum of its
