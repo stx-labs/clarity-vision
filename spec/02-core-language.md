@@ -1018,7 +1018,8 @@ recursion every call chain is visible in the definition graph.
 ### 2.7.6 Events
 
 `print` and every asset primitive emit events into the transaction's event
-batch. Events of a rolled-back frame are discarded with it.
+batch. A `print` event is the text rendering of its value (3.10). Events of a
+rolled-back frame are discarded with it.
 
 ### 2.7.7 Cost
 
@@ -1065,6 +1066,7 @@ source size and transaction budgets.
 | Maximum function call depth within a contract (2.7.5)                                | 128             | `MAX_CALL_STACK_DEPTH`; contract-call depth is the chain ABI's                                      |
 | Maximum allowances per `as-contract?` / `restrict-assets?`                           | 128             | `MAX_ALLOWANCES`                                                                                    |
 | Maximum storage key: a map's key prefix plus `serialized-size` of its key type (3.7) | 1,024 bytes     | new; the chain ABI's storage key limit                                                              |
+| Maximum `print` message: the rendered length bound of the argument's type (3.10)     | 1,048,576 bytes | new; the chain ABI's print message limit                                                            |
 
 There is no limit on the size of a contract after inline expansion and
 instantiation, which can grow exponentially (definitions that each call the next

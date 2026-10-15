@@ -304,8 +304,36 @@ sender's nonce.)
 
 | Primitive | Signature     | Semantics                                                                                                            |
 | --------- | ------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `print`   | `(T) -> T`    | emits the value as an event and returns it                                                                           |
+| `print`   | `(T) -> T`    | emits the value's rendering (below) as an event and returns the value                                                |
 | `panic`   | `() -> never` | aborts the transaction with a runtime error. The library's `unwrap-panic` and `unwrap-err-panic` are defined with it |
+
+The chain records a `print` event as UTF-8 text and does not interpret it
+([../07-chain-abi.md](../07-chain-abi.md) section 6.2), so the language fixes
+how a value is rendered. The **rendering** of a value is its Clarity literal
+syntax (2.2, 2.5.6), so a tool can show it as written and parse it back:
+
+| Value              | Rendering                                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `int`              | decimal, with `-` if negative: `-7`                                                                             |
+| `uint`             | `u`, then decimal: `u42`                                                                                        |
+| `bool`             | `true` or `false`                                                                                               |
+| `principal`        | `'` then the text form of `principal-to-ascii` (3.5): `'SP...` or `'SP....name`                                 |
+| `(buff N)`         | `0x`, then two lowercase hex digits per byte: `0x`, `0xdeadbeef`                                                |
+| `(string-ascii N)` | `"`, the characters, `"`, with `\\`, `\"`, `\n`, `\t`, `\r` escaped as in literals                              |
+| `(string-utf8 N)`  | `u"`, the characters, `"`, escaped as `string-ascii`, and any other code point below 0x20, or 0x7F, as `\u{XX}` |
+| `(optional T)`     | `none`, or `(some v)`                                                                                           |
+| `(response T E)`   | `(ok v)` or `(err v)`                                                                                           |
+| `(list N T)`       | `(list v1 v2 ...)`; the empty list is `(list)`                                                                  |
+| tuple              | `{ f1: v1, f2: v2 }`, fields in ascending byte order of name; the empty tuple is `{}`                           |
+
+The spacing is exactly as shown: one space between the parts of a form, and in a
+tuple one space after `{`, after each `:` and `,`, and before `}`. A trait-typed
+value renders as its principal. Every type has a statically known **rendered
+length bound**, the longest rendering of any of its values, and a `print` whose
+argument type's bound exceeds the print message limit (2.8) is a type error, so
+`print` never fails at runtime. Legacy `print` emits the value in SIP-005
+encoding instead ([../08-value-interpretation.md](../08-value-interpretation.md)
+section 7.1).
 
 ## 3.11 Count
 
