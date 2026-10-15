@@ -17,10 +17,10 @@ vNEXT is specified as **a small core language plus a standard library written in
 that core language**. This is the single most important structural decision in
 the spec, and every chapter is organized around it:
 
-| Layer                | Contents                                                                                                                                                                                                                                                                         | Where specified                                                                        |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| **Core language**    | Syntax, types, a fixed set of _special forms_ (binding, branching, early exit, definitions, constructors, tuple access, type ascription, calls, context scoping) and a fixed set of _primitive operations_ (host access, cryptography, and the base operations on each type's representation)                                 | [02-core-language.md](02-core-language.md), [03-primitives.md](03-primitives.md)       |
-| **Standard library** | Every other construct a contract author uses: `if`, `unwrap!`, `try!`, `asserts!`, `default-to`, `mod`, `pow`, `append`, `index-of?`, `map-insert?`, integer/string conversions, `verify-merkle-proof`, and so on. Written in vNEXT and linked into every module by the compiler | [04-standard-library.md](04-standard-library.md), [std/prelude.clar](std/prelude.clar) |
+| Layer                | Contents                                                                                                                                                                                                                                                                                      | Where specified                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **Core language**    | Syntax, types, a fixed set of _special forms_ (binding, branching, early exit, definitions, constructors, tuple access, type ascription, calls, context scoping) and a fixed set of _primitive operations_ (host access, cryptography, and the base operations on each type's representation) | [02-core-language.md](02-core-language.md), [03-primitives.md](03-primitives.md)       |
+| **Standard library** | Every other construct a contract author uses: `if`, `unwrap!`, `try!`, `asserts!`, `default-to`, `mod`, `pow`, `append`, `index-of?`, `map-insert?`, integer/string conversions, `verify-merkle-proof`, and so on. Written in vNEXT and linked into every module by the compiler              | [04-standard-library.md](04-standard-library.md), [std/prelude.clar](std/prelude.clar) |
 
 ### The layering rule
 
@@ -97,11 +97,11 @@ user feature and is specified as such.
 
 - **MUST**, **MUST NOT**, **SHOULD**, **MAY** carry their RFC 2119 meanings.
 - **Rule identifiers.** While a chapter is a draft, a normative rule is
-  identified by the section that states it (for example 2.6.5). When a
-  chapter's conformance vectors are written, each rule in it gains the
-  identifier `<section>-<n>`, numbered in order of appearance within the
-  section, and vectors cite that identifier. Identifiers are assigned at that
-  point and not before, so that a moving draft is not renumbered.
+  identified by the section that states it (for example 2.6.5). When a chapter's
+  conformance vectors are written, each rule in it gains the identifier
+  `<section>-<n>`, numbered in order of appearance within the section, and
+  vectors cite that identifier. Identifiers are assigned at that point and not
+  before, so that a moving draft is not renumbered.
 - **Open questions.** Each chapter ends with its open questions. One tagged
   `RFC` needs its own design RFC before the chapter can be frozen.
 - Type signatures use the notation `name : (arg-types) -> result-type`.

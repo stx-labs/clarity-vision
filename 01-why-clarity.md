@@ -54,9 +54,10 @@ them:
   analyzer can enumerate every path by which a contract's assets can move.
 - **Tractable safety proofs.** All functions are total, state access is
   explicit, and there is no reentrancy, so verification conditions stay inside
-  decidable or well-behaved SMT fragments. Proving invariants such as supply
-  conservation, access control, and "no path locks funds" is an engineering
-  task, not a research program.
+  decidable or well-behaved
+  [SMT](https://en.wikipedia.org/wiki/Satisfiability_modulo_theories) fragments.
+  Proving invariants such as supply conservation, access control, and "no path
+  locks funds" is an engineering task, not a research program.
 
 ### 1.3 The deployed artifact is Wasm
 
