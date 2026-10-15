@@ -98,18 +98,21 @@ library, because a fold would have to carry `f` in its accumulator.
 
 ## 3.4 Conversions and serialization
 
-| Primitive              | Signature                          | Semantics                                                                                                                                                                                                                                                                                                  | Runtime errors                         |
-| ---------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `buff-to-uint-be`      | `((buff 16)) -> uint`              | big-endian unsigned interpretation; the empty buffer is `u0`                                                                                                                                                                                                                                               |                                        |
-| `uint-to-buff-be`      | `(uint size) -> (buff W)`          | the second argument is a size term `W` (2.3.1), at most 16; big-endian encoding in exactly `W` bytes                                                                                                                                                                                                       | value does not fit in `W` bytes        |
-| `uint-to-buff-le`      | `(uint size) -> (buff W)`          | little-endian counterpart                                                                                                                                                                                                                                                                                  | value does not fit                     |
-| `int-to-buff-be`       | `(int size) -> (buff W)`           | two's-complement big-endian encoding in exactly `W` bytes                                                                                                                                                                                                                                                  | value does not fit in `W` signed bytes |
-| `int-to-buff-le`       | `(int size) -> (buff W)`           | little-endian counterpart                                                                                                                                                                                                                                                                                  | value does not fit                     |
-| `to-consensus-buff`    | `(T) -> (buff serialized-size(T))` | SIP-005 serialization of the value. Total: the size limits apply to the result through its position (2.3.1), so a serialization that is only hashed or compared is bounded by the intermediate limit, and one that is bound, returned, or stored by the value limit, both statically. `T` MUST be storable |                                        |
-| `from-consensus-buff?` | `(type (buff N)) -> (optional T)`  | the first argument is a type expression `T`, which MUST be storable. Deserializes; `none` if the bytes are not a canonical encoding of a value of type `T` (exact typed-tuple fields, no trailing bytes). Memory for the result is reserved against `serialized-size(T)` before decoding (2.7.7)           |                                        |
+| Primitive              | Signature                          | Semantics                                                                                                                                                                                                                                                                                                                    | Runtime errors                         |
+| ---------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `buff-to-uint-be`      | `((buff 16)) -> uint`              | big-endian unsigned interpretation; the empty buffer is `u0`                                                                                                                                                                                                                                                                 |                                        |
+| `uint-to-buff-be`      | `(uint size) -> (buff W)`          | the second argument is a size term `W` (2.3.1), at most 16; big-endian encoding in exactly `W` bytes                                                                                                                                                                                                                         | value does not fit in `W` bytes        |
+| `uint-to-buff-le`      | `(uint size) -> (buff W)`          | little-endian counterpart                                                                                                                                                                                                                                                                                                    | value does not fit                     |
+| `int-to-buff-be`       | `(int size) -> (buff W)`           | two's-complement big-endian encoding in exactly `W` bytes                                                                                                                                                                                                                                                                    | value does not fit in `W` signed bytes |
+| `int-to-buff-le`       | `(int size) -> (buff W)`           | little-endian counterpart                                                                                                                                                                                                                                                                                                    | value does not fit                     |
+| `to-consensus-buff`    | `(T) -> (buff serialized-size(T))` | canonical encoding of the value (SIP-005; see below). Total: the size limits apply to the result through its position (2.3.1), so a serialization that is only hashed or compared is bounded by the intermediate limit, and one that is bound, returned, or stored by the value limit, both statically. `T` MUST be storable |                                        |
+| `from-consensus-buff?` | `(type (buff N)) -> (optional T)`  | the first argument is a type expression `T`, which MUST be storable. Deserializes; `none` if the bytes are not a canonical encoding of a value of type `T` (exact typed-tuple fields, no trailing bytes). Memory for the result is reserved against `serialized-size(T)` before decoding (2.7.7)                             |                                        |
 
-`serialized-size(T)` is a type-level size function defined with the wire format
-in the chain ABI.
+Canonical encoding and `serialized-size(T)`, the largest encoding of any value
+of `T`, are defined by the interpretation layer
+([../08-value-interpretation.md](../08-value-interpretation.md) sections 3 and
+4.1). The compiler uses the same encoding for call arguments and results
+(2.5.8), storage (3.7), and NFT identifiers (3.8).
 
 ### Bitcoin transaction parsing
 
@@ -246,6 +249,17 @@ asset map and is subject to transaction post-conditions and to any enclosing
 deliberate: STX is the chain's own asset and keeps the strict check, while a
 token's contract decides its own transfer rules, with post-conditions and
 allowances as the holder's protection.
+
+The chain stores and compares non-fungible token identifiers as bytes
+([../07-chain-abi.md](../07-chain-abi.md) section 6.2). The compiler passes an
+identifier's canonical encoding (3.4) and declares the token's identifier type
+in `abi.types` (2.4.4), so a Clarity token's identifiers have the same bytes as
+in legacy, in transaction post-conditions, and in `with-nft` allowances (2.5.9),
+and tools display them by their type.
+
+The chain records a `stx-transfer?` memo as bytes and treats an empty memo as no
+memo ([../07-chain-abi.md](../07-chain-abi.md) section 6.2), so `(some 0x)` and
+`none` produce the same event.
 
 ## 3.9 Transaction and chain context
 
