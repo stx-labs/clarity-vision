@@ -211,8 +211,8 @@ source language lays its own variables and maps out over that store, for example
 by prefixing each key with the variable or map name. The chain does not need
 storage types, since it never acts on a stored value, and leaving them out
 removes a decode from every write and keeps the host independent of how any
-language structures its state. Reading a contract's state therefore needs its
-language's layout ([08-value-interpretation.md](08-value-interpretation.md)
+language structures its state. A contract makes its state readable by tools by
+declaring its layout ([08-value-interpretation.md](08-value-interpretation.md)
 section 7.2).
 
 ## 5. Calls
@@ -1391,9 +1391,11 @@ Adopting this proposal changes the following. None of the changes is made yet.
 2. **Exports have one Wasm type.** [03-architecture.md](03-architecture.md)
    section 3 requires "matching Wasm signatures". Under section 3.3 every entry
    is `[] -> []` and the check is that the export exists.
-3. **Storage is an untyped key-value store** (4.2). The Clarity spec must define
-   how `define-data-var` and `define-map` lay out keys and values in it, both
-   for the compiler and so tools can read a Clarity contract's state.
+3. **Storage is an untyped key-value store** (4.2). The Clarity compiler lays
+   out `define-data-var` and `define-map` in it by the declared layout of
+   [08-value-interpretation.md](08-value-interpretation.md) section 7.2 and
+   declares every variable and map in `abi.types`, so tools can read a Clarity
+   contract's state; the Clarity spec must fix the prefixes it uses.
    [03-architecture.md](03-architecture.md) section 4 lists data-var and map
    host functions; they become one key-value store.
 4. **A fungible token's cap is set by a host call during `init`** (6.2).

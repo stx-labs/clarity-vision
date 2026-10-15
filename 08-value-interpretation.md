@@ -15,15 +15,15 @@ the form "chain ABI 5.2" are to sections of [07-chain-abi.md](07-chain-abi.md).
 
 ## 1. The two layers
 
-| Value                                                | Chain ABI (runtime)                                                        | This document                             |
-| ---------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------- |
-| Interface                                            | reads function names and kinds, and token names (4.1)                      | typed signatures and traits (5)           |
-| Arguments                                            | passes the bytes to the callee unchanged (5.2)                             | their types (5) and layout (6.1, 6.4)     |
-| Results                                              | passes the bytes and the result flag; the flag closes a public frame (5.2) | their types (5) and encoding (6.2, 6.4)   |
-| Storage                                              | stores bytes under byte keys (4.2)                                         | how a language publishes its layout (7.2) |
-| `print` messages                                     | records UTF-8 text (6.2)                                                   | how a language renders values (7.1)       |
-| NFT identifiers                                      | stores and compares bytes (6.2)                                            | their declared type (7.3)                 |
-| Host values: principals, `u128` words, and raw bytes | defines them and acts on them (2)                                          | nothing                                   |
+| Value                                                | Chain ABI (runtime)                                                        | This document                           |
+| ---------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------- |
+| Interface                                            | reads function names and kinds, and token names (4.1)                      | typed signatures and traits (5)         |
+| Arguments                                            | passes the bytes to the callee unchanged (5.2)                             | their types (5) and layout (6.1, 6.4)   |
+| Results                                              | passes the bytes and the result flag; the flag closes a public frame (5.2) | their types (5) and encoding (6.2, 6.4) |
+| Storage                                              | stores bytes under byte keys (4.2)                                         | its declared layout (7.2)               |
+| `print` messages                                     | records UTF-8 text (6.2)                                                   | how a language renders values (7.1)     |
+| NFT identifiers                                      | stores and compares bytes (6.2)                                            | their declared type (7.3)               |
+| Host values: principals, `u128` words, and raw bytes | defines them and acts on them (2)                                          | nothing                                 |
 
 The host's one structured value is a principal, and its encoding (chain ABI 2.2)
 is the same bytes as a `principal` value here, so a principal reads the same in
@@ -193,13 +193,14 @@ a value, a type has exactly one encoding.
 A module declares its types in the `abi.types` custom section (chain ABI 3.4),
 one canonically encoded record:
 
-| Field        | Contents                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------- |
-| `version`    | the version of this format (section 8)                                                            |
-| `functions`  | per function: name, parameters (name, type), result type                                          |
-| `nfts`       | per non-fungible token: name, identifier type                                                     |
-| `traits`     | per trait the contract defines: name, then per function: name, kind, parameter types, result type |
-| `implements` | the trait references of the traits the contract claims to conform to                              |
+| Field        | Contents                                                                                            |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| `version`    | the version of this format (section 8)                                                              |
+| `functions`  | per function: name, parameters (name, type), result type                                            |
+| `nfts`       | per non-fungible token: name, identifier type                                                       |
+| `traits`     | per trait the contract defines: name, then per function: name, kind, parameter types, result type   |
+| `implements` | the trait references of the traits the contract claims to conform to                                |
+| `storage`    | per variable or map (not per value): name, kind, key prefix, key type (maps only), value type (7.2) |
 
 Rules:
 
@@ -218,6 +219,7 @@ Rules:
 - At most 256 parameters per function, in `functions` and in traits, as legacy.
 - No declared type's `serialized-size` exceeds the value size limit (4.1), and
   no type nests deeper than 32.
+- `storage` follows the rules of 7.2.
 
 ### 5.2 Traits
 
@@ -333,9 +335,33 @@ decodes legacy events as values and Wasm events as text.
 
 Contract storage is an untyped key-value store (chain ABI 4.2), so state is not
 self-describing: an explorer, a wallet, or the node's state read endpoint
-returns raw bytes, and decoding them needs the source language's layout. A
-language that wants its state readable by tools publishes that layout, as the
-Clarity spec will (chain ABI 12, item 3).
+returns raw bytes. The `storage` field of `abi.types` (5.1) makes it readable
+without knowing the contract's language. It holds one declaration per variable
+or map. Each declaration has a key prefix, a non-empty byte string the language
+chooses, and fixes where its values live in the store:
+
+| Declaration | Store key                                                     | Store value                             |
+| ----------- | ------------------------------------------------------------- | --------------------------------------- |
+| variable    | the prefix                                                    | canonical encoding of the value         |
+| map         | per entry: the prefix, then the canonical encoding of the key | canonical encoding of the entry's value |
+
+A map has an entry for a key exactly when the store has a value under the store
+key for that key; a missing entry is the absence of that store key, not a stored
+marker. Rules:
+
+- No declaration's prefix is a prefix of another's, so every store key belongs
+  to at most one declaration.
+- The prefix plus the `serialized-size` of the key type fits the storage key
+  limit, and the value type's `serialized-size` fits the storage value limit
+  (chain ABI 9.3).
+
+A store key that belongs to no declaration is undeclared, and a tool shows it
+and its value as raw bytes. A language whose layout differs from this one leaves
+its storage undeclared, as it can leave functions undeclared (6.4); the Clarity
+compiler declares every data variable and map (chain ABI 12, item 3). Like any
+declaration, `storage` is a claim: nothing stops a module from writing other
+bytes under a declared key, and a tool that cannot decode a store value shows it
+raw (6.3).
 
 ### 7.3 NFT identifiers
 
@@ -367,7 +393,3 @@ every existing tool.
    instead of each checking for itself. Against it: deploy gains a type decoder
    for a section the chain otherwise ignores, and a valid declaration still says
    nothing about the values a module accepts (section 5).
-2. **Declared storage layout.** Under 7.2 a language publishes one layout for
-   all its contracts. The alternative is for `abi.types` to declare each
-   contract's variables and maps with their key prefixes and types, so a tool
-   could read any contract's state without knowing its language.
