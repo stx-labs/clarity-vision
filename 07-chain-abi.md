@@ -22,16 +22,16 @@ It draws on two prior systems:
 
 Each rule answers a problem found in one of the two prior systems.
 
-| Rule                                                                                                                                                  | Problem it answers                                                                                                                                                                                                                                                                 |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **R1. Every value crosses the host boundary as bytes in one canonical encoding.** The host never needs a language's types or memory layout.           | clarity-wasm passed values in a Clarity-type-directed layout, so the host kept a copy of Clarity's type checker and re-parsed textual type strings at runtime (`print`, early returns). Unknown response arms changed Wasm signatures and needed a "duck typing" conversion layer. |
-| **R2. Every encoding has exactly one valid byte string per value.** Decoding rejects anything else.                                                   | Legacy decoding accepts unsorted tuple fields, duplicate fields before epoch 4.1, and two contract-name length limits, and "sanitizes" extra tuple fields in some paths but not others.                                                                                            |
-| **R3. Types are complete.** No partially known or inference-only types.                                                                               | `NoType`, `ListUnionType`, and `TraitReferenceType` in legacy, and the epoch-dependent admission rules built around them.                                                                                                                                                          |
-| **R4. The chain enforces every guarantee itself.** No guarantee depends on a compiler emitting instrumentation or on a call being made.               | clarity-wasm metering was optional codegen, and the node deploy path compiled without it. Host-function cost charges were commented out.                                                                                                                                           |
-| **R5. A module has no state except chain state.** Each call gets a fresh instance.                                                                    | Without this, linear memory and globals could carry data between calls in one transaction, which is state that no rollback covers.                                                                                                                                                 |
-| **R6. Every contract-caused failure is an includable transaction outcome.**                                                                           | Legacy "rejectable" errors (`Unreachable`, some memory and asset-map errors) make a transaction unmineable rather than failed, which desynchronizes the sender's nonce.                                                                                                            |
-| **R7. Semantics never change under a module.** A module binds to an ABI version, and that version's behavior is frozen; only the fuel schedule moves. | Legacy reinterprets `block-height`, `get-block-info?` heights, `secp256r1-verify` hashing, and argument sanitizing by epoch, under contracts already deployed.                                                                                                                     |
-| **R8. The ABI is a single formal definition.** Host and every compiler derive from it.                                                                | clarity-wasm's host interface was two hand-synchronized Rust files and a `.wat` import list.                                                                                                                                                                                       |
+| Rule                                                                                                                                                                                                       | Problem it answers                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **R1. The host never interprets a contract's values.** Arguments, results, storage, and events cross the boundary as bytes; the host decodes only the values it acts on itself, in one canonical encoding. | clarity-wasm passed values in a Clarity-type-directed layout, so the host kept a copy of Clarity's type checker and re-parsed textual type strings at runtime (`print`, early returns). Unknown response arms changed Wasm signatures and needed a "duck typing" conversion layer. |
+| **R2. Every encoding has exactly one valid byte string per value.** Decoding rejects anything else.                                                                                                        | Legacy decoding accepts unsorted tuple fields, duplicate fields before epoch 4.1, and two contract-name length limits, and "sanitizes" extra tuple fields in some paths but not others.                                                                                            |
+| **R3. Types are complete.** No partially known or inference-only types.                                                                                                                                    | `NoType`, `ListUnionType`, and `TraitReferenceType` in legacy, and the epoch-dependent admission rules built around them.                                                                                                                                                          |
+| **R4. The chain enforces every guarantee itself.** No guarantee depends on a compiler emitting instrumentation or on a call being made.                                                                    | clarity-wasm metering was optional codegen, and the node deploy path compiled without it. Host-function cost charges were commented out.                                                                                                                                           |
+| **R5. A module has no state except chain state.** Each call gets a fresh instance.                                                                                                                         | Without this, linear memory and globals could carry data between calls in one transaction, which is state that no rollback covers.                                                                                                                                                 |
+| **R6. Every contract-caused failure is an includable transaction outcome.**                                                                                                                                | Legacy "rejectable" errors (`Unreachable`, some memory and asset-map errors) make a transaction unmineable rather than failed, which desynchronizes the sender's nonce.                                                                                                            |
+| **R7. Semantics never change under a module.** A module binds to an ABI version, and that version's behavior is frozen; only the fuel schedule moves.                                                      | Legacy reinterprets `block-height`, `get-block-info?` heights, `secp256r1-verify` hashing, and argument sanitizing by epoch, under contracts already deployed.                                                                                                                     |
+| **R8. The ABI is a single formal definition.** Host and every compiler derive from it.                                                                                                                     | clarity-wasm's host interface was two hand-synchronized Rust files and a `.wat` import list.                                                                                                                                                                                       |
 
 ## 2. Value model
 
@@ -42,54 +42,45 @@ type ::= int | uint | bool | principal | never
        | (buff N) | (string-ascii N) | (string-utf8 N)
        | (list N type) | (optional type) | (response type type)
        | { name: type, ... }
-       | (trait trait-ref)
-trait-ref ::= contract-principal "." name
 ```
 
-Every construct in the grammar is something the chain itself must understand:
-`response` drives rollback, `trait` drives a dispatch check, the bounds drive
-validation and sizing. A source language maps its own types onto these.
+The grammar describes the values in an interface (section 4) and the values the
+host reads and writes itself (section 6). The chain does not check arguments or
+results against it (5.4): it is the shared vocabulary that compilers, wallets,
+and explorers use to describe and encode the values a contract exchanges. A
+source language maps its own types onto these.
 
-| Type               | Values                                                      |
-| ------------------ | ----------------------------------------------------------- |
-| `int`              | signed 128-bit integers                                     |
-| `uint`             | unsigned 128-bit integers                                   |
-| `bool`             | `true`, `false`                                             |
-| `principal`        | standard or contract principals                             |
-| `never`            | none                                                        |
-| `(buff N)`         | byte sequences of length at most `N`                        |
-| `(string-ascii N)` | at most `N` bytes from the ASCII set of section 2.3         |
-| `(string-utf8 N)`  | UTF-8 strings of at most `N` code points                    |
-| `(list N T)`       | sequences of at most `N` values of `T`                      |
-| `(optional T)`     | `none`, or `(some v)` with `v` of `T`                       |
-| `(response T E)`   | `(ok v)` with `v` of `T`, or `(err e)` with `e` of `E`      |
-| `{ f: T, ... }`    | records with exactly the listed fields                      |
-| `(trait X)`        | contract principals that conform to trait `X` (section 4.2) |
+| Type               | Values                                                 |
+| ------------------ | ------------------------------------------------------ |
+| `int`              | signed 128-bit integers                                |
+| `uint`             | unsigned 128-bit integers                              |
+| `bool`             | `true`, `false`                                        |
+| `principal`        | standard or contract principals                        |
+| `never`            | none                                                   |
+| `(buff N)`         | byte sequences of length at most `N`                   |
+| `(string-ascii N)` | at most `N` bytes from the ASCII set of section 2.3    |
+| `(string-utf8 N)`  | UTF-8 strings of at most `N` code points               |
+| `(list N T)`       | sequences of at most `N` values of `T`                 |
+| `(optional T)`     | `none`, or `(some v)` with `v` of `T`                  |
+| `(response T E)`   | `(ok v)` with `v` of `T`, or `(err e)` with `e` of `E` |
+| `{ f: T, ... }`    | records with exactly the listed fields                 |
 
 - Every type is closed: no type variables, no unknown parts.
 - `never` may appear anywhere a type may; a position of type `never` can hold
   nothing, and validation admits nothing for it.
 - Tuples have exact field sets (R2). Zero-field tuples are allowed.
 
-**Subtyping** is the smallest reflexive, transitive relation such that:
-
-- `never <: T` for every `T`;
-- `(buff N) <: (buff M)`, `(string-ascii N) <: (string-ascii M)`, and
-  `(string-utf8 N) <: (string-utf8 M)` when `N <= M`;
-- `(list N S) <: (list M T)` when `N <= M` and `S <: T`;
-- `(optional S) <: (optional T)` and `(response S1 S2) <: (response T1 T2)`
-  componentwise;
-- `{ f1: S1, ... } <: { f1: T1, ... }` when the field names are identical and
-  `Si <: Ti` for every field;
-- `(trait X) <: (trait Y)` when every function of `Y` is in `X` with an
-  identical signature, and `(trait X) <: principal`.
+There is no trait type and no subtyping. Traits are a source-language concept: a
+parameter that a language types as a trait is a `principal` in the interface,
+and the language checks whatever it requires of that principal (5.4). Whether
+one type may stand in for another is likewise the language's rule.
 
 ### 2.2 Names
 
-| Kind                                                     | Grammar                                                                       | Length      |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------- |
-| Function, token, trait, parameter, and tuple-field names | ASCII letters, digits, and `- _ ! ? + < > = / * ^`, not starting with a digit | 1–128 bytes |
-| Contract names                                           | an ASCII letter, then letters, digits, `-`, `_`                               | 1–40 bytes  |
+| Kind                                              | Grammar                                                                       | Length      |
+| ------------------------------------------------- | ----------------------------------------------------------------------------- | ----------- |
+| Function, token, parameter, and tuple-field names | ASCII letters, digits, and `- _ ! ? + < > = / * ^`, not starting with a digit | 1–128 bytes |
+| Contract names                                    | an ASCII letter, then letters, digits, `-`, `_`                               | 1–40 bytes  |
 
 Every source language shares these rules. One contract-name limit applies
 everywhere: in deploys, in values, and on the wire. Legacy has 40 at deploy and
@@ -99,8 +90,11 @@ everywhere: in deploys, in values, and on the wire. Legacy has 40 at deploy and
 
 The encoding is SIP-005, byte for byte, for every value that exists in legacy,
 so values pass between legacy and Wasm contracts and between the chain and
-existing tooling without translation. What changes is decoding, which accepts
-only the canonical form.
+existing tooling without translation. The host uses it for every value it
+decodes or produces: the arguments of host functions (6.1), chain data, and
+allowance descriptors. It is also the standard encoding of arguments and results
+(5.4), which the chain passes through without decoding. What changes from legacy
+is decoding, which accepts only the canonical form.
 
 | Prefix | Value              | Payload                                                         |
 | ------ | ------------------ | --------------------------------------------------------------- |
@@ -123,8 +117,7 @@ only the canonical form.
 **Canonical decoding** of bytes `b` against type `T` succeeds if and only if `b`
 is exactly the encoding of some value of `T`:
 
-- the prefix is one that `T` admits; `(trait X)` and `principal` admit `0x05`
-  and `0x06` as the type allows, and the trait check is separate (section 5.4);
+- the prefix is one that `T` admits; `principal` admits `0x05` and `0x06`;
 - lengths and counts are within `T`'s bounds; `string-utf8` bounds count code
   points;
 - tuple fields are exactly `T`'s fields, in strictly ascending byte order of
@@ -136,8 +129,8 @@ is exactly the encoding of some value of `T`:
 - nesting depth is at most 32, counted the same way everywhere;
 - no bytes remain after the value.
 
-There is no sanitizing and no untyped decoding at a boundary. Self-describing
-prefixes are kept for tooling; every decode in the chain is typed.
+There is no sanitizing and no untyped decoding in the host. Self-describing
+prefixes are kept for tooling; every decode in the host is typed.
 
 ### 2.4 Sizes
 
@@ -147,7 +140,7 @@ prefixes are kept for tooling; every decode in the chain is typed.
 | ------------------------------ | ------------------------------ |
 | `int`, `uint`                  | 17                             |
 | `bool`                         | 1                              |
-| `principal`, `(trait X)`       | 63 (1 + 1 + 20 + 1 + 40)       |
+| `principal`                    | 63 (1 + 1 + 20 + 1 + 40)       |
 | `never`                        | 0                              |
 | `(buff N)`, `(string-ascii N)` | 5 + N                          |
 | `(string-utf8 N)`              | 5 + 4N                         |
@@ -164,21 +157,20 @@ principal is 148 there and up to 151 on the wire); the ABI has one measure.
 
 Interfaces carry types in a binary encoding that reuses the value prefixes:
 
-| Tag    | Type               | Payload                                      |
-| ------ | ------------------ | -------------------------------------------- |
-| `0x00` | `int`              |                                              |
-| `0x01` | `uint`             |                                              |
-| `0x02` | `(buff N)`         | u32 BE `N`                                   |
-| `0x03` | `bool`             |                                              |
-| `0x05` | `principal`        |                                              |
-| `0x07` | `(response T E)`   | `T`, `E`                                     |
-| `0x0A` | `(optional T)`     | `T`                                          |
-| `0x0B` | `(list N T)`       | u32 BE `N`, `T`                              |
-| `0x0C` | tuple              | u32 BE count, per field: name, type; sorted  |
-| `0x0D` | `(string-ascii N)` | u32 BE `N`                                   |
-| `0x0E` | `(string-utf8 N)`  | u32 BE `N`                                   |
-| `0x10` | `(trait X)`        | contract principal (as `0x06` payload), name |
-| `0x11` | `never`            |                                              |
+| Tag    | Type               | Payload                                     |
+| ------ | ------------------ | ------------------------------------------- |
+| `0x00` | `int`              |                                             |
+| `0x01` | `uint`             |                                             |
+| `0x02` | `(buff N)`         | u32 BE `N`                                  |
+| `0x03` | `bool`             |                                             |
+| `0x05` | `principal`        |                                             |
+| `0x07` | `(response T E)`   | `T`, `E`                                    |
+| `0x0A` | `(optional T)`     | `T`                                         |
+| `0x0B` | `(list N T)`       | u32 BE `N`, `T`                             |
+| `0x0C` | tuple              | u32 BE count, per field: name, type; sorted |
+| `0x0D` | `(string-ascii N)` | u32 BE `N`                                  |
+| `0x0E` | `(string-utf8 N)`  | u32 BE `N`                                  |
+| `0x11` | `never`            |                                             |
 
 Names are a u8 length and the bytes. Like values, a type has one encoding, and
 an interface containing a type whose `serialized-size` exceeds the value size
@@ -250,15 +242,14 @@ The chain, in order:
    sections 3.1–3.4.
 2. Decodes and validates the interface (section 4) and checks that the exports
    match it.
-3. Checks every implemented-trait claim structurally (section 4.2).
-4. Instantiates the module and runs `init`, if present, in a public frame
+3. Instantiates the module and runs `init`, if present, in a public frame
    (section 7) with `sender` and `caller` set to the deployer. The new contract
    has an active frame, so it cannot be called during its own `init` (section
    7.3).
 
 A runtime error in `init` aborts the deploy; nothing is stored. Deploy is
 charged for module bytes, validation, and compilation before step 1, and for the
-fuel `init` consumes (9.2). A module rejected in steps 1–3 is a failed deploy
+fuel `init` consumes (9.2). A module rejected in steps 1–2 is a failed deploy
 that pays its charges.
 
 ## 4. Interface
@@ -267,14 +258,12 @@ that pays its charges.
 
 The `abi.interface` section is one canonically encoded record:
 
-| Field         | Contents                                                                                    |
-| ------------- | ------------------------------------------------------------------------------------------- |
-| `abi-version` | the ABI version the module targets                                                          |
-| `functions`   | per function: name, kind (`public` or `read-only`), parameters (name, type), result type    |
-| `traits`      | per defined trait: name; per function: name, parameter types, result type, `read-only` flag |
-| `implements`  | trait references the contract claims to implement                                           |
-| `fts`         | per fungible token: name                                                                    |
-| `nfts`        | per non-fungible token: name                                                                |
+| Field         | Contents                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `abi-version` | the ABI version the module targets                                                       |
+| `functions`   | per function: name, kind (`public` or `read-only`), parameters (name, type), result type |
+| `fts`         | per fungible token: name                                                                 |
+| `nfts`        | per non-fungible token: name                                                             |
 
 Rules:
 
@@ -282,31 +271,18 @@ Rules:
   is canonical and an interface has one hash: `sha512/256` of the section bytes.
   That hash is what provenance records for each callee
   ([03-architecture.md](03-architecture.md) section 2).
-- A `public` function's result type is a `response`. A `read-only` function's
-  result type is any interface type.
-- Parameter and result types are interface types.
-- At most 256 parameters per function and 256 functions per trait, as legacy.
+- A `public` function's result type is a `response`, whose arms describe the
+  result for each value of the flag that `result_set` takes (5.2). A `read-only`
+  function's result type is any type.
+- Parameter and result types are declarations, not checks: the chain uses the
+  interface to find functions, their kinds, and tokens, and does not check
+  values against the declared types (5.4).
+- At most 256 parameters per function, as legacy.
 - A token is addressed by its index in its sorted list. The index is a
   module-local handle; the chain keys state by name (section 8.1), so the name,
   not the index, is the stable identity.
 
-### 4.2 Traits
-
-A trait is identified by its defining contract and name, and its definition is
-read from that contract's interface. A contract **conforms** to trait `X` when,
-for every function `f` of `X`, the contract defines `f` with the same number of
-parameters, each parameter type a supertype of the trait's (contravariant), a
-result type that is a subtype of the trait's (covariant), and, if the trait
-marks `f` read-only, kind `read-only`.
-
-Conformance is structural, and it is the only notion of conformance the chain
-uses at runtime. `implements` claims are checked against the same rule at deploy
-and are otherwise informational, for tools. Legacy has two code paths: declared
-implementations skip the runtime checks, including the result-type check, while
-undeclared ones are duck-typed. Interfaces never change, so the chain may cache
-a conformance result per (contract, trait) pair.
-
-### 4.3 Storage is untyped
+### 4.2 Storage is untyped
 
 Storage is not part of the interface. Each contract has one key-value store
 whose keys and values are bytes (6.2), and the host never decodes either. A
@@ -332,17 +308,15 @@ that layout, as the Clarity spec will (section 12).
 | `call` host function      | per the callee's kind               | unchanged / calling contract |
 | Read-only query (RPC)     | read-only frame                     | as the request states        |
 
-A contract-call transaction whose arguments fail boundary validation (5.4)
-against the function's parameter types, or that names a missing or `read-only`
-function, fails before any code runs. It is included and pays its intrinsic
-charge (9.2), with the class `bad-arguments`, `trait-mismatch`, or
-`no-such-function`.
+A contract-call transaction that names a missing or `read-only` function fails
+before any code runs. It is included and pays its intrinsic charge (9.2), with
+the class `no-such-function`. Its arguments are not checked (5.4); a transaction
+whose arguments exceed the arguments limit (9.3) is invalid.
 
-The node's read-only query validates its arguments the same way, and runs in an
-explicit read-only frame, so a write is a `read-only-violation`, not a zeroed
-write budget surfacing as a cost error, as in legacy. It runs under the node's
-own fuel limit (9.1). Simulating a public function is a separate query that runs
-a public frame and discards it.
+The node's read-only query runs in an explicit read-only frame, so a write is a
+`read-only-violation`, not a zeroed write budget surfacing as a cost error, as
+in legacy. It runs under the node's own fuel limit (9.1). Simulating a public
+function is a separate query that runs a public frame and discards it.
 
 ### 5.2 Arguments and results
 
@@ -351,13 +325,17 @@ Inside an entry point:
 - `args_size()` returns the byte length of the arguments, and
   `args_read(dst, offset, len)` copies `len` bytes of them, starting at
   `offset`, into memory, so a module can read them whole or piecewise. The
-  arguments are the canonical encodings of each argument, concatenated in
-  parameter order; the count comes from the interface. The host has already
-  validated them, so the module may decode them without checks.
-- `result_set(result)` sets the result. It is called exactly once before the
-  export returns. The host validates it (5.4) against the declared result type.
-  Returning without a result, setting one twice, or setting one that fails
-  validation is a `bad-result` runtime error.
+  arguments are the bytes the caller passed, unchanged: a contract-call
+  transaction and a read-only query carry them as one byte string, and `call`
+  takes them as `args`. The chain does not parse them. By convention they are
+  each argument's canonical encoding, concatenated in parameter order (5.4).
+- `result_set(ok, result)` sets the result: a flag, `1` for ok and `0` for err,
+  and the result's bytes. It does not return: the host ends the export there, as
+  `abort` does, so no host function runs after the result is set and a result
+  cannot be set twice. For a `public` function, the flag closes the frame: ok
+  commits, err discards (7.1). For a `read-only` function, the flag is passed to
+  the caller and recorded, and has no other effect. An export that returns
+  without calling `result_set` is a `no-result` runtime error.
 
 The module chooses where the bytes go; the ABI defines no allocator and no
 exported buffer.
@@ -365,60 +343,63 @@ exported buffer.
 ### 5.3 The `call` host function
 
 ```
-call(target: val<principal>, trait: bytes, fn: bytes, args: bytes, out: buf) -> len
+call(target: val<principal>, fn: bytes, args: bytes, out: buf, ok: out<1>) -> len
 ```
 
 In the notation of 6.1, this is the Wasm type
-`(param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32) (result i32)`.
+`(param i32 i32 i32 i32 i32 i32 i32 i32 i32) (result i32)`.
 
 - `target` is the callee, a principal.
-- `trait` is empty (`len` 0) for a call with no trait, or a trait reference in
-  the form of a `(trait X)` type's payload (2.5): the defining contract as a
-  `0x06` payload, then a u8 name length and the trait name.
 - `fn` is the function name's bytes (2.2), not an encoded value.
-- `args` is the arguments as in 5.2: each argument's canonical encoding,
-  concatenated in parameter order.
+- `args` is the arguments as in 5.2, passed to the callee unchanged.
+- `ok` receives the callee's result flag (5.2), as one byte.
 
 The host, in order:
 
 1. Resolves the target. A standard principal, a missing contract, or a missing
    function is a runtime error (`no-such-function`).
-2. If `trait` is given, checks that the target conforms (4.2) and that `fn` is a
-   function of the trait. This is what lets the caller rely on the trait's
-   result type, which the caller's compiler used.
-3. If the current frame is read-only, requires `fn` to be `read-only` (section
+2. If the current frame is read-only, requires `fn` to be `read-only` (section
    7.4).
-4. Applies the reentrancy and depth rules (section 7.3).
-5. Validates `args` (5.4) against the callee's parameter types.
-6. Opens the callee's frame, instantiates a fresh instance, runs the export,
-   validates the result (5.4) against the callee's result type, and closes the
-   frame: for a public function, commit on `ok` and discard on `err`.
-7. Writes the encoded result to `out` and returns its length. If `cap` is too
-   small, it writes nothing, keeps the result, and returns the negated length;
-   `result_read(dst, offset, len)` then copies the kept result, whole or in
-   pieces. A kept result lasts until the next `call`; `result_read` with no kept
-   result is a `bad-host-argument` runtime error. The callee's frame has already
-   closed either way. A Clarity module never needs the second step, because the
-   `serialized-size` of the declared result is known when it compiles.
+3. Applies the reentrancy and depth rules (section 7.3).
+4. Opens the callee's frame, instantiates a fresh instance, runs the export, and
+   closes the frame: for a public function, commit if the result flag is ok and
+   discard if it is err.
+5. Writes the result flag to `ok`, writes the result to `out`, and returns its
+   length. If `cap` is too small, it writes the flag but not the result, keeps
+   the result, and returns the negated length; `result_read(dst, offset, len)`
+   then copies the kept result, whole or in pieces. A kept result lasts until
+   the next `call`; `result_read` with no kept result is a `bad-host-argument`
+   runtime error. The callee's frame has already closed either way. A Clarity
+   module sizes `out` for the `serialized-size` of the declared result and
+   treats a longer result as one that fails validation (5.4), so it never needs
+   the second step.
 
-Steps 1–5 failing, and any runtime error in the callee, abort the transaction.
+Steps 1–3 failing, and any runtime error in the callee, abort the transaction.
 There is no catch.
 
-### 5.4 Boundary validation
+### 5.4 Values at a call boundary
 
-Every value that crosses a call boundary is validated against a declared type: a
-transaction's or query's arguments (5.1), the arguments of a `call` (5.3), and
-the result of every entry point (5.2). Validating bytes against a type `T`:
+The chain does not validate the values that cross a call boundary: the arguments
+of a transaction or query (5.1), the arguments of a `call` (5.3), and every
+result (5.2) pass through as bytes. A module validates what it receives. A
+callee validates its arguments, and a caller validates the result of every call,
+since nothing guarantees that either matches the declared types; that includes
+whatever a language requires of a principal it types as a trait. Validation is
+module code, charged as execution (9.2) like any other work.
 
-1. decodes them canonically against `T` (2.3);
-2. checks that every principal in a `(trait X)` position of `T` conforms to `X`
-   (4.2). A standard principal or a missing contract does not conform.
+The declared types still matter outside the chain. Wallets encode arguments and
+clear-sign transactions from them, explorers decode results with them, and
+compilers type calls against them. The standard encoding of an argument list or
+a result is canonical encoding (2.3), which is what every tool expects. A
+language that has no use for structured values declares `(buff N)` parameters
+and results and treats them as bytes.
 
-For arguments, a failed decode is `bad-arguments` and a failed conformance check
-is `trait-mismatch`. For a result, either failure is `bad-result`, because the
-fault is the callee's. This is what lets a module rely on its declared parameter
-types whoever calls it, and a caller rely on the declared result type of the
-function it calls.
+Keeping validation out of the host keeps every language's type checker out of
+the host and the mempool. A transaction with malformed arguments is included,
+fails in the module, and pays for the check. What the chain still guarantees at
+a call boundary is the frame: commit or rollback by the result flag, read-only
+enforcement, reentrancy, and depth (section 7). A value that fails validation is
+a runtime error of the source language, reported through `abort` (10.2).
 
 ## 6. Host interface
 
@@ -432,7 +413,7 @@ Wasm type is the concatenation:
 | ---------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `i32`      | `i32`                | an integer, as the function describes                                                                                              |
 | `u128`     | `i64 lo`, `i64 hi`   | an unsigned 128-bit integer, low 64 bits first                                                                                     |
-| `val<T>`   | `i32 ptr`, `i32 len` | the canonical encoding (2.3) of a value of `T`, decoded against `T`; a failed decode is `bad-host-argument`.                       |
+| `val<T>`   | `i32 ptr`, `i32 len` | the canonical encoding (2.3) of a value of `T`, decoded against `T`; a failed decode is `bad-host-argument`                        |
 | `bytes`    | `i32 ptr`, `i32 len` | raw bytes, not an encoded value                                                                                                    |
 | `bytes<N>` | `i32 ptr`            | exactly `N` raw bytes                                                                                                              |
 | `out<N>`   | `i32 ptr`            | the host writes exactly `N` bytes; a `u128` result is written as 16 bytes, little-endian                                           |
@@ -486,12 +467,14 @@ that extends past `args_size()` is `bad-host-argument`.
 ##### `result_set`
 
 ```
-result_set(result: val<R>)
+result_set(ok: i32, result: bytes)
 ```
 
-Sets the result of the current entry point, where `R` is its declared result
-type (5.2). A value that does not decode is `bad-result`, not
-`bad-host-argument`. `init` has no result and does not call it.
+Sets the result of the current entry point and its flag (5.2): `ok` is `1` for
+ok and `0` for err; any other value is `bad-host-argument`. A `result` longer
+than the result limit (section 9.3) is `bad-host-argument`. Does not return.
+`init` has no result; it ends by returning, and calling `result_set` in `init`
+is `bad-host-argument`.
 
 ##### `abort`
 
@@ -628,7 +611,7 @@ Writes the encoded record of the Stacks block at `height`:
 | `header-hash`    | `(buff 32)` |
 | `time`           | `uint`      |
 
-Serves heights below `stacks-height`. The current block's hashes do not exist
+Serves heights below `stacks_height`. The current block's hashes do not exist
 until it is sealed, after this transaction runs; its time is what `time`
 returns.
 
@@ -650,7 +633,7 @@ Writes the encoded record of the tenure at `height`:
 | `miner-spend-total`     | `uint`            |
 | `miner-spend-winner`    | `uint`            |
 
-Serves every tenure up to and including `tenure-height`, since all fields are
+Serves every tenure up to and including `tenure_height`, since all fields are
 fixed at sortition. `block-reward` is `none` until the reward matures; maturity
 is defined by the host in terms of the tenure height at which the reward was
 recorded.
@@ -668,11 +651,11 @@ Writes the encoded record of the burn block at `height`:
 | `header-hash` | `(buff 32)`                                                                      |
 | `pox-addrs`   | `{ addrs: (list 2 { hash-bytes: (buff 32), version: (buff 1) }), payout: uint }` |
 
-Serves every burn block up to and including `burn-height`.
+Serves every burn block up to and including `burn_height`.
 
 #### Storage
 
-The current contract's key-value store (4.3). Keys and values are raw bytes,
+The current contract's key-value store (4.2). Keys and values are raw bytes,
 compared byte for byte. A key longer than the storage key limit, or a value
 longer than the storage value limit (section 9.3), is `bad-host-argument`.
 
@@ -890,10 +873,12 @@ allowance (7.2).
 ##### `call`
 
 ```
-call(target: val<principal>, trait: bytes, fn: bytes, args: bytes, out: buf) -> len
+call(target: val<principal>, fn: bytes, args: bytes, out: buf, ok: out<1>) -> len
 ```
 
-Calls a function of another contract and writes its encoded result (5.3).
+Calls a function of another contract and writes its result flag and result
+(5.3). An `args` longer than the arguments limit (section 9.3) is
+`bad-host-argument`.
 
 ##### `result_read`
 
@@ -1052,18 +1037,18 @@ A frame buffers state changes: storage writes, token and STX state, asset-map
 entries, and events. Frames nest. Closing a frame either commits its changes
 into the parent or discards them.
 
-| Frame       | Opened by                                          | Closed                                                 |
-| ----------- | -------------------------------------------------- | ------------------------------------------------------ |
-| public      | the host, for every call to a `public` function    | by the host: commit on `ok`, discard on `err`          |
-| read-only   | the host, for every call to a `read-only` function | by the host: commit (there are no writes, only events) |
-| plain       | the module, `frame_open(0, …)`                     | by the module                                          |
-| as-contract | the module, `frame_open(1, allowances)`            | by the module, with the allowance check                |
-| restrict    | the module, `frame_open(2, owner + allowances)`    | by the module, with the allowance check                |
+| Frame       | Opened by                                                      | Closed                                                                |
+| ----------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
+| public      | the host, for every call to a `public` function and for `init` | by the host: by the result flag (5.2); `init` commits when it returns |
+| read-only   | the host, for every call to a `read-only` function             | by the host: commit (there are no writes, only events)                |
+| plain       | the module, `frame_open(0, …)`                                 | by the module                                                         |
+| as-contract | the module, `frame_open(1, allowances)`                        | by the module, with the allowance check                               |
+| restrict    | the module, `frame_open(2, owner + allowances)`                | by the module, with the allowance check                               |
 
 Plain frames are how a module calls its own public function internally with
 rollback. Module-opened frames are well nested within one call: closing a frame
-the module did not open, or returning from an export with a frame still open, is
-an `unbalanced-frame` runtime error.
+the module did not open, or ending an export (by returning or by `result_set`)
+with a frame still open, is an `unbalanced-frame` runtime error.
 
 Events of a read-only frame are kept and commit with the caller. Legacy drops
 them because it rolls the frame back; nothing in a read-only frame needs rolling
@@ -1126,7 +1111,7 @@ analysis for asset functions; here every mutation is checked.
 ### 8.1 State layout
 
 Contract storage is keyed by contract and the key's bytes, and stores the
-value's bytes as given (4.3). Token state is keyed by contract, token name, and,
+value's bytes as given (4.2). Token state is keyed by contract, token name, and,
 for NFTs, the identifier's bytes. Balances and supplies are `uint` in canonical
 encoding. Legacy uses serde JSON for principals in token-balance keys and for
 persisted type metadata; nothing here depends on a language's in-memory
@@ -1170,11 +1155,11 @@ over the asset map (8.2), so they mean the same thing whatever module runs. The
 kinds, codes, and modes are legacy's, as extended by SIP-040 (originator mode,
 `may-send`) and SIP-045 (staking and PoX post-conditions).
 
-**When.** The host evaluates post-conditions once, when the entry point returns
-`ok` or `init` completes, over the asset map the transaction is about to commit.
-Entries from discarded frames are already gone, so post-conditions see exactly
-what would commit. A transaction whose entry point returns `err` commits nothing
-and its post-conditions are not evaluated.
+**When.** The host evaluates post-conditions once, when the entry point sets an
+ok result or `init` returns, over the asset map the transaction is about to
+commit. Entries from discarded frames are already gone, so post-conditions see
+exactly what would commit. A transaction whose entry point sets an err result
+commits nothing and its post-conditions are not evaluated.
 
 **Kinds.** Each post-condition names a principal, either explicitly or as the
 transaction's origin account, and constrains that principal's outgoing entries:
@@ -1272,9 +1257,9 @@ example by caching state, but the charge does not depend on it.
   and its signature check, and a deploy is charged for module bytes, validation,
   and compilation. A transaction whose intrinsic charge alone exceeds its
   `fuel-limit` is invalid and not included. Once the signature checks out, the
-  transaction is included and pays, even if it then fails before executing
-  (arguments that do not decode, a missing function): the miner has done the
-  work, and an unpaid failure would be a free way to make it do more.
+  transaction is included and pays, even if it then fails before executing (a
+  missing function): the miner has done the work, and an unpaid failure would be
+  a free way to make it do more.
 - **Execution.** Wasm execution is metered by the engine: each operator consumes
   the fuel the schedule assigns it, and the engine traps when the budget runs
   out. Growing memory is charged per page.
@@ -1299,7 +1284,7 @@ chain pins the engine's behavior to the schedule.
 
 | Limit                       | Value (provisional) | Notes                                                              |
 | --------------------------- | ------------------- | ------------------------------------------------------------------ |
-| Value size                  | 1 MiB               | `serialized-size` of any interface type                            |
+| Value size                  | 1 MiB               | `serialized-size` of any type in an interface                      |
 | Type nesting depth          | 32                  |                                                                    |
 | Contract-call depth         | 64                  | 7.3                                                                |
 | Instance memory             | 16 MiB              | bounds every intermediate value a module holds                     |
@@ -1310,6 +1295,8 @@ chain pins the engine's behavior to the schedule.
 | NFT identifier              | 1 MiB               | bytes per identifier, the same as the value size limit             |
 | Storage key                 | 1 KiB               | bytes per key                                                      |
 | Storage value               | 1 MiB               | bytes per value                                                    |
+| Arguments                   | 1 MiB               | bytes per transaction, query, or `call`                            |
+| Result                      | 1 MiB               | bytes per `result_set`                                             |
 | Print message               | 1 MiB               | bytes per `print`, the same as the value size limit                |
 | Allowances per frame        | 128                 |                                                                    |
 | Fuel per block              | TBD                 | 9.1                                                                |
@@ -1340,8 +1327,9 @@ Two of these need care beyond a number:
 | does not fit the block (9.1)  | no       |                     |                   |
 
 A transaction is **invalid** when it cannot be charged: a bad signature or
-nonce, a payer who cannot cover the maximum fee, or an intrinsic charge above
-its `fuel-limit`. Everything else a miner does work on is included and paid for.
+nonce, a payer who cannot cover the maximum fee, an intrinsic charge above its
+`fuel-limit`, or arguments over the arguments limit (9.3). Everything else a
+miner does work on is included and paid for.
 
 No other outcome exists (R6). In particular, the receipt of a discarded
 transaction carries no events from the discarded execution, and a failed deploy
@@ -1360,19 +1348,17 @@ The receipt of an aborted transaction names one class:
 | `reentrancy`          | 7.3                                                               |
 | `read-only-violation` | 7.4                                                               |
 | `no-such-function`    | 5.1; 5.3, step 1                                                  |
-| `trait-mismatch`      | 5.3, step 2; 5.4                                                  |
-| `bad-arguments`       | 5.4                                                               |
-| `bad-result`          | 5.2; 5.4                                                          |
+| `no-result`           | an entry point returned without calling `result_set` (5.2)        |
 | `bad-host-argument`   | 6.1                                                               |
 | `unbalanced-frame`    | 7.1                                                               |
 | `trap`                | any Wasm trap                                                     |
 | `module-abort`        | `abort(code, msg)`; the receipt also carries the code and message |
 
 `module-abort` codes belong to the source language. Clarity's compiler maps its
-runtime errors (overflow, division by zero, `panic`, failed conversion) to
-codes, which is how a language vector's "abort, class arithmetic-overflow" is
-checked. Legacy and clarity-wasm signalled these through exported globals and
-`unreachable`.
+runtime errors (overflow, division by zero, `panic`, failed conversion, and a
+value that fails validation at a call boundary, 5.4) to codes, which is how a
+language vector's "abort, class arithmetic-overflow" is checked. Legacy and
+clarity-wasm signalled these through exported globals and `unreachable`.
 
 ## 11. Versioning
 
@@ -1385,10 +1371,10 @@ checked. Legacy and clarity-wasm signalled these through exported globals and
 - The fuel schedule is versioned separately and applies to all modules (9.2).
 - A module may target only one ABI version.
 - Modules of different versions call each other freely; the call semantics of
-  section 5 apply whichever version each side targets. The one limit is types: a
-  function whose interface uses a type that a version lacks cannot be called by
-  a module of that version, and an older module's interface only ever uses the
-  types of its own version.
+  section 5 apply whichever version each side targets. Arguments and results are
+  bytes the chain does not interpret (5.4), so a type that one version's
+  interfaces can declare and another's cannot is a matter for the caller's
+  compiler, not a limit on the call.
 
 ## 12. Changes to the earlier documents
 
@@ -1403,7 +1389,7 @@ Adopting this proposal changes the following. None of the changes is made yet.
 2. **Exports have one Wasm type.** [03-architecture.md](03-architecture.md)
    section 3 requires "matching Wasm signatures". Under section 3.3 every entry
    is `[] -> []` and the check is that the export exists.
-3. **Storage is an untyped key-value store** (4.3). The Clarity spec must define
+3. **Storage is an untyped key-value store** (4.2). The Clarity spec must define
    how `define-data-var` and `define-map` lay out keys and values in it, both
    for the compiler and so tools can read a Clarity contract's state.
    [03-architecture.md](03-architecture.md) section 4 lists data-var and map
@@ -1418,6 +1404,28 @@ Adopting this proposal changes the following. None of the changes is made yet.
    interface. The Clarity compiler encodes identifiers canonically (2.3), so a
    Clarity token's identifiers have the same bytes as in legacy and in
    transaction post-conditions.
+7. **Modules validate values; the chain does not** (5.4). The earlier documents
+   have the chain validate every argument and result: [02-goals.md](02-goals.md)
+   (the guarantees list), [03-architecture.md](03-architecture.md) sections 3,
+   4, 5, and 7, [04-spec-plan.md](04-spec-plan.md) (the ABI chapter and the ABI
+   vectors), and spec sections 2.3.3, 2.4.4, and 2.5.8. Under this ABI the
+   Clarity compiler emits argument validation in every function it exports and
+   result validation after every contract call, and the spec defines the abort
+   codes for a failure, which replace the chain classes `bad-arguments`,
+   `trait-mismatch`, and `bad-result`.
+8. **Contract-call transactions carry their arguments as one byte string**
+   (5.2). The legacy payload is a count and a list of encoded values, which the
+   node decodes. Under this ABI the node passes the bytes to the entry point
+   without parsing them, so the transaction format needs a payload that carries
+   them opaquely. Wallets still build the bytes from canonical encodings (5.4).
+9. **The chain has no traits** (2.1). Trait definitions, `impl-trait` claims,
+   and trait-typed parameters leave the interface, which
+   [03-architecture.md](03-architecture.md) section 3 lists, and the chain
+   checks conformance nowhere. The Clarity spec must say where a compiler reads
+   a trait's definition from, for example the defining contract's
+   `abi.provenance` section (3.4), and its compiler checks conformance at
+   compile time and validates trait-typed arguments and results at runtime (spec
+   sections 2.4.4 and 2.5.8).
 
 ## 13. Open questions
 
@@ -1435,17 +1443,19 @@ Adopting this proposal changes the following. None of the changes is made yet.
    ([03-architecture.md](03-architecture.md) section 7) targets the types in
    2.1, and its known mismatches (extra tuple fields, list union types, trait
    values carrying types) must each resolve to a rejection or a defined
-   conversion at the boundary. The mapping must also be deterministic and
-   frozen, and produce canonical interface bytes: tokens, PoX, and sBTC are
-   legacy contracts, so most Clarity builds read a legacy interface, and
-   provenance records its hash ([02-goals.md](02-goals.md) G5). If the mapping
-   changed, those builds would no longer reproduce.
+   conversion. A call between a legacy and a Wasm contract is the one place the
+   host must still decode arguments and results, because the interpreter works
+   on typed values; the conversion happens there. The mapping must also be
+   deterministic and frozen, and produce canonical interface bytes: tokens, PoX,
+   and sBTC are legacy contracts, so most Clarity builds read a legacy
+   interface, and provenance records its hash ([02-goals.md](02-goals.md) G5).
+   If the mapping changed, those builds would no longer reproduce.
 5. **Bounded and recoverable calls.** Two possible additions to `call` (5.3),
-   both needed only for callees the caller cannot vouch for, such as a trait
-   target or a module in another language:
+   both needed only for callees the caller cannot vouch for, such as a contract
+   passed in as an argument or a module in another language:
    - A **fuel cap** passed into the callee's frame, as an additional check like
      an allowance. A callee that exceeds it stops having consumed at most the
-     cap, so the static cost analyzer can bound a trait call by its cap instead
+     cap, so the static cost analyzer can bound such a call by its cap instead
      of the remaining budget ([05-roadmap.md](05-roadmap.md) risk 7). Without
      the second addition, exceeding the cap aborts the transaction.
    - **Catching a runtime error** from the callee: the callee's frame is
