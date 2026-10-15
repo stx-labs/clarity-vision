@@ -1035,10 +1035,16 @@ prices the chain ABI defines.
 The following rules are about resource safety, not pricing, and bind every
 compiler:
 
-- Memory for a decoded value is reserved against the size bound of its result
-  type before decoding begins. `from-consensus-buff?` reserves
-  `serialized-size(T)`, so a hostile input cannot allocate more than its
-  declared type admits.
+- Memory for a decoded value is reserved against the size bound of its type
+  before decoding begins, so a hostile input cannot allocate more than its
+  declared type admits. This covers every decode of bytes the module did not
+  produce: `from-consensus-buff?`, which reserves `serialized-size(T)`; the
+  arguments a public or read-only function decodes on entry, which reserve the
+  sum of `serialized-size` over its parameter types; and the result of every
+  `contract-call?`, which reserves `serialized-size` of the declared result type
+  (2.5.8). Input longer than that bound cannot be a valid encoding and is
+  rejected before any decoding: as a validation failure (2.7.2) for arguments
+  and call results, and as `none` for `from-consensus-buff?`.
 - A trait-typed value is a principal and is sized as one.
 - Compilation happens off chain, so its cost is the deployer's. What the chain
   charges for is the module: its size and its validation at deploy, as defined
