@@ -122,7 +122,8 @@ The reference compiler implements this specification. Where they disagree, one
 of them has a bug, and the disagreement is adjudicated explicitly and recorded.
 Every normative rule cites the conformance vectors that exercise it
 ([../04-spec-plan.md](../04-spec-plan.md) describes the suite), and no rule is
-frozen without vectors.
+frozen without vectors. Rules are given identifiers for that purpose when their
+chapter's vectors are written ([README.md](README.md), conventions).
 
 ## What vNEXT is not
 
