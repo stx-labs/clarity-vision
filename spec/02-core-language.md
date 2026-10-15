@@ -376,13 +376,26 @@ the deploy-order check of 2.4.2 can be made on the source.
 
 ### 2.4.4 Contract interface
 
-The compiler emits the contract's interface into its module in the chain ABI's
-interface format: its public and read-only functions with their signatures and
-read-only marks, its implemented traits, its defined traits, its data variables
-and maps with their types, and its token definitions. The chain validates the
-interface against the module at deploy. Other contracts, whatever their source
-language, compile calls against this interface only, and the chain validates
-every call against it at runtime (2.5.8).
+The compiler emits two sections describing the contract into its module
+([../07-chain-abi.md](../07-chain-abi.md) section 3.4):
+
+- **`abi.interface`** ([../07-chain-abi.md](../07-chain-abi.md) section 4.1)
+  names the public and read-only functions with their kinds, and the fungible
+  and non-fungible tokens. The chain validates it against the module at deploy
+  and acts on nothing else.
+- **`abi.types`**
+  ([../08-value-interpretation.md](../08-value-interpretation.md) section 5)
+  declares the parameter and result types of every public and read-only
+  function, the identifier type of every non-fungible token, the traits the
+  contract defines, the traits it claims with `impl-trait`, and the layout of
+  its data variables and maps (3.7). A Clarity contract declares all of them, so
+  none of its functions, tokens, or storage is undeclared.
+
+The chain does not read `abi.types`. Other contracts, whatever their source
+language, compile typed calls against it (2.5.8), and wallets and explorers
+display values with it. Nothing at runtime checks that a module honors its
+declarations, which is why a Clarity contract validates every value it receives
+from another contract (2.5.8).
 
 ### 2.4.5 Standard library names
 
@@ -525,19 +538,66 @@ number of arguments only through a rest parameter (2.6.5).
 contract principal type, or an expression of a trait type `(trait X)`; in the
 trait case `function-name` MUST be a function of `X`. Any expression of trait
 type is acceptable, including a tuple field or a `let`-bound name. Arguments are
-type-checked against the callee's stored interface (literal case) or the trait
-signature (trait case). In the literal case the callee's interface is therefore
-an input to compilation, and the compiler records it in the module's provenance
-([../03-architecture.md](../03-architecture.md) section 2). The result type is
-the callee's declared result type. The callee MUST be a public or read-only
+type-checked against the callee's declared signature in its `abi.types` (2.4.4)
+in the literal case, or against the trait's signature in the trait case, read
+from the `abi.types` of the contract that defines the trait. Either way the
+section read is an input to compilation, and the compiler records its hash in
+the module's provenance ([../03-architecture.md](../03-architecture.md) section
+2). In the literal case the callee's function MUST be declared; a function with
+no declared signature can only be called with `contract-call-raw?`. The result
+type is the declared result type. The callee MUST be a public or read-only
 function and MUST NOT be in the current contract.
 
 The call is dispatched by the chain, which enforces the depth limit and the
 no-reentrancy rule (2.7.5). The callee may be written in any source language.
-The chain validates the arguments against the callee's declared parameter types
-and the result against its declared result type, and for a trait target checks
-that the principal's interface implements the trait. A Clarity contract can
-therefore rely on its parameter types whoever calls it.
+The arguments are passed in canonical encoding against the declared parameter
+types ([../08-value-interpretation.md](../08-value-interpretation.md) section
+6.1). When the caller relies on the callee being read-only, the compiler sets
+the call's `read_only` flag ([../07-chain-abi.md](../07-chain-abi.md) section
+5.3) and the chain rejects a callee that is not: the call is from read-only code
+(2.7.4), the trait marks the function `read-only`, or the literal callee
+declares it read-only.
+
+**Values are validated by the module.** The chain does not check values against
+declared types ([../07-chain-abi.md](../07-chain-abi.md) section 5.4), so the
+compiled module does:
+
+- Every public and read-only function decodes its arguments, by canonical
+  decoding against its declared parameter types
+  ([../08-value-interpretation.md](../08-value-interpretation.md) section 3),
+  before its body runs.
+- Every `contract-call?` decodes the result against the declared result type, in
+  the trait case the trait's: the `ok` arm's type or the `err` arm's, whichever
+  the result flag selects.
+
+A value that fails to decode is a runtime error (2.7.2). A Clarity contract can
+therefore rely on its parameter types whoever calls it, and on the result type
+of every call it makes, whatever language the other side is written in.
+
+**Traits are checked at compile time.** Conformance (2.3.2, `impl-trait` in
+2.4.1) is checked when a contract is compiled, against declared signatures. A
+principal passed in a trait-typed parameter is not checked against the trait at
+runtime, because a module cannot read another contract's declarations. A call
+through it is still safe: it aborts if the function does not exist or, for a
+function the trait marks `read-only`, is not read-only, and its result is
+validated like any other, so a principal that does not conform can make the call
+fail but cannot make it return a value of the wrong type.
+
+```
+(contract-call-raw? contract function-name args size)
+```
+
+Calls a function without a declared signature, such as a function of a contract
+written in a language that does not declare its types
+([../08-value-interpretation.md](../08-value-interpretation.md) section 6.4).
+`contract` and `function-name` are as for `contract-call?`, except that
+`function-name` is not checked against any declaration. `args : (buff N)` is
+passed to the callee as the raw argument bytes. `size` is a size term `M`
+(2.3.1), and the form has type `(response (buff M) (buff M))`: the result bytes,
+in the `ok` or `err` arm as the result flag selects. A result longer than `M`
+bytes is a runtime error. From read-only code the call sets the `read_only`
+flag, so the callee MUST be read-only; otherwise the callee may be public or
+read-only. The rollback rules of 2.7.3 apply to the callee as to any call.
 
 ### 2.5.9 Context scoping and asset allowances
 
@@ -890,10 +950,14 @@ caller computed.
 ### 2.7.2 Runtime errors
 
 A runtime error (arithmetic overflow, division by zero, failed conversion,
-`panic`, cost or memory limit exceeded, and the other conditions listed per
-primitive) aborts the entire transaction. There is no mechanism to catch a
-runtime error. All state changes of the transaction are discarded; the
-transaction still pays for the cost it consumed.
+`panic`, cost or memory limit exceeded, a value that fails validation at a call
+boundary (2.5.8), and the other conditions listed per primitive) aborts the
+entire transaction. There is no mechanism to catch a runtime error. All state
+changes of the transaction are discarded; the transaction still pays for the
+cost it consumed. A runtime error the module detects is reported through the
+chain ABI's `abort` with a code for its class
+([../07-chain-abi.md](../07-chain-abi.md) section 10.2); the codes are defined
+with compilation to Wasm.
 
 ### 2.7.3 Public function results and rollback
 
@@ -904,10 +968,18 @@ they are discarded and `(err e)` is returned to the caller, which continues
 executing. A `return` of an `err` value has the same effect as evaluating to it.
 
 For a call from another contract or a transaction entry point, the chain opens
-the frame and performs the commit or discard based on the returned value, so the
-rule holds for calls between modules of any source language. For an internal
-call, the compiled module opens and closes the frame itself through the chain
-ABI's frame facility, the one `as-contract?` and `restrict-assets?` use (2.5.9).
+the frame and commits or discards it by the result flag the callee sets
+([../07-chain-abi.md](../07-chain-abi.md) section 5.2), so the rule holds for
+calls between modules of any source language. A Clarity public function sets the
+flag from the arm of its response and passes the arm's value as the result
+([../08-value-interpretation.md](../08-value-interpretation.md) section 6.2). A
+read-only function also runs in a frame the chain opens, which carries its
+context (3.9) but always commits, since it holds no writes
+([../07-chain-abi.md](../07-chain-abi.md) section 7.1). The flag decides nothing
+there, so a read-only function always sets it to ok and passes its whole result.
+For an internal call to a public function, the compiled module opens and closes
+the frame itself through the chain ABI's frame facility, the one `as-contract?`
+and `restrict-assets?` use (2.5.9).
 
 An internal call to a public function therefore costs a frame, which a call to a
 private function does not. Where that matters, the convention is to put the body
