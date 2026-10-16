@@ -119,7 +119,7 @@ pass the layering rule's host-access test map onto them.
 | Storage      | data-var get/set, map get/set/delete, keyed by the calling contract                                                                                                                                                                      |
 | Assets       | fungible and non-fungible token mint/burn/transfer/balance/owner/supply, STX transfer/burn/account; every movement recorded in the transaction's asset map                                                                               |
 | Context      | tx-sender, contract-caller, sponsor, current contract, block heights and time, chain id, network flags, liquid supply                                                                                                                    |
-| Chain data   | Stacks block, tenure, and burn block lookups; Bitcoin transaction output parsing. All total: they return `none` rather than fail                                                                                                         |
+| Chain data   | Stacks block, tenure, and burn block lookups. All total: they return `none` rather than fail                                                                                                                                             |
 | Calls        | contract-call by principal and function name, with argument and result validation (section 3)                                                                                                                                            |
 | Frames       | nested state frames: open, commit, discard. Used by `as-contract?` and `restrict-assets?` (with context switch and allowance checks) and by a module's internal calls to its own public functions, which roll back on `err` (spec 2.7.3) |
 | Events       | print and asset events                                                                                                                                                                                                                   |
@@ -129,12 +129,17 @@ The allowance comparison for `as-contract?` and `restrict-assets?` is host code,
 not compiled code over a host-provided movement log, so the guarantee holds for
 every module whatever its source language.
 
-Each host function has a fuel charge, and storage operations are also charged in
-read/write count and length dimensions. The fuel schedule and charge table are
-part of the chain ABI. They may change at epoch boundaries, and a change applies
-to every deployed module: a module's cost depends only on its code and the
-engine's schedule, not on its source. Cost bounds are therefore stated per
-schedule version.
+Cost has one dimension, fuel. Wasm execution is metered by the engine, each host
+function has a fuel charge, and storage reads and writes are charged in fuel at
+a worst-case price; there are no separate read and write dimensions. A
+transaction states a fuel limit and a rate (uSTX per million fuel) and pays for
+the fuel it uses, so a miner can order transactions by rate and pack a block
+against one fuel limit. The fuel schedule and charge table are part of the chain
+ABI ([07-chain-abi.md](07-chain-abi.md) section 9). They may change at epoch
+boundaries, and a change applies to every deployed module: a module's cost
+depends only on its code and the schedule, not on its source. Cost bounds are
+therefore stated per schedule version, and the static cost analyzer's bound is
+what a wallet proposes as the transaction's fuel limit.
 
 ## 5. Where each guarantee lives
 
@@ -216,13 +221,3 @@ language:
   that mark.
 - **Error-code and field-name conventions** (`error_code`, `stx-transfer-memo?`)
   are the legacy contract's and are not translated.
-
-## 8. Open questions
-
-1. **Wasm memory limit.** The language's intermediate value size limit (spec
-   2.8, provisionally 8 MiB) must stay below the memory a module may use, and
-   exceeding that memory is a runtime error (spec 2.7.2). The chain ABI must fix
-   the limit, per transaction or per call frame.
-2. **Module size limit.** It is the only limit on a contract's size after inline
-   expansion and instantiation (spec 2.8), and the deploy check in section 3
-   enforces it. The chain ABI must fix the value.

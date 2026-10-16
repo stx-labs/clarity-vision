@@ -378,11 +378,11 @@ the deploy-order check of 2.4.2 can be made on the source.
 
 The compiler emits the contract's interface into its module in the chain ABI's
 interface format: its public and read-only functions with their signatures and
-read-only marks, its implemented traits, its defined traits, and its token
-definitions. The chain validates the interface against the module at deploy.
-Other contracts, whatever their source language, compile calls against this
-interface only, and the chain validates every call against it at runtime
-(2.5.8).
+read-only marks, its implemented traits, its defined traits, its data variables
+and maps with their types, and its token definitions. The chain validates the
+interface against the module at deploy. Other contracts, whatever their source
+language, compile calls against this interface only, and the chain validates
+every call against it at runtime (2.5.8).
 
 ### 2.4.5 Standard library names
 
@@ -930,8 +930,11 @@ guarantee hold when read-only code calls a module from another language.
 ### 2.7.5 Depth and reentrancy
 
 The chain rejects a `contract-call?` into a contract that already has an active
-call frame in the current transaction, and rejects any call that would exceed
-the call depth limit. Both are runtime errors.
+call frame in the current transaction, and rejects any `contract-call?` that
+would exceed the chain ABI's contract-call depth limit. Both are runtime errors.
+The function call depth limit (2.8) is the language's own and bounds calls
+within one contract's module; the compiler enforces it statically, since without
+recursion every call chain is visible in the definition graph.
 
 ### 2.7.6 Events
 
@@ -946,9 +949,9 @@ the chain's charges for the host functions it calls. Library functions are
 compiled and metered like any other code. Exceeding the transaction or block
 budget is a runtime error.
 
-Fuel replaces a per-construct runtime cost table. It does not replace the
-chain's storage dimensions: reads and writes are still counted and sized, with
-the budget dimensions defined in the chain ABI.
+Fuel replaces a per-construct runtime cost table, and it is the only cost
+dimension: storage reads and writes are charged in fuel like everything else, at
+prices the chain ABI defines.
 
 The following rules are about resource safety, not pricing, and bind every
 compiler:
@@ -974,7 +977,7 @@ source size and transaction budgets.
 | Fixpoint step limit for fold accumulators (2.6.2)          | 8               | new, provisional                                                                                    |
 | Maximum type nesting depth                                 | 32              | `MAX_TYPE_DEPTH`                                                                                    |
 | Maximum identifier length                                  | 128 bytes       | `MAX_STRING_LEN`; string literals are bounded only by the value size limit, as every other value is |
-| Maximum call depth (functions and contract calls)          | 128             | `MAX_CALL_STACK_DEPTH`                                                                              |
+| Maximum function call depth within a contract (2.7.5)      | 128             | `MAX_CALL_STACK_DEPTH`; contract-call depth is the chain ABI's                                      |
 | Maximum allowances per `as-contract?` / `restrict-assets?` | 128             | `MAX_ALLOWANCES`                                                                                    |
 
 There is no limit on the size of a contract after inline expansion and
@@ -1021,5 +1024,12 @@ once the dependency named in each is settled.
    same form could cover compiled primitives with ordinary signatures, leaving
    chapter 3 with only the primitives whose typing cannot be written as a
    signature. Parked; it requires an admission rule on the ABI side.
-7. **Formal presentation.** The judgment-style typing rules and the full EBNF
+7. **Static memory bound.** The intermediate size limit only has to stay below
+   the chain's instance memory limit, so whether a well-typed contract's live
+   values fit in memory depends on code generation, and exceeding it is a
+   runtime error. The compiler could instead compute each function's peak memory
+   and reject a contract that cannot fit, as it already does for module size
+   (2.8). The chain's transaction memory cap, which depends on the callers'
+   memory, would remain a runtime error.
+8. **Formal presentation.** The judgment-style typing rules and the full EBNF
    are pending the questions above.

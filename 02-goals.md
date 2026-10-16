@@ -20,8 +20,6 @@
 - Nothing on chain is Clarity-specific. The chain never parses Clarity, and a
   Clarity contract has no powers on chain that a module from another language
   lacks.
-- The ABI is validated by Clarity and by at least one other source-language
-  prototype before it is frozen, so it is not accidentally Clarity-shaped.
 
 ### G3 — Runtime guarantees for every module
 
@@ -83,7 +81,7 @@ The properties unique to Clarity become shipped products:
 2. A reference compiler that passes the suite and produces byte-identical
    modules across platforms.
 3. A chain ABI specified jointly with the chain team, implemented by the chain,
-   and exercised by Clarity plus one other source-language prototype.
+   and exercised by Clarity.
 4. A static cost analyzer that emits a sound worst-case fuel bound for every
    public function of any well-typed contract.
 5. A source-verification service or tool that rebuilds and verifies any deployed
