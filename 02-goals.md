@@ -14,8 +14,11 @@
 
 ### G2 — One chain ABI, shared by every source language
 
-- The chain defines a single ABI: the module format, interface metadata, value
-  encoding, host functions, call semantics, and fuel schedule. Clarity is its
+- The chain defines a single ABI, in two layers: a runtime layer the chain
+  implements (the module format, interface, host functions, call semantics, and
+  fuel schedule; [07-chain-abi.md](07-chain-abi.md)), and an interpretation
+  layer every compiler and tool shares (declared types and value encoding;
+  [08-value-interpretation.md](08-value-interpretation.md)). Clarity is its
   first consumer, not its owner.
 - Nothing on chain is Clarity-specific. The chain never parses Clarity, and a
   Clarity contract has no powers on chain that a module from another language
@@ -25,9 +28,10 @@
 
 The chain enforces a fixed set of guarantees for every module, whatever language
 produced it: fuel limits, no reentrancy, read-only frames, rollback on `err`,
-boundary validation, and asset allowances. The normative list, with which layer
-enforces each, is [03-architecture.md](03-architecture.md) section 5 and is not
-repeated here.
+and asset allowances. The chain does not check values against declared types;
+each module validates what it receives, and the Clarity compiler does so for
+every Clarity contract. The normative list, with which layer enforces each, is
+[03-architecture.md](03-architecture.md) section 5 and is not repeated here.
 
 ### G4 — Cash in decidability
 
@@ -49,11 +53,12 @@ The properties unique to Clarity become shipped products:
 
 - **Deterministic builds**: the same build inputs produce a byte-identical
   module on every platform. The inputs are the source, the compiler version, the
-  interface of every contract the source calls by literal, and the deploying
-  principal when deployer-relative names are resolved at compile time
-  ([03-architecture.md](03-architecture.md) section 2).
+  `abi.interface` and `abi.types` of every contract the source calls by literal
+  or whose traits it uses, and the deploying principal when deployer-relative
+  names are resolved at compile time ([03-architecture.md](03-architecture.md)
+  section 2).
 - **Provenance**: each module records its compiler version, its source hash, and
-  a hash of every callee interface it was compiled against.
+  the hashes of both sections of every callee it was compiled against.
 - **Source verification**: anyone can rebuild a deployed module from its claimed
   source and the recorded inputs and compare. Analyses and proofs attach to a
   verified (source, build inputs, module) triple.
