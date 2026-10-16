@@ -384,8 +384,8 @@ frozen. Issue numbers refer to the stacks-core tracker; the dispositions are in
    primitive, the main motivation goes away.
 3. **RFC: per-definition code hashes** (#6320). `contract-hash?` covers the
    whole module. A per-definition hash would be over compiled code, and so
-   compiler-dependent, unless the interface metadata carries per-definition
-   source hashes. The RFC chooses.
+   compiler-dependent, unless the module declares per-definition source hashes
+   in its `abi.types` section or its provenance. The RFC chooses.
 4. **Bitcoin transaction parser in the prelude** (3.4). `get-bitcoin-tx-output?`
    is expressible as a byte-at-a-time fold and belongs in the library under the
    layering rule. It stays primitive until the parser is written and has its own
