@@ -57,9 +57,9 @@ representation. Every other construct a contract author uses is here.
 | Storage      | `map-insert?`                                                                                  | `map-get?`, `map-set`                                                                                             |
 
 About forty public definitions, plus `std-*` helpers. Two conventions decide
-whether a prelude function is `define-inline` or `define-private`:
+whether a prelude function is `define-macro` or `define-private`:
 
-- Anything that needs laziness or early exit is inline: `if` and the early-exit
+- Anything that needs laziness or early exit is a macro: `if` and the early-exit
   family.
 - Everything else is private. Private functions are compiled once per instance
   and can be passed to `map`, `filter`, `fold-left`, and `fold-right`.
@@ -122,21 +122,21 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | `and`, `or`                         | form      | two or more arguments, short-circuit                                              |
 | `not`                               | library   | private                                                                           |
 | `is-eq`                             | primitive | binary only; `(is-eq a b c)` is written `(and (is-eq a b) (is-eq a c))`           |
-| `if`                                | library   | inline over `match`                                                               |
+| `if`                                | library   | macro over `match`                                                                |
 
 ### Binding, sequencing, branching, early exit
 
-| Legacy                                       | vNEXT   | Notes                                                                                                                                                                                                                                                                 |
-| -------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `let`                                        | form    |                                                                                                                                                                                                                                                                       |
-| `begin`                                      | sugar   | `(let () ...)`                                                                                                                                                                                                                                                        |
-| `match`                                      | form    | constructor patterns `((some x) ...)`, `(none ...)`, `((ok x) ...)`, `((err e) ...)`, `(true ...)`, `(false ...)`                                                                                                                                                     |
-| `asserts!`, `unwrap!`, `unwrap-err!`, `try!` | library | inline over `match` and `return`; `thrown` is evaluated only on failure, which for `unwrap!` and `unwrap-err!` is a change from legacy (legacy evaluates it first); not usable in top-level expressions or constant initializers, where `return` is forbidden (2.4.2) |
-| `unwrap-panic`, `unwrap-err-panic`           | library | inline over `match` and `panic`                                                                                                                                                                                                                                       |
-| `default-to`                                 | library | private; both arguments evaluated, as in legacy                                                                                                                                                                                                                       |
-| `is-ok`, `is-err`, `is-some`, `is-none`      | library | private                                                                                                                                                                                                                                                               |
-| `ok`, `err`, `some`                          | form    | constructors                                                                                                                                                                                                                                                          |
-| `none`, `true`, `false`                      | literal |                                                                                                                                                                                                                                                                       |
+| Legacy                                       | vNEXT   | Notes                                                                                                                                                                                                                                                                |
+| -------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `let`                                        | form    |                                                                                                                                                                                                                                                                      |
+| `begin`                                      | sugar   | `(let () ...)`                                                                                                                                                                                                                                                       |
+| `match`                                      | form    | constructor patterns `((some x) ...)`, `(none ...)`, `((ok x) ...)`, `((err e) ...)`, `(true ...)`, `(false ...)`                                                                                                                                                    |
+| `asserts!`, `unwrap!`, `unwrap-err!`, `try!` | library | macro over `match` and `return`; `thrown` is evaluated only on failure, which for `unwrap!` and `unwrap-err!` is a change from legacy (legacy evaluates it first); not usable in top-level expressions or constant initializers, where `return` is forbidden (2.4.2) |
+| `unwrap-panic`, `unwrap-err-panic`           | library | macro over `match` and `panic`                                                                                                                                                                                                                                       |
+| `default-to`                                 | library | private; both arguments evaluated, as in legacy                                                                                                                                                                                                                      |
+| `is-ok`, `is-err`, `is-some`, `is-none`      | library | private                                                                                                                                                                                                                                                              |
+| `ok`, `err`, `some`                          | form    | constructors                                                                                                                                                                                                                                                         |
+| `none`, `true`, `false`                      | literal |                                                                                                                                                                                                                                                                      |
 
 ### Sequences
 

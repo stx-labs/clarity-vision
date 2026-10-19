@@ -58,8 +58,8 @@ implementation, not by moving it into the core (chapter 4.1).
 
 The standard library has **no special powers**. It is ordinary vNEXT source that
 uses only features available to every contract. If the library needs a feature
-(generics, inline functions, overloading, static references), that feature is a
-user feature and is specified as such.
+(generics, macros, overloading, static references), that feature is a user
+feature and is specified as such.
 
 ### Why this shape
 
