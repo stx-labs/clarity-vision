@@ -187,13 +187,14 @@ differ from the audited source. The defenses:
    from its claimed source and compiler version and compares bytes. Wallets and
    explorers show whether a module's source is verified.
 4. **Analyses attach to the triple.** A cost bound or proof is stated for a
-   (source hash, compiler version, module hash) triple and is meaningful for a
-   deployed module only when that triple verifies. A cost bound also names the
-   fuel-schedule version it was computed for (section 4). Bounds need both
-   halves of the triple: loop and size bounds come from the verified source,
-   because only Clarity source guarantees bounded loops, and fuel comes from the
-   module, because that is what the chain meters. The chain sees only the
-   module, so the ABI carries no bound certificates.
+   (source, compiler version, module) triple, identified by the source hash,
+   compiler version, and module hash, and is meaningful for a deployed module
+   only when that triple verifies (rebuilds byte for byte). A cost bound also
+   names the fuel-schedule version it was computed for (section 4). Bounds need
+   both halves of the triple: loop and size bounds come from the verified
+   source, because only Clarity source guarantees bounded loops, and fuel comes
+   from the module, because that is what the chain meters. The chain sees only
+   the module, so the ABI carries no bound certificates.
 
 ## 7. Legacy contracts
 
