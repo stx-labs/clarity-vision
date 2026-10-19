@@ -882,11 +882,12 @@ single obvious meaning, and "all equal" is `(and (is-eq a b) (is-eq a c))`.
 ### 2.7.1 Evaluation
 
 Evaluation is strict and left to right, except that inline parameters are
-evaluated by name (2.6.3) and `match` evaluates exactly one arm. Every
-expression evaluates to a value of its static type or aborts. A runtime value
-carries no static type information of its own; its size and shape are determined
-entirely by the value, and a value passed to a callee is exactly the value the
-caller computed.
+evaluated by name (2.6.3), `match` evaluates exactly one arm, and `and` and `or`
+stop at the first argument that decides the result (2.5.3). Every expression
+evaluates to a value of its static type or aborts. A runtime value carries no
+static type information of its own; its size and shape are determined entirely
+by the value, and a value passed to a callee is exactly the value the caller
+computed.
 
 ### 2.7.2 Runtime errors
 
