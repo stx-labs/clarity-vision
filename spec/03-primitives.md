@@ -61,7 +61,8 @@ decides, and a proper prefix is less than the longer sequence. Elements are
 ordered by unsigned byte value for `buff` and `string-ascii`, and by Unicode
 code point for `string-utf8`. Code point order is the order of the strings'
 UTF-8 encodings compared bytewise, so the result does not depend on how a host
-stores strings.
+stores strings. No Unicode normalization is applied: `u"\u{E9}"` and
+`u"e\u{301}"` are unequal, and the first is greater.
 
 | Primitive | Signature       | Semantics                                                                                                  |
 | --------- | --------------- | ---------------------------------------------------------------------------------------------------------- |
