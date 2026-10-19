@@ -5,6 +5,7 @@ ROOT = sys.argv[1]
 OUT = sys.argv[2]
 DOCS = ["README.md", "01-why-clarity.md", "02-goals.md", "03-architecture.md",
         "04-spec-plan.md", "05-roadmap.md", "06-issue-tracker.md", "07-chain-abi.md",
+        "08-value-interpretation.md",
         "spec/README.md", "spec/01-principles.md",
         "spec/02-core-language.md", "spec/03-primitives.md",
         "spec/04-standard-library.md"]
