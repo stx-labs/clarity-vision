@@ -101,11 +101,28 @@ host renders it rather than the language fixing it in a frozen prelude.
 
 ## 4.3 Disposition of every legacy construct
 
-This table covers every native function, define form, and native variable in
-Clarity 6. "Primitive" means it stays in the core with the signature in
-[03-primitives.md](03-primitives.md); "form" means a special form in
-[02-core-language.md](02-core-language.md); "library" means it is defined in the
-prelude; "removed" means vNEXT has no equivalent by that name.
+These tables cover every native function, define form, and native variable in
+Clarity 6. Constructs with no legacy counterpart are listed in 4.4. The vNEXT
+column says what each became:
+
+- **primitive**: stays in the core, with the signature in
+  [03-primitives.md](03-primitives.md).
+- **form**: a special form of the core language, in
+  [02-core-language.md](02-core-language.md). **Allowance forms** are the
+  allowance syntax of `as-contract?` and `restrict-assets?` (2.5.9).
+- **sugar**: a fixed rewrite into other syntax, with no definition of its own;
+  `begin` is `let` with no bindings.
+- **literal**: a literal of the lexical grammar (2.2).
+- **library**: defined in the prelude, in vNEXT source.
+- **removed**: vNEXT has no equivalent by that name; the notes say what to use.
+
+In the notes, **private** and **inline** say how the prelude defines a library
+function, not who can call it: every prelude function is in scope in every
+contract (2.4.5), and none is callable by `contract-call?`. A private function
+is an ordinary function (`define-private`), so all of its arguments are
+evaluated once, before the call, as in legacy. An inline function
+(`define-inline`, 2.6.3) is expanded at the call site and evaluates an argument
+only where its body uses it.
 
 ### Arithmetic and logic
 
@@ -151,7 +168,6 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | `map`                                    | primitive | single sequence only; multi-sequence form dropped (chapter 3.3)        |
 | `filter`                                 | primitive |                                                                        |
 | `fold`                                   | removed   | `fold-left` with the callback's parameters swapped (accumulator first) |
-| new: `fold-left`, `fold-right`           | primitive | 3.3                                                                    |
 
 ### Tuples
 
@@ -162,17 +178,16 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 ### Conversions and serialization
 
-| Legacy                                                                        | vNEXT     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ----------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buff-to-uint-be`                                                             | primitive |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `buff-to-uint-le`                                                             | library   | over `buff-to-uint-be`                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `buff-to-int-be`, `buff-to-int-le`                                            | library   | over `buff-to-uint-be`; a short buffer is sign-extended from its actual length, where legacy zero-padded it (chapter 3.4)                                                                                                                                                                                                                                                                                                                         |
-| new: `uint-to-buff-be`, `uint-to-buff-le`, `int-to-buff-be`, `int-to-buff-le` | primitive | fixed width, abort if the value does not fit (issue #7312)                                                                                                                                                                                                                                                                                                                                                                                        |
-| `int-to-ascii`, `int-to-utf8`                                                 | library   |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `string-to-int?`, `string-to-uint?`                                           | library   |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `to-consensus-buff?`                                                          | primitive | renamed `to-consensus-buff`, total: legacy's `none` for a result over the value size limit is replaced by the static size limits on the result's position (2.3.1)                                                                                                                                                                                                                                                                                 |
-| `from-consensus-buff?`                                                        | primitive |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `to-ascii?`                                                                   | library   | six overloads (`int`, `uint`, `bool`, `principal`, `buff`, `string-utf8`) with legacy's text and bounds, except that the principal bound is 82 where legacy's is 170, because contract names are limited to 40 characters (2.2); the principal case uses the new `principal-to-ascii` primitive (chapter 3.5). A `string-utf8` containing U+000C (form feed) is now `err u1`: legacy accepted it, but a vNEXT `string-ascii` cannot hold it (2.2) |
+| Legacy                              | vNEXT     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buff-to-uint-be`                   | primitive |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `buff-to-uint-le`                   | library   | over `buff-to-uint-be`                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `buff-to-int-be`, `buff-to-int-le`  | library   | over `buff-to-uint-be`; a short buffer is sign-extended from its actual length, where legacy zero-padded it (chapter 3.4)                                                                                                                                                                                                                                                                                                                         |
+| `int-to-ascii`, `int-to-utf8`       | library   |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `string-to-int?`, `string-to-uint?` | library   |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `to-consensus-buff?`                | primitive | renamed `to-consensus-buff`, total: legacy's `none` for a result over the value size limit is replaced by the static size limits on the result's position (2.3.1)                                                                                                                                                                                                                                                                                 |
+| `from-consensus-buff?`              | primitive |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `to-ascii?`                         | library   | six overloads (`int`, `uint`, `bool`, `principal`, `buff`, `string-utf8`) with legacy's text and bounds, except that the principal bound is 82 where legacy's is 170, because contract names are limited to 40 characters (2.2); the principal case uses the new `principal-to-ascii` primitive (chapter 3.5). A `string-utf8` containing U+000C (form feed) is now `err u1`: legacy accepted it, but a vNEXT `string-ascii` cannot hold it (2.2) |
 
 ### Principals
 
@@ -236,39 +251,46 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 
 ### Define forms
 
-| Legacy                                                | vNEXT   | Notes                                                                                                                |
-| ----------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
-| new: `clarity-version`                                | form    | required first form of every contract (2.4.0); replaces the `clarity_version` field of the legacy deploy transaction |
-| `define-constant`, `define-data-var`, `define-map`    | form    |                                                                                                                      |
-| `define-fungible-token`, `define-non-fungible-token`  | form    |                                                                                                                      |
-| `define-public`, `define-read-only`, `define-private` | form    | private may be generic and overloaded                                                                                |
-| `define-trait`, `impl-trait`                          | form    | trait identifiers replace `<name>` syntax                                                                            |
-| `use-trait`                                           | removed | `(define-type name (trait id))`                                                                                      |
-| new: `define-type`                                    | form    | transparent type aliases                                                                                             |
-| new: `define-inline`                                  | form    | call-by-name, expanded at call site                                                                                  |
-| new: rest parameters `(name T...)`                    | form    | private functions only; the rest arguments are bound as a list (2.6.5)                                               |
+| Legacy                                                | vNEXT   | Notes                                     |
+| ----------------------------------------------------- | ------- | ----------------------------------------- |
+| `define-constant`, `define-data-var`, `define-map`    | form    |                                           |
+| `define-fungible-token`, `define-non-fungible-token`  | form    |                                           |
+| `define-public`, `define-read-only`, `define-private` | form    | private may be generic and overloaded     |
+| `define-trait`, `impl-trait`                          | form    | trait identifiers replace `<name>` syntax |
+| `use-trait`                                           | removed | `(define-type name (trait id))`           |
 
 ### Native variables
 
-| Legacy                                                                           | vNEXT     | Notes                                                                                                                                        |
-| -------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tx-sender`, `contract-caller`, `tx-sponsor?`, `current-contract`                | removed   | fields `sender`, `caller`, `sponsor`, `contract` of `(get-current-context)` (3.9); `(get sender (get-current-context))` replaces `tx-sender` |
-| `burn-block-height`, `stacks-block-height`, `tenure-height`, `stacks-block-time` | removed   | fields `burn-height`, `stacks-height`, `tenure-height`, `time` of `(get-current-context)`                                                    |
-| `chain-id`, `is-in-mainnet`, `is-in-regtest`, `stx-liquid-supply`                | removed   | fields `chain-id`, `is-mainnet`, `is-regtest`, `liquid-supply` of `(get-current-context)`                                                    |
-| new: `get-current-context`                                                       | primitive | one record for the whole execution context; the twelve bare names are no longer reserved                                                     |
-| `block-height`                                                                   | removed   | already removed in Clarity 3                                                                                                                 |
-| `none`, `true`, `false`                                                          | literal   |                                                                                                                                              |
+| Legacy                                                                           | vNEXT   | Notes                                                                                                                                        |
+| -------------------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tx-sender`, `contract-caller`, `tx-sponsor?`, `current-contract`                | removed | fields `sender`, `caller`, `sponsor`, `contract` of `(get-current-context)` (3.9); `(get sender (get-current-context))` replaces `tx-sender` |
+| `burn-block-height`, `stacks-block-height`, `tenure-height`, `stacks-block-time` | removed | fields `burn-height`, `stacks-height`, `tenure-height`, `time` of `(get-current-context)`                                                    |
+| `chain-id`, `is-in-mainnet`, `is-in-regtest`, `stx-liquid-supply`                | removed | fields `chain-id`, `is-mainnet`, `is-regtest`, `liquid-supply` of `(get-current-context)`                                                    |
+| `block-height`                                                                   | removed | already removed in Clarity 3                                                                                                                 |
+| `none`, `true`, `false`                                                          | literal |                                                                                                                                              |
 
 ## 4.4 New in vNEXT
 
-Library additions with no legacy counterpart, included because they were common
-user-written helpers:
+Constructs with no legacy counterpart, with the kinds of 4.3:
 
-- `max`, `min` (rest parameters), `abs`
+| Construct                                                                                                  | Kind      | Notes                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `clarity-version`                                                                                          | form      | required first form of every contract (2.4.0); replaces the `clarity_version` field of the legacy deploy transaction                  |
+| `define-type`                                                                                              | form      | transparent type aliases (2.3.5); replaces `use-trait`                                                                                |
+| `define-inline`                                                                                            | form      | call-by-name, expanded at each call site (2.6.3)                                                                                      |
+| rest parameters `(name T...)`                                                                              | form      | private functions only; the rest arguments are bound as a list (2.6.5)                                                                |
+| `return`                                                                                                   | form      | exits the enclosing function with a value (2.5.4); the library's early-exit functions are defined with it                             |
+| `as`                                                                                                       | form      | type ascription; widens, never narrows (2.5.10)                                                                                       |
+| reference kinds `(var ...)`, `(map ...)`, `(fungible-token)`, `(non-fungible-token ...)`, `(function ...)` | form      | parameters that name a definition of the contract rather than hold a value (2.3.6)                                                    |
+| `panic`                                                                                                    | primitive | aborts the transaction (3.10); the library's `unwrap-panic` and `unwrap-err-panic` are defined with it                                |
+| `fold-left`, `fold-right`                                                                                  | primitive | replace legacy `fold` (3.3)                                                                                                           |
+| `uint-to-buff-be`, `uint-to-buff-le`, `int-to-buff-be`, `int-to-buff-le`                                   | primitive | fixed width, abort if the value does not fit (3.4, issue #7312)                                                                       |
+| `principal-to-ascii`                                                                                       | primitive | the text form of a principal (3.5)                                                                                                    |
+| `get-current-context`                                                                                      | primitive | one record for the whole execution context, replacing the legacy native variables (3.9); the twelve bare names are no longer reserved |
+| `max`, `min`, `abs`                                                                                        | library   | common user-written helpers; `max` and `min` take rest parameters                                                                     |
 
-Primitive additions with no legacy counterpart: the four `*-to-buff-*` functions
-and `principal-to-ascii` (chapter 3). Further candidates from the issue tracker
-are collected in [../06-issue-tracker.md](../06-issue-tracker.md).
+Further candidates from the issue tracker are collected in
+[../06-issue-tracker.md](../06-issue-tracker.md).
 
 ## 4.5 Open questions
 
