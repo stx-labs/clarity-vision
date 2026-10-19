@@ -1031,10 +1031,11 @@ budget is a runtime error.
 
 Fuel replaces a per-construct runtime cost table, and it is the only cost
 dimension: storage reads and writes are charged in fuel like everything else, at
-prices the chain ABI defines.
+prices the chain ABI defines. Compilation happens off chain, so its cost is the
+deployer's. What the chain charges for is the module: its size and its
+validation at deploy, as defined by the chain ABI.
 
-The following rules are about resource safety, not pricing, and bind every
-compiler:
+The following rules are about resource safety, not pricing:
 
 - Memory for a decoded value is reserved against the size bound of its type
   before decoding begins, so a hostile input cannot allocate more than its
@@ -1047,9 +1048,6 @@ compiler:
   rejected before any decoding: as a validation failure (2.7.2) for arguments
   and call results, and as `none` for `from-consensus-buff?`.
 - A trait-typed value is a principal and is sized as one.
-- Compilation happens off chain, so its cost is the deployer's. What the chain
-  charges for is the module: its size and its validation at deploy, as defined
-  by the chain ABI.
 
 ## 2.8 Limits
 
