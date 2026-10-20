@@ -21,6 +21,43 @@ expected to eventually move to a dedicated language repository.
 | [08-value-interpretation.md](08-value-interpretation.md) | Proposal for the interpretation layer of the chain ABI: declared types and the encoding conventions compilers, wallets, and explorers rely on                              |
 | [spec/](spec/)                                           | The specification working draft: a minimal core language plus a standard library written in the language itself                                                            |
 
+## Terminology
+
+These terms have one meaning across every document here.
+
+- **Contract**: a deployed program, identified by its principal. A contract has
+  a source and a module.
+- **Source**: the Clarity text a contract is written in.
+- **Module**: the Wasm module a contract's source compiles to. It is what the
+  chain validates at deploy, stores, and executes. "Module" always means
+  compiled Wasm, never Clarity source. The standard library is not a separate
+  module: the compiler links the parts a contract uses into that contract's
+  module.
+- **The chain**: any implementation of the chain ABI that executes modules.
+- **Chain ABI**: the contract between compilers and the chain, shared by every
+  source language. Its **runtime layer** ([07-chain-abi.md](07-chain-abi.md)) is
+  what the chain enforces; its **interpretation layer**
+  ([08-value-interpretation.md](08-value-interpretation.md)) is the conventions
+  compilers, wallets, and explorers agree on.
+- **Host function**: a function the chain provides to modules through the chain
+  ABI. Everything a module does beyond pure computation goes through one.
+- **Fuel**: the chain's unit of execution cost, consumed by a module's Wasm
+  instructions and charged by host functions.
+- **Build inputs**: everything a compilation depends on: the source, the
+  compiler version, the deployed interfaces of the contracts the source refers
+  to, and the deploying principal ([03-architecture.md](03-architecture.md)
+  section 2).
+- **Provenance section**: the custom section of a module that records the
+  compiler version, the source hash, and the hashes of the callee interfaces it
+  was compiled against, so that a module names its own build inputs.
+- **Verified triple**: a (source, compiler version, module) triple for which
+  rebuilding the source with that compiler version, and the other build inputs
+  the module's provenance section records, produces the module byte for byte.
+  Analyses, cost bounds, and proofs are stated for a verified triple. "Triple"
+  means only this.
+- **Legacy**: Clarity 1–6, which run on the existing interpreter.
+- **vNEXT**: the working name of the new Clarity language.
+
 ## One-paragraph summary
 
 The new chain executes Wasm modules, meters them in fuel, and enforces a set of

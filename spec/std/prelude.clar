@@ -1,7 +1,7 @@
 ;; Clarity vNEXT standard library prelude (working draft)
 ;;
 ;; This file is ordinary vNEXT source. It uses only features available to
-;; every contract: generics (implicit type variables), inline functions with
+;; every contract: generics (implicit type variables), macros with
 ;; call-by-name parameters, overloading, static references, `match`,
 ;; `return`, and the primitives in ../03-primitives.md.
 ;;
@@ -12,7 +12,7 @@
 ;; changing its results (chapter 4.1).
 ;;
 ;; Conventions:
-;;   define-inline  for anything needing laziness or early exit
+;;   define-macro   for anything needing laziness or early exit
 ;;   define-private for everything else
 ;;   fold-left      calls (step accumulator element), so helpers take acc first
 ;;   (name T...)    a rest parameter: the extra arguments as a list (2.6.5)
@@ -22,7 +22,7 @@
 ;; 2.6.2). Where a comment says "`T` is instantiated at ...", any other
 ;; instantiation is a type error at the call site.
 ;;
-;; Each value parameter of an inline function is referenced at most once in
+;; Each value parameter of a macro is referenced at most once in
 ;; its body; bodies that need a value twice bind it with `let` first.
 
 ;; ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@
 ;; `if` is sugar over `match` on bool. `and` and `or` are core forms, since
 ;; short-circuiting over any number of arguments cannot be written here
 ;; (chapter 2.5.3).
-(define-inline (if (condition bool) (then T) (else T))
+(define-macro (if (condition bool) (then T) (else T))
   (match condition
     (true then)
     (false else)))
@@ -45,48 +45,48 @@
 ;; Early exit
 ;; ---------------------------------------------------------------------------
 
-(define-inline (asserts! (condition bool) (thrown E))
+(define-macro (asserts! (condition bool) (thrown E))
   (if condition true (return thrown)))
 
 ;; `thrown` is evaluated only on failure. For `unwrap!` and `unwrap-err!`
 ;; this is a change from legacy, which evaluated it before the check;
 ;; `asserts!` was already lazy.
-(define-inline (unwrap! (value (optional T)) (thrown E))
+(define-macro (unwrap! (value (optional T)) (thrown E))
   (match value
     ((some inner) inner)
     (none (return thrown))))
 
-(define-inline (unwrap! (value (response T E)) (thrown F))
+(define-macro (unwrap! (value (response T E)) (thrown F))
   (match value
     ((ok inner) inner)
     ((err ignored) (return thrown))))
 
-(define-inline (unwrap-err! (value (response T E)) (thrown F))
+(define-macro (unwrap-err! (value (response T E)) (thrown F))
   (match value
     ((ok ignored) (return thrown))
     ((err inner) inner)))
 
-(define-inline (try! (value (optional T)))
+(define-macro (try! (value (optional T)))
   (match value
     ((some inner) inner)
     (none (return none))))
 
-(define-inline (try! (value (response T E)))
+(define-macro (try! (value (response T E)))
   (match value
     ((ok inner) inner)
     ((err inner) (return (err inner)))))
 
-(define-inline (unwrap-panic (value (optional T)))
+(define-macro (unwrap-panic (value (optional T)))
   (match value
     ((some inner) inner)
     (none (panic))))
 
-(define-inline (unwrap-panic (value (response T E)))
+(define-macro (unwrap-panic (value (response T E)))
   (match value
     ((ok inner) inner)
     ((err ignored) (panic))))
 
-(define-inline (unwrap-err-panic (value (response T E)))
+(define-macro (unwrap-err-panic (value (response T E)))
   (match value
     ((ok ignored) (panic))
     ((err inner) inner)))

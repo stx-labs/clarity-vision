@@ -14,7 +14,7 @@ all of the following true:
   carry length bounds. There are no unbounded data structures.
 - There is no recursion, direct or mutual, and no unbounded loop. Iteration
   exists only over sequences whose length is bounded by their type.
-- Inline expansion and generic instantiation terminate, because the definition
+- Macro expansion and generic instantiation terminate, because the definition
   graph is acyclic.
 - Call depth is bounded, and a contract cannot be re-entered while a call into
   it is active.

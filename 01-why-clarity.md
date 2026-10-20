@@ -75,8 +75,8 @@ differ from the source everyone audited. The plan pays that down directly:
   produce a byte-identical module, and each module records which compiler built
   it and the hash of its source. Anyone can rebuild and compare.
 - **Source verification as a product.** Analyses, cost bounds, and proofs are
-  computed on source and attach to a verified (source, compiler, module) triple.
-  They apply to the deployed code exactly when that triple checks.
+  computed on source and attach to a verified (source, compiler version, module)
+  triple. They apply to the deployed code exactly when that triple checks.
 - **A compiler that is small by design.** The core language is about a dozen
   forms and eighty primitives with no bespoke evaluation rules, and the standard
   library is compiled like user code. Validating the translation of a
