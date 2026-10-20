@@ -799,7 +799,7 @@ written with `...` after its type:
 ```
 
 A call supplies the fixed parameters in order and **one or more** further
-arguments for the rest parameter. Insides the body, the rest parameter is a
+arguments for the rest parameter. Inside the body, the rest parameter is a
 list: `rest : (list N T)`, where `N` is the number of rest arguments at that
 call site. The call `(name a1 ... ak b1 ... bm)` is the call of the definition
 with `a1 ... ak` for the fixed parameters and `(list b1 ... bm)` for the rest,
