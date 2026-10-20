@@ -122,13 +122,13 @@ the interpretation layer
 Two limits (2.8) apply to it, depending on where the type occurs:
 
 - The **value size limit** applies to the type of every name (a `let` or `match`
-  binding, or a parameter of a function that is not inline), every function
-  result, every type written in source, and every value written to storage,
-  emitted in an event, or passed to `contract-call?`.
+  binding, or a parameter of a function, not of a macro), every function result,
+  every type written in source, and every value written to storage, emitted in
+  an event, or passed to `contract-call?`.
 - The **intermediate size limit** applies to the type of every other expression:
-  a primitive's argument, a list or tuple under construction, or an inline
-  function's argument before it is bound. Inline arguments are checked after
-  expansion, at the position where they land.
+  a primitive's argument, a list or tuple under construction, or a macro's
+  argument before it is bound. Macro arguments are checked after expansion, at
+  the position where they land.
 
 A type that exceeds the limit for its position is a type error. So no value
 larger than the value size limit can be bound, returned, or stored, and a value
@@ -237,7 +237,7 @@ position that is not a literal denotes a **size variable**. Both are implicitly
 universally quantified over the definition in which they appear, and each MUST
 occur in at least one parameter type of that definition.
 
-Type and size variables may appear only in `define-private` and `define-inline`
+Type and size variables may appear only in `define-private` and `define-macro`
 definitions. Public and read-only functions, traits, storage definitions, and
 constants are monomorphic.
 
@@ -280,9 +280,9 @@ and have no runtime representation.
 Reference kinds let one helper serve every map (or variable, or token) of a
 given shape; each distinct reference is its own instance, so which storage a
 function touches stays statically known. Reference kinds may appear only in
-`define-private` and `define-inline` parameters. `(function ...)` arguments may
-name any function defined in the current contract or the prelude except inline
-functions, or any primitive that is not a special form.
+`define-private` and `define-macro` parameters. `(function ...)` arguments may
+name any function defined in the current contract or the prelude, but not a
+macro, or any primitive that is not a special form.
 
 ## 2.4 Contracts and top-level forms
 
@@ -325,7 +325,7 @@ contract.
 | `(define-public (name (param type) ...) expr ...)`                                                                        | An externally callable function                                                                                                                                                                                                                                                     | parameter types are interface types; result type MUST be a `response`; monomorphic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `(define-read-only (name (param type) ...) expr ...)`                                                                     | An externally callable function that MUST NOT mutate state (2.7.4)                                                                                                                                                                                                                  | parameter types are interface types; monomorphic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `(define-private (name (param type-or-ref-kind) ...) expr ...)`                                                           | An internal function called by value                                                                                                                                                                                                                                                | may be generic and overloaded, and may end with a rest parameter (2.6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `(define-inline (name (param type-or-ref-kind) ...) expr ...)`                                                            | An internal function expanded at each call site, with call-by-name parameters (2.6.3)                                                                                                                                                                                               | may be generic and overloaded                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `(define-macro (name (param type-or-ref-kind) ...) expr ...)`                                                             | A macro: an internal definition expanded at each call site, with call-by-name parameters (2.6.3)                                                                                                                                                                                    | may be generic and overloaded                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Parameter names within one definition MUST be distinct (a duplicate is a static
 error, not a runtime one). A function body is a non-empty sequence of
@@ -378,7 +378,7 @@ before overload resolution and instantiation (2.6.2). All definitions of an
 overloaded name are one node, so one overload of a name MUST NOT use another;
 the shared part lives in a helper, as the prelude's `std-sqrti-uint` does for
 the two `sqrti` overloads. Because the graph is acyclic before instantiation
-begins, every chain of instantiations and inline expansions is finite (P1), and
+begins, every chain of instantiations and macro expansions is finite (P1), and
 the deploy-order check of 2.4.2 can be made on the source.
 
 ### 2.4.4 Contract interface
@@ -478,9 +478,9 @@ evaluated.
 `and` and `or` take two or more `bool` expressions and evaluate them left to
 right, stopping at the first `false` (`and`) or the first `true` (`or`). They
 are core forms, not library functions, because short-circuiting over any number
-of arguments cannot be written in the language: an inline function has a fixed
-number of by-name parameters, and a rest parameter (2.6.5) is a list value whose
-elements are all evaluated before the body runs. `(and a b c)` means exactly
+of arguments cannot be written in the language: a macro has a fixed number of
+by-name parameters, and a rest parameter (2.6.5) is a list value whose elements
+are all evaluated before the body runs. `(and a b c)` means exactly
 `(match a (true (match b (true c) (false false))) (false false))`.
 
 ### 2.5.4 `return`
@@ -490,7 +490,7 @@ elements are all evaluated before the body runs. `(and a b c)` means exactly
 ```
 
 Evaluates `expr`, then terminates the innermost enclosing function body (after
-inline expansion, 2.6.3) with that value. `return` has type `never`. The type of
+macro expansion, 2.6.3) with that value. `return` has type `never`. The type of
 `expr` contributes to the enclosing function's inferred result type (2.6.4).
 `return` MUST NOT appear in a top-level expression.
 
@@ -508,8 +508,7 @@ functions defined over `match` and `return`.
 
 `f` is a primitive, a function defined in the current contract or the prelude,
 or a `(function ...)` parameter. Arguments are evaluated left to right (except
-for inline functions, 2.6.3). Typing and overload resolution are defined in
-2.6.2.
+for macros, 2.6.3). Typing and overload resolution are defined in 2.6.2.
 
 ### 2.5.6 Constructors
 
@@ -690,7 +689,7 @@ type a fold needs (2.6.2), and to give a type error a place to point:
 | `define-public`    | yes                           | yes                 | yes              | no                           | by value                       |
 | `define-read-only` | yes                           | yes                 | no               | no                           | by value                       |
 | `define-private`   | no                            | yes                 | yes              | yes                          | by value                       |
-| `define-inline`    | no                            | yes                 | yes              | yes                          | expanded at call site, by name |
+| `define-macro`     | no                            | yes                 | yes              | yes                          | expanded at call site, by name |
 
 Every invocation of a public function has the rollback semantics of 2.7.3,
 whether it is called from another contract, as the entry point of a transaction,
@@ -777,9 +776,12 @@ the same shape. Each tuple shape is its own instance, so no value carries fields
 its static type lacks (2.3.2). A call with a tuple that has no `balance` field
 is reported as `credit` at that tuple type, at the call site.
 
-### 2.6.3 Inline functions
+### 2.6.3 Macros
 
-An inline function is expanded at each call site:
+A macro (`define-macro`) is a typed, hygienic definition that is expanded at
+each call site.
+
+Expansion is defined as follows:
 
 1. The body is type-checked at the call site with parameters bound to the
    argument expressions' types (2.6.2).
@@ -791,34 +793,34 @@ An inline function is expanded at each call site:
    `as-contract?` or `restrict-assets?` form in the body is evaluated inside
    that frame, with the frame's `sender` and `caller`, and the order in which
    arguments are evaluated is the order of their references in the body, not
-   their order at the call site. Prelude inline functions reference their
-   parameters outside any such frame. Prelude functions whose names read as
-   ordinary calls (`default-to`, `map-insert?`) are private, so their arguments
-   are evaluated eagerly as in legacy; laziness is confined to control-flow
-   forms, and the library documents each place where it changes legacy behavior
-   (`unwrap!`, `unwrap-err!`).
+   their order at the call site. Prelude macros reference their parameters
+   outside any such frame. Prelude functions whose names read as ordinary calls
+   (`default-to`, `map-insert?`) are private, so their arguments are evaluated
+   eagerly as in legacy; laziness is confined to control-flow forms, and the
+   library documents each place where it changes legacy behavior (`unwrap!`,
+   `unwrap-err!`).
 3. Names bound inside the body (`let`, `match`) are fresh and cannot capture
    names in argument expressions. Free names in the body resolve in the defining
    contract's top-level scope.
 4. `return` inside the body returns from the caller's innermost enclosing
-   function body, not from the inline function.
+   function body, not from the macro.
 
-To make call by name safe, each **value** parameter of an inline function MUST
-be referenced at most once in the body (syntactically). A body that needs a
+To make call by name safe, each **value** parameter of a macro MUST be
+referenced at most once in the body (syntactically). A body that needs a
 parameter twice binds it with `let` first. Reference-kind parameters have no
 evaluation and may be referenced any number of times.
 
-Inline functions cannot be passed as `(function ...)` arguments. Inline
-expansion is finite because the definition graph is acyclic (2.4.3).
+Macros cannot be passed as `(function ...)` arguments. Macro expansion is finite
+because the definition graph is acyclic (2.4.3).
 
-> [!NOTE] **When to use `define-inline`.** An inline function is the only way to
-> write a helper that returns from its caller or evaluates an argument only on
-> some paths. Use it for exactly those two cases, and use `define-private` for
+> [!NOTE] **When to use `define-macro`.** A macro is the only way to write a
+> helper that returns from its caller or evaluates an argument only on some
+> paths. Use it for exactly those two cases, and use `define-private` for
 > everything else. For example, a helper that replaces an error code and exits
 > in one step cannot be private:
 >
 > ```
-> (define-inline (try-with! (value (response T E)) (code F))
+> (define-macro (try-with! (value (response T E)) (code F))
 >   (match value
 >     ((ok inner) inner)
 >     ((err ignored) (return (err code)))))
@@ -835,20 +837,20 @@ expansion is finite because the definition graph is acyclic (2.4.3).
 > per instance instead of once per call site. Its body may use a parameter any
 > number of times.
 >
-> An inline function gives those up. At a call site, an argument whose parameter
-> is not used on the path taken is never evaluated, so its side effects (a
+> A macro gives those up. At a call site, an argument whose parameter is not
+> used on the path taken is never evaluated, so its side effects (a
 > `contract-call?`, a `var-set`, an abort) do not happen. Arguments are
 > evaluated in the order the body uses them, not the order they are written. An
 > argument used inside an `as-contract?` or `restrict-assets?` form in the body
 > sees that frame's `sender`. A function whose name reads as an ordinary call
-> should not be inline unless its documentation states which arguments may go
+> should not be a macro unless its documentation states which arguments may go
 > unevaluated.
 
 ### 2.6.4 Result type inference
 
 The result type of a function instance is the lub of the type of its last body
 expression and the types of the operands of every `return` reachable in its body
-(after inline expansion). If the lub is undefined, it is a type error. For
+(after macro expansion). If the lub is undefined, it is a type error. For
 `define-public`, the result type MUST be a `response` type.
 
 The result type is not written in source, and may contain `never` (2.3.3). A
@@ -928,9 +930,9 @@ Rules:
   above, or in a primitive.
 - **Private only.** Public and read-only functions MUST NOT have rest
   parameters, because their declared signatures have a fixed arity (2.4.4).
-  Inline functions MUST NOT have them either: rest arguments are evaluated as a
-  list before the body runs, which would silently make an inline function strict
-  in those arguments.
+  Macros MUST NOT have them either: rest arguments are evaluated as a list
+  before the body runs, which would silently make a macro strict in those
+  arguments.
 - **Primitives** whose chapter 3 signature ends in `I...` or `S...` follow the
   same rules, including spread. Their result type may be tighter than a user
   definition could state; `concat`'s bound, for example, is the exact sum of its
@@ -1068,7 +1070,7 @@ source size and transaction budgets.
 | Maximum storage key: a map's key prefix plus `serialized-size` of its key type (3.7) | 1,024 bytes     | new; the chain ABI's storage key limit                                                              |
 | Maximum `print` message: the rendered length bound of the argument's type (3.10)     | 1,048,576 bytes | new; the chain ABI's print message limit                                                            |
 
-There is no limit on the size of a contract after inline expansion and
+There is no limit on the size of a contract after macro expansion and
 instantiation, which can grow exponentially (definitions that each call the next
 twice, or instantiate it at two types). The only limit is the chain's limit on
 module size. A compiler MUST report a contract whose module would exceed it as a

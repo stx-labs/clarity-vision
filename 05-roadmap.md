@@ -26,7 +26,7 @@ interpreter) proceeds separately and is not covered here.
 
 ## Phase 2 — Reference compiler
 
-- Front end: parser, type checker, overload resolution, instantiation, inline
+- Front end: parser, type checker, overload resolution, instantiation, macro
   expansion.
 - Back end: lowering to Wasm, prelude linking, the `abi.interface`, `abi.types`,
   and provenance sections, and argument and result validation.

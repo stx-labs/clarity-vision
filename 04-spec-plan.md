@@ -239,8 +239,8 @@ Writing the prelude is the test of the core design. Findings so far:
   from the library into the core (spec 2.5.3).
 - `never` as the type of `(return ...)` and `(panic)` makes every early-exit
   form typeable with ordinary lub rules, with no special cases.
-- Inline functions cannot be passed to `filter`, which forces predicates to be
-  private functions (spec 2.6.3).
+- Macros cannot be passed to `filter`, which forces predicates to be private
+  functions (spec 2.6.3).
 - Folds whose initial value has a smaller type than the step's result
   (`std-reverse-16` starts from `0x`, `std-render-decimal` from `""`,
   `index-of?` from `none`) rely on instantiation finding the accumulator type by
