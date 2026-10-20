@@ -98,8 +98,6 @@ normative table is [03-architecture.md](03-architecture.md) section 5):
   runtime.
 - **Rollback on error**: a public function that returns `err` has its state
   changes discarded.
-- **Well-typed boundaries**: every value crossing a contract call is validated
-  against the callee's declared interface.
 - **Post-conditions and asset allowances**: the sender bounds what a transaction
   may do to their assets, and `as-contract?` bounds what a contract may do with
   its own, regardless of the called code.
@@ -109,6 +107,11 @@ The **language** adds, for Clarity contracts:
 - **No undefined behavior**: arithmetic overflow aborts deterministically; there
   are no null references.
 - **Errors must be handled**: ignoring a `response` is a type error.
+- **Well-typed boundaries**: a Clarity contract validates every value it
+  receives, its arguments on entry and the result of every call it makes,
+  against its declared types, so it can rely on its types whatever language the
+  other side is written in. The chain passes values through as bytes and checks
+  none of them.
 - **Decidability**, with everything in 1.2.
 
 ### 1.5 Bitcoin-native
