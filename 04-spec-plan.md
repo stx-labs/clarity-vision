@@ -5,11 +5,14 @@
 - **The Clarity specification** defines the language: syntax, types, semantics,
   the standard library, and what a correct compiler to Wasm produces. It is
   owned by the language project. Drafts live in [spec/](spec/).
-- **The chain ABI** defines what any module can rely on: the module format,
-  interface metadata, value encoding, host functions and their charges, call
-  semantics, runtime guarantees, and the fuel schedule. It is owned jointly with
-  the chain and shared by every source language. The Clarity spec refers to it
-  and never restates it.
+- **The chain ABI** defines what any module can rely on, in two layers. The
+  runtime layer ([07-chain-abi.md](07-chain-abi.md)) is what the chain
+  implements: the module format and interface, host functions and their charges,
+  call semantics, runtime guarantees, and the fuel schedule. The interpretation
+  layer ([08-value-interpretation.md](08-value-interpretation.md)) is what
+  compilers, wallets, and explorers rely on: declared types and value encoding.
+  It is owned jointly with the chain and shared by every source language. The
+  Clarity spec refers to it and never restates it.
 
 Clarity 1–6 are out of scope. They remain defined by their implementation on the
 legacy track. The new language owes them nothing in syntax or semantics, and the
@@ -69,11 +72,13 @@ ECMAScript/Rust-edition model; no delta chains to reconstruct):
    big-step operational semantics) so verification tools can consume it. This is
    the semantics every compiler must preserve.
 6. **Compilation to Wasm**: the module layout Clarity uses within the chain ABI,
-   the lowering of each core form and primitive, prelude linking, the interface
-   and provenance sections, and the determinism rules. It also carries the
-   argument that loop bounds guaranteed by the source types survive compilation,
-   which is what makes "worst-case fuel of any function is statically boundable"
-   a theorem. The static cost analyzer is derived from that argument.
+   the lowering of each core form and primitive, prelude linking, the
+   `abi.interface`, `abi.types`, and provenance sections, the validation of
+   arguments and call results and the abort codes of runtime errors, and the
+   determinism rules. It also carries the argument that loop bounds guaranteed
+   by the source types survive compilation, which is what makes "worst-case fuel
+   of any function is statically boundable" a theorem. The static cost analyzer
+   is derived from that argument.
 7. **Primitives and standard library**: every core primitive with its signature,
    semantics, and error cases ([spec/03-primitives.md](spec/03-primitives.md));
    the standard library, specified by its source
@@ -81,10 +86,12 @@ ECMAScript/Rust-edition model; no delta chains to reconstruct):
    disposition table
    ([spec/04-standard-library.md](spec/04-standard-library.md)).
 
-The chain ABI is a separate document with its own chapters: value model and wire
-format, module format and interface metadata, host functions and their charges,
-call dispatch and boundary validation, runtime guarantees, and the fuel
-schedule.
+The chain ABI is specified separately, in two documents: the runtime layer
+([07-chain-abi.md](07-chain-abi.md): module format and interface, host functions
+and their charges, call dispatch, runtime guarantees, and the fuel schedule) and
+the interpretation layer
+([08-value-interpretation.md](08-value-interpretation.md): the type grammar,
+canonical encoding, and the `abi.types` section).
 
 ## The conformance suite
 
@@ -114,15 +121,16 @@ call:   f
 expect: abort, class arithmetic-overflow
 ```
 
-### Three kinds of vector
+### Four kinds of vector
 
-| Kind             | Input                         | Expected outcome                                                                                                     | Who must pass                                              |
-| ---------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| **Language**     | Contract source, plus calls   | A compile error of a specified class, or for each call: return value, events, asset movements, and whether it aborts | Every Clarity compiler                                     |
-| **ABI**          | A module, plus chain actions  | Deploy and boundary validation, rollback, reentrancy and read-only rejection, host function results and charges      | Every chain implementation, independent of source language |
-| **Golden build** | Source and a compiler version | The exact module bytes                                                                                               | That compiler release, on every supported platform         |
+| Kind             | Input                         | Expected outcome                                                                                                     | Who must pass                                                                 |
+| ---------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Language**     | Contract source, plus calls   | A compile error of a specified class, or for each call: return value, events, asset movements, and whether it aborts | Every Clarity compiler                                                        |
+| **ABI**          | A module, plus chain actions  | Deploy validation, rollback, reentrancy and read-only rejection, host function results and charges                   | Every chain implementation, independent of source language                    |
+| **Encoding**     | A declared type and bytes     | Whether the bytes decode canonically against the type, and to which value; `serialized-size` of the type             | Every compiler, every tool that decodes values, and the chain's legacy bridge |
+| **Golden build** | Source and a compiler version | The exact module bytes                                                                                               | That compiler release, on every supported platform                            |
 
-Language and ABI vectors are the suite proper: they pin behavior the
+Language, ABI, and encoding vectors are the suite proper: they pin behavior the
 specification requires, and they are written with the spec and versioned with
 it. Golden build vectors are different in kind. They pin nothing about the
 language; they pin a particular compiler release, so that reproducibility
@@ -165,7 +173,9 @@ Which side is the oracle depends on where the rule lives:
   vector is wrong. The same vectors are what hold a hand-written or
   better-compiled replacement, linked by a later compiler in place of the
   source, to identical results, events, and errors.
-- For the chain, the ABI document is normative, and ABI vectors are its suite.
+- For the chain, the runtime layer is normative, and ABI vectors are its suite.
+  For values, the interpretation layer is normative, and encoding vectors are
+  its suite.
 
 ### Where the suite sits among the other defenses
 
@@ -182,8 +192,9 @@ Candidates for the RFC process, listed to scope ambition, not to commit:
 
 - Consistent naming and calling conventions across the standard library (the
   `unwrap!`/`unwrap-panic`/`try!` family, `?`/`!` suffix discipline).
-- A trait system that is fully static, decidable, and pleasant, designed for
-  boundary validation by the chain from the start.
+- A trait system that is fully static, decidable, and pleasant, checked entirely
+  at compile time against declared signatures that every language shares
+  ([08-value-interpretation.md](08-value-interpretation.md) section 5.2).
 - Cost transparency in the language: contracts and functions can declare fuel
   bounds that the analyzer verifies; callers can rely on them.
 - Richer (still bounded) iteration and data manipulation, so common patterns

@@ -224,7 +224,7 @@ prelude; "removed" means vNEXT has no equivalent by that name.
 | `with-stx`, `with-ft`, `with-nft`, `with-staking`, `with-pox`, `with-all-assets-unsafe` | allowance forms |                                                                                                                           |
 | `with-stacking`                                                                         | removed         | renamed `with-staking` in Clarity 6                                                                                       |
 | `at-block`                                                                              | removed         | disabled in legacy since epoch 3.4                                                                                        |
-| `print`                                                                                 | primitive       |                                                                                                                           |
+| `print`                                                                                 | primitive       | emits the value's Clarity literal text (3.10), not its SIP-005 encoding                                                   |
 
 ### Chain data
 
