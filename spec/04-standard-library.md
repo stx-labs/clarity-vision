@@ -116,13 +116,13 @@ column says what each became:
 - **library**: defined in the prelude, in vNEXT source.
 - **removed**: vNEXT has no equivalent by that name; the notes say what to use.
 
-In the notes, **private** and **inline** say how the prelude defines a library
+In the notes, **private** and **macro** say how the prelude defines a library
 function, not who can call it: every prelude function is in scope in every
 contract (2.4.5), and none is callable by `contract-call?`. A private function
 is an ordinary function (`define-private`), so all of its arguments are
-evaluated once, before the call, as in legacy. An inline function
-(`define-inline`, 2.6.3) is expanded at the call site and evaluates an argument
-only where its body uses it.
+evaluated once, before the call, as in legacy. A macro (`define-macro`, 2.6.3)
+is expanded at the call site and evaluates an argument only where its body uses
+it.
 
 ### Arithmetic and logic
 
@@ -277,7 +277,7 @@ Constructs with no legacy counterpart, with the kinds of 4.3:
 | ---------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `clarity-version`                                                                                          | form      | required first form of every contract (2.4.0); replaces the `clarity_version` field of the legacy deploy transaction                  |
 | `define-type`                                                                                              | form      | transparent type aliases (2.3.5); replaces `use-trait`                                                                                |
-| `define-inline`                                                                                            | form      | call-by-name, expanded at each call site (2.6.3)                                                                                      |
+| `define-macro`                                                                                             | form      | call-by-name, expanded at each call site (2.6.3)                                                                                      |
 | rest parameters `(name T...)`                                                                              | form      | private functions only; the rest arguments are bound as a list (2.6.5)                                                                |
 | `return`                                                                                                   | form      | exits the enclosing function with a value (2.5.4); the library's early-exit functions are defined with it                             |
 | `as`                                                                                                       | form      | type ascription; widens, never narrows (2.5.10)                                                                                       |
