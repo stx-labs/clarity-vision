@@ -109,16 +109,17 @@ Meaning of each type:
 | `(optional T)`     | `none` or `(some v)` with `v : T`                                                                                                                                                                                                                                                                                               |
 | `(response T E)`   | `(ok v)` with `v : T` or `(err e)` with `e : E`                                                                                                                                                                                                                                                                                 |
 | `{ f: T, ... }`    | records with exactly the listed fields                                                                                                                                                                                                                                                                                          |
-| `(trait X)`        | contract principals whose interface implements trait `X`                                                                                                                                                                                                                                                                        |
+| `(trait X)`        | contract principals that conform to trait `X` (2.3.2); checked at compile time, not at runtime (2.5.8)                                                                                                                                                                                                                          |
 | contract literal   | the one contract principal named by a literal `'SP...123.c` or `.c`, or by a static constant holding one (2.4.1). Internal: it cannot be written in source, is never an interface or storable type, and exists so that a literal can be used wherever a trait type is expected (2.3.2) and as a `contract-call?` target (2.5.8) |
 
 `(buff N)`, `(string-ascii N)`, `(string-utf8 N)`, and `(list N T)` are the four
 **sequence types**. Their **element types** are `(buff 1)`, `(string-ascii 1)`,
 `(string-utf8 1)`, and `T` respectively.
 
-Every type has a statically known maximum serialized size (defined in the chain
-ABI's wire format). Two limits (2.8) apply to it, depending on where the type
-occurs:
+Every type has a statically known maximum serialized size, `serialized-size` of
+the interpretation layer
+([../08-value-interpretation.md](../08-value-interpretation.md) section 4.1).
+Two limits (2.8) apply to it, depending on where the type occurs:
 
 - The **value size limit** applies to the type of every name (a `let` or `match`
   binding, or a parameter of a function that is not inline), every function
@@ -151,8 +152,11 @@ reflexive, transitive relation such that:
 - `(response S1 S2) <: (response T1 T2)` when `S1 <: T1` and `S2 <: T2`.
 - `{ f1: S1, ... } <: { f1: T1, ... }` when both have exactly the same field
   names and `Si <: Ti` for every field.
-- The contract literal type of `c` (2.3.1) `<: (trait X)` when the interface of
-  `c` implements `X` (chain ABI trait rules), and `<: principal` always.
+- The contract literal type of `c` (2.3.1) `<: (trait X)` when `c` conforms to
+  `X`: its declared signatures in `abi.types` (2.4.4) satisfy the rule of
+  `impl-trait` (2.4.1), which is the interpretation layer's conformance rule
+  ([../08-value-interpretation.md](../08-value-interpretation.md) section 5.2).
+  It is `<: principal` always.
 - `(trait X) <: (trait Y)` when every function required by `Y` is present in `X`
   with an identical signature (structural sub-trait).
 - `(trait X) <: principal`.
@@ -213,13 +217,16 @@ lifting it later is backward compatible and restoring it would not be.
 
 A type is an **interface type** if it contains no type or size variable. Trait
 types are allowed. Only interface types may appear in the parameter and result
-types of public and read-only functions and in trait definitions.
+types of public and read-only functions and in trait definitions. They are the
+types the compiler declares in `abi.types` (2.4.4), and each is a type of the
+interpretation layer's grammar
+([../08-value-interpretation.md](../08-value-interpretation.md) section 2).
 
 An interface type may contain `never`. A public function whose body is
 `(ok true)` has the result type `(response bool never)`, which states that the
-function cannot return `err`. The chain ABI's type grammar includes `never`, and
-boundary validation (2.5.8) admits no value for it. An author who wants a wider
-type in the interface states it with `as` (2.5.10):
+function cannot return `err`. The interpretation layer's grammar includes
+`never`, and argument and result validation (2.5.8) admits no value for it. An
+author who wants a wider type in the interface states it with `as` (2.5.10):
 `(as (response bool uint) (ok true))`.
 
 ### 2.3.4 Type variables and size variables
@@ -310,7 +317,7 @@ contract.
 | `(define-constant name expr)`                                                                                             | A named value                                                                                                                                                                                                                                                                       | `expr` is deploy-time code (2.4.2), evaluated once; its type is inferred and MUST satisfy the value size limit (2.3.1). The type may contain `never`, so `(define-constant ERR-NOT-FOUND (err u404))` has type `(response never uint)` and is usable in any function whose error type is `uint`. If `expr` is a literal, or is built only from literals and other static constants using primitives that read neither state nor context (arithmetic, sequence, conversion, and hash primitives), the constant is **static**: its value is known at analysis time and it may be used wherever a literal is required (size terms, `contract-call?` targets, `as-max-len?` bounds) |
 | `(define-type name type)`                                                                                                 | A type alias                                                                                                                                                                                                                                                                        | 2.3.5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `(define-data-var name type expr)`                                                                                        | A persistent variable                                                                                                                                                                                                                                                               | `type` storable; `expr : T <: type` is deploy-time code (2.4.2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `(define-map name key-type value-type)`                                                                                   | A persistent map                                                                                                                                                                                                                                                                    | both types storable                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `(define-map name key-type value-type)`                                                                                   | A persistent map                                                                                                                                                                                                                                                                    | both types storable; the key prefix plus `serialized-size(key-type)` MUST fit the storage key limit (2.8, 3.7)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `(define-fungible-token name)` and `(define-fungible-token name expr)`                                                    | A fungible token, optionally with a total supply cap `expr : uint`                                                                                                                                                                                                                  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `(define-non-fungible-token name type)`                                                                                   | A non-fungible token with identifier type `type`                                                                                                                                                                                                                                    | `type` storable                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `(define-trait name ((fn-name (type ...) type) ...))` and `(define-trait name ((fn-name (type ...) type read-only) ...))` | A trait: a set of function names with interface-typed signatures whose result types are `response` types. A function marked `read-only` may only be implemented by a read-only function, and may be called through the trait from read-only code (2.7.4)                            |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -376,13 +383,26 @@ the deploy-order check of 2.4.2 can be made on the source.
 
 ### 2.4.4 Contract interface
 
-The compiler emits the contract's interface into its module in the chain ABI's
-interface format: its public and read-only functions with their signatures and
-read-only marks, its implemented traits, its defined traits, its data variables
-and maps with their types, and its token definitions. The chain validates the
-interface against the module at deploy. Other contracts, whatever their source
-language, compile calls against this interface only, and the chain validates
-every call against it at runtime (2.5.8).
+The compiler emits two sections describing the contract into its module
+([../07-chain-abi.md](../07-chain-abi.md) section 3.4):
+
+- **`abi.interface`** ([../07-chain-abi.md](../07-chain-abi.md) section 4.1)
+  names the public and read-only functions with their kinds, and the fungible
+  and non-fungible tokens. The chain validates it against the module at deploy
+  and acts on nothing else.
+- **`abi.types`**
+  ([../08-value-interpretation.md](../08-value-interpretation.md) section 5)
+  declares the parameter and result types of every public and read-only
+  function, the identifier type of every non-fungible token, the traits the
+  contract defines, the traits it claims with `impl-trait`, and the layout of
+  its data variables and maps (3.7). A Clarity contract declares all of them, so
+  none of its functions, tokens, or storage is undeclared.
+
+The chain does not read `abi.types`. Other contracts, whatever their source
+language, compile typed calls against it (2.5.8), and wallets and explorers
+display values with it. Nothing at runtime checks that a module honors its
+declarations, which is why a Clarity contract validates every value it receives
+from another contract (2.5.8).
 
 ### 2.4.5 Standard library names
 
@@ -525,19 +545,66 @@ number of arguments only through a rest parameter (2.6.5).
 contract principal type, or an expression of a trait type `(trait X)`; in the
 trait case `function-name` MUST be a function of `X`. Any expression of trait
 type is acceptable, including a tuple field or a `let`-bound name. Arguments are
-type-checked against the callee's stored interface (literal case) or the trait
-signature (trait case). In the literal case the callee's interface is therefore
-an input to compilation, and the compiler records it in the module's provenance
-([../03-architecture.md](../03-architecture.md) section 2). The result type is
-the callee's declared result type. The callee MUST be a public or read-only
+type-checked against the callee's declared signature in its `abi.types` (2.4.4)
+in the literal case, or against the trait's signature in the trait case, read
+from the `abi.types` of the contract that defines the trait. Either way the
+section read is an input to compilation, and the compiler records its hash in
+the module's provenance ([../03-architecture.md](../03-architecture.md) section
+2). In the literal case the callee's function MUST be declared; a function with
+no declared signature can only be called with `contract-call-raw?`. The result
+type is the declared result type. The callee MUST be a public or read-only
 function and MUST NOT be in the current contract.
 
 The call is dispatched by the chain, which enforces the depth limit and the
 no-reentrancy rule (2.7.5). The callee may be written in any source language.
-The chain validates the arguments against the callee's declared parameter types
-and the result against its declared result type, and for a trait target checks
-that the principal's interface implements the trait. A Clarity contract can
-therefore rely on its parameter types whoever calls it.
+The arguments are passed in canonical encoding against the declared parameter
+types ([../08-value-interpretation.md](../08-value-interpretation.md) section
+6.1). When the caller relies on the callee being read-only, the compiler sets
+the call's `read_only` flag ([../07-chain-abi.md](../07-chain-abi.md) section
+5.3) and the chain rejects a callee that is not: the call is from read-only code
+(2.7.4), the trait marks the function `read-only`, or the literal callee
+declares it read-only.
+
+**Values are validated by the module.** The chain does not check values against
+declared types ([../07-chain-abi.md](../07-chain-abi.md) section 5.4), so the
+compiled module does:
+
+- Every public and read-only function decodes its arguments, by canonical
+  decoding against its declared parameter types
+  ([../08-value-interpretation.md](../08-value-interpretation.md) section 3),
+  before its body runs.
+- Every `contract-call?` decodes the result against the declared result type, in
+  the trait case the trait's: the `ok` arm's type or the `err` arm's, whichever
+  the result flag selects.
+
+A value that fails to decode is a runtime error (2.7.2). A Clarity contract can
+therefore rely on its parameter types whoever calls it, and on the result type
+of every call it makes, whatever language the other side is written in.
+
+**Traits are checked at compile time.** Conformance (2.3.2, `impl-trait` in
+2.4.1) is checked when a contract is compiled, against declared signatures. A
+principal passed in a trait-typed parameter is not checked against the trait at
+runtime, because a module cannot read another contract's declarations. A call
+through it is still safe: it aborts if the function does not exist or, for a
+function the trait marks `read-only`, is not read-only, and its result is
+validated like any other, so a principal that does not conform can make the call
+fail but cannot make it return a value of the wrong type.
+
+```
+(contract-call-raw? contract function-name args size)
+```
+
+Calls a function without a declared signature, such as a function of a contract
+written in a language that does not declare its types
+([../08-value-interpretation.md](../08-value-interpretation.md) section 6.4).
+`contract` and `function-name` are as for `contract-call?`, except that
+`function-name` is not checked against any declaration. `args : (buff N)` is
+passed to the callee as the raw argument bytes. `size` is a size term `M`
+(2.3.1), and the form has type `(response (buff M) (buff M))`: the result bytes,
+in the `ok` or `err` arm as the result flag selects. A result longer than `M`
+bytes is a runtime error. From read-only code the call sets the `read_only`
+flag, so the callee MUST be read-only; otherwise the callee may be public or
+read-only. The rollback rules of 2.7.3 apply to the callee as to any call.
 
 ### 2.5.9 Context scoping and asset allowances
 
@@ -784,10 +851,10 @@ expression and the types of the operands of every `return` reachable in its body
 (after inline expansion). If the lub is undefined, it is a type error. For
 `define-public`, the result type MUST be a `response` type.
 
-The result type is not declared, and may contain `never` (2.3.3). A function
-with no `err` path has an error type of `never`; a function with no `ok` path
-has a value type of `never`. Either is a valid interface type and is what the
-compiler emits in the module's interface (2.4.4).
+The result type is not written in source, and may contain `never` (2.3.3). A
+function with no `err` path has an error type of `never`; a function with no
+`ok` path has a value type of `never`. Either is a valid interface type and is
+what the compiler declares in `abi.types` (2.4.4).
 
 ### 2.6.5 Rest parameters
 
@@ -859,10 +926,10 @@ Rules:
   a cycle (2.4.3). The binary operation lives in a helper, as `std-max-pair`
   above, or in a primitive.
 - **Private only.** Public and read-only functions MUST NOT have rest
-  parameters, because their interface has a fixed arity in the chain ABI. Inline
-  functions MUST NOT have them either: rest arguments are evaluated as a list
-  before the body runs, which would silently make an inline function strict in
-  those arguments.
+  parameters, because their declared signatures have a fixed arity (2.4.4).
+  Inline functions MUST NOT have them either: rest arguments are evaluated as a
+  list before the body runs, which would silently make an inline function strict
+  in those arguments.
 - **Primitives** whose chapter 3 signature ends in `I...` or `S...` follow the
   same rules, including spread. Their result type may be tighter than a user
   definition could state; `concat`'s bound, for example, is the exact sum of its
@@ -890,10 +957,14 @@ caller computed.
 ### 2.7.2 Runtime errors
 
 A runtime error (arithmetic overflow, division by zero, failed conversion,
-`panic`, cost or memory limit exceeded, and the other conditions listed per
-primitive) aborts the entire transaction. There is no mechanism to catch a
-runtime error. All state changes of the transaction are discarded; the
-transaction still pays for the cost it consumed.
+`panic`, cost or memory limit exceeded, a value that fails validation at a call
+boundary (2.5.8), and the other conditions listed per primitive) aborts the
+entire transaction. There is no mechanism to catch a runtime error. All state
+changes of the transaction are discarded; the transaction still pays for the
+cost it consumed. A runtime error the module detects is reported through the
+chain ABI's `abort` with a code for its class
+([../07-chain-abi.md](../07-chain-abi.md) section 10.2); the codes are defined
+with compilation to Wasm.
 
 ### 2.7.3 Public function results and rollback
 
@@ -904,10 +975,18 @@ they are discarded and `(err e)` is returned to the caller, which continues
 executing. A `return` of an `err` value has the same effect as evaluating to it.
 
 For a call from another contract or a transaction entry point, the chain opens
-the frame and performs the commit or discard based on the returned value, so the
-rule holds for calls between modules of any source language. For an internal
-call, the compiled module opens and closes the frame itself through the chain
-ABI's frame facility, the one `as-contract?` and `restrict-assets?` use (2.5.9).
+the frame and commits or discards it by the result flag the callee sets
+([../07-chain-abi.md](../07-chain-abi.md) section 5.2), so the rule holds for
+calls between modules of any source language. A Clarity public function sets the
+flag from the arm of its response and passes the arm's value as the result
+([../08-value-interpretation.md](../08-value-interpretation.md) section 6.2). A
+read-only function also runs in a frame the chain opens, which carries its
+context (3.9) but always commits, since it holds no writes
+([../07-chain-abi.md](../07-chain-abi.md) section 7.1). The flag decides nothing
+there, so a read-only function always sets it to ok and passes its whole result.
+For an internal call to a public function, the compiled module opens and closes
+the frame itself through the chain ABI's frame facility, the one `as-contract?`
+and `restrict-assets?` use (2.5.9).
 
 An internal call to a public function therefore costs a frame, which a call to a
 private function does not. Where that matters, the convention is to put the body
@@ -939,7 +1018,8 @@ recursion every call chain is visible in the definition graph.
 ### 2.7.6 Events
 
 `print` and every asset primitive emit events into the transaction's event
-batch. Events of a rolled-back frame are discarded with it.
+batch. A `print` event is the text rendering of its value (3.10). Events of a
+rolled-back frame are discarded with it.
 
 ### 2.7.7 Cost
 
@@ -951,34 +1031,40 @@ budget is a runtime error.
 
 Fuel replaces a per-construct runtime cost table, and it is the only cost
 dimension: storage reads and writes are charged in fuel like everything else, at
-prices the chain ABI defines.
+prices the chain ABI defines. Compilation happens off chain, so its cost is the
+deployer's. What the chain charges for is the module: its size and its
+validation at deploy, as defined by the chain ABI.
 
-The following rules are about resource safety, not pricing, and bind every
-compiler:
+The following rules are about resource safety, not pricing:
 
-- Memory for a decoded value is reserved against the size bound of its result
-  type before decoding begins. `from-consensus-buff?` reserves
-  `serialized-size(T)`, so a hostile input cannot allocate more than its
-  declared type admits.
+- Memory for a decoded value is reserved against the size bound of its type
+  before decoding begins, so a hostile input cannot allocate more than its
+  declared type admits. This covers every decode of bytes the module did not
+  produce: `from-consensus-buff?`, which reserves `serialized-size(T)`; the
+  arguments a public or read-only function decodes on entry, which reserve the
+  sum of `serialized-size` over its parameter types; and the result of every
+  `contract-call?`, which reserves `serialized-size` of the declared result type
+  (2.5.8). Input longer than that bound cannot be a valid encoding and is
+  rejected before any decoding: as a validation failure (2.7.2) for arguments
+  and call results, and as `none` for `from-consensus-buff?`.
 - A trait-typed value is a principal and is sized as one.
-- Compilation happens off chain, so its cost is the deployer's. What the chain
-  charges for is the module: its size and its validation at deploy, as defined
-  by the chain ABI.
 
 ## 2.8 Limits
 
 These are language-level limits. Hosts MAY impose stricter limits on contract
 source size and transaction budgets.
 
-| Limit                                                      | Value           | Inherited from                                                                                      |
-| ---------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------- |
-| Maximum serialized value size                              | 1,048,576 bytes | `MAX_VALUE_SIZE`                                                                                    |
-| Maximum intermediate value size (2.3.1)                    | 8,388,608 bytes | new, provisional; MUST stay below the chain's Wasm memory limit                                     |
-| Fixpoint step limit for fold accumulators (2.6.2)          | 8               | new, provisional                                                                                    |
-| Maximum type nesting depth                                 | 32              | `MAX_TYPE_DEPTH`                                                                                    |
-| Maximum identifier length                                  | 128 bytes       | `MAX_STRING_LEN`; string literals are bounded only by the value size limit, as every other value is |
-| Maximum function call depth within a contract (2.7.5)      | 128             | `MAX_CALL_STACK_DEPTH`; contract-call depth is the chain ABI's                                      |
-| Maximum allowances per `as-contract?` / `restrict-assets?` | 128             | `MAX_ALLOWANCES`                                                                                    |
+| Limit                                                                                | Value           | Inherited from                                                                                      |
+| ------------------------------------------------------------------------------------ | --------------- | --------------------------------------------------------------------------------------------------- |
+| Maximum serialized value size                                                        | 1,048,576 bytes | `MAX_VALUE_SIZE`                                                                                    |
+| Maximum intermediate value size (2.3.1)                                              | 8,388,608 bytes | new, provisional; MUST stay below the chain's Wasm memory limit                                     |
+| Fixpoint step limit for fold accumulators (2.6.2)                                    | 8               | new, provisional                                                                                    |
+| Maximum type nesting depth                                                           | 32              | `MAX_TYPE_DEPTH`                                                                                    |
+| Maximum identifier length                                                            | 128 bytes       | `MAX_STRING_LEN`; string literals are bounded only by the value size limit, as every other value is |
+| Maximum function call depth within a contract (2.7.5)                                | 128             | `MAX_CALL_STACK_DEPTH`; contract-call depth is the chain ABI's                                      |
+| Maximum allowances per `as-contract?` / `restrict-assets?`                           | 128             | `MAX_ALLOWANCES`                                                                                    |
+| Maximum storage key: a map's key prefix plus `serialized-size` of its key type (3.7) | 1,024 bytes     | new; the chain ABI's storage key limit                                                              |
+| Maximum `print` message: the rendered length bound of the argument's type (3.10)     | 1,048,576 bytes | new; the chain ABI's print message limit                                                            |
 
 There is no limit on the size of a contract after inline expansion and
 instantiation, which can grow exponentially (definitions that each call the next
@@ -1013,23 +1099,19 @@ once the dependency named in each is settled.
    form that iterates a statically bounded number of times without a list, and
    that preserves P1, would remove the pattern. This is the "richer bounded
    iteration" item of the specification plan.
-5. **Allowance vocabulary** (2.5.9). `with-staking` and `with-pox` name concepts
-   of particular chain contracts in the language grammar. Whether the set of
-   allowance kinds belongs to the chain ABI, with the language taking it as
-   data, is a question for the ABI's authors.
-6. **RFC: host bindings in the prelude.** A `define-host` declaration form would
+5. **RFC: host bindings in the prelude.** A `define-host` declaration form would
    let the prelude declare every host-calling primitive (storage, assets,
    context, chain data, signature schemes, `print`) by name and signature, with
    semantics cited from the chain ABI rather than restated in chapter 3. The
    same form could cover compiled primitives with ordinary signatures, leaving
    chapter 3 with only the primitives whose typing cannot be written as a
    signature. Parked; it requires an admission rule on the ABI side.
-7. **Static memory bound.** The intermediate size limit only has to stay below
+6. **Static memory bound.** The intermediate size limit only has to stay below
    the chain's instance memory limit, so whether a well-typed contract's live
    values fit in memory depends on code generation, and exceeding it is a
    runtime error. The compiler could instead compute each function's peak memory
    and reject a contract that cannot fit, as it already does for module size
    (2.8). The chain's transaction memory cap, which depends on the callers'
    memory, would remain a runtime error.
-8. **Formal presentation.** The judgment-style typing rules and the full EBNF
+7. **Formal presentation.** The judgment-style typing rules and the full EBNF
    are pending the questions above.
