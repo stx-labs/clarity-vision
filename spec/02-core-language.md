@@ -744,6 +744,31 @@ parameter types; there is no ranking. Because `never <: T` for every `T`, an
 argument of type `never` is admitted by every candidate, so
 `(unwrap! (panic) e)` is an ambiguity error; the call could not complete anyway.
 
+The same rule applies to a name passed as a `(function (Q1 ... Qk) R)` argument.
+Its candidates are the definitions of that name that can be named at `k`
+parameters: those with exactly `k` parameters, and rest-parameter definitions
+with `k - 1` fixed parameters. An instantiation of the enclosing candidate fixes
+one of them, and exactly one MUST appear in some instantiation; zero is a type
+error and more than one is an ambiguity error. Usually only one fits:
+`(map int-to-ascii xs)` with `xs : (list 5 int)` uses the `int` definition. When
+several fit, the choice is not made by taking the least instantiation:
+
+```
+(define-private (pad (b (buff 4))) (concat b 0x00))
+(define-private (pad (b (buff 8))) (concat b 0x0000))
+
+(map pad (list 0x01)) ;; ambiguity error, as (pad 0x01) is
+```
+
+even though the first definition would give the smaller result type.
+
+In a fold, the referenced definition is fixed for the whole fixpoint, since a
+single function is called on every element: each definition is tried with its
+own fixpoint, it appears in an instantiation if that fixpoint closes, and
+exactly one MUST. With the definition fixed, admitting the final accumulator
+type implies admitting every earlier one, since each step's type is a subtype of
+the next.
+
 The result type of the call is the candidate's inferred result type under `σ`,
 with size arithmetic in primitive signatures evaluated on the concrete sizes. A
 resulting size that exceeds the limit for the call's position (2.3.1) is a type
