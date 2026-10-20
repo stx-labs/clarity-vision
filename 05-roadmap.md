@@ -11,8 +11,8 @@ interpreter) proceeds separately and is not covered here.
   language, primitives, standard library.
 - Open the chain ABI draft jointly with the chain team: value model, module
   format, host function list, call semantics.
-- Define the conformance-vector formats (language, ABI, golden build) and build
-  the vector runner early.
+- Define the conformance-vector formats (language, ABI, encoding, golden build)
+  and build the vector runner early.
 
 ## Phase 1 — Spec and ABI
 
@@ -28,8 +28,8 @@ interpreter) proceeds separately and is not covered here.
 
 - Front end: parser, type checker, overload resolution, instantiation, inline
   expansion.
-- Back end: lowering to Wasm, prelude linking, interface and provenance
-  sections.
+- Back end: lowering to Wasm, prelude linking, the `abi.interface`, `abi.types`,
+  and provenance sections, and argument and result validation.
 - Determinism from the first commit: golden build vectors in CI on every
   supported platform.
 - A direct evaluator: an interpreter that runs Clarity source by applying the
