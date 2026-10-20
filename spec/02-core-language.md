@@ -750,12 +750,12 @@ with size arithmetic in primitive signatures evaluated on the concrete sizes. A
 resulting size that exceeds the limit for the call's position (2.3.1) is a type
 error.
 
-Each distinct `(candidate, σ, reference arguments)` triple is a distinct
-**instance**. Instances are what the compiler operates on; the definition graph
-(2.4.3) is over names and is checked before any instance exists. Instance bodies
-are type-checked with the concrete substitution applied ("template" semantics):
-a generic body that is never instantiated is parsed and scope-checked but not
-type-checked.
+Each distinct combination of candidate, `σ`, and reference arguments is a
+distinct **instance**. Instances are what the compiler operates on; the
+definition graph (2.4.3) is over names and is checked before any instance
+exists. Instance bodies are type-checked with the concrete substitution applied
+("template" semantics): a generic body that is never instantiated is parsed and
+scope-checked but not type-checked.
 
 A type error found while checking an instance body is reported at the call site
 that created the instance. The report MUST name the called definition and the

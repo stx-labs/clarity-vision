@@ -61,7 +61,7 @@ The properties unique to Clarity become shipped products:
   the hashes of both sections of every callee it was compiled against.
 - **Source verification**: anyone can rebuild a deployed module from its claimed
   source and the recorded inputs and compare. Analyses and proofs attach to a
-  verified (source, build inputs, module) triple.
+  verified (source, compiler version, module) triple.
 
 ## Non-Goals
 
