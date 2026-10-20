@@ -862,16 +862,17 @@ The last parameter of a `define-private` definition MAY be a **rest parameter**,
 written with `...` after its type:
 
 ```
-(define-private (name (param type) ... (rest T...)) expr ...)
+(define-private (name (first A) (second B) (rest T...)) body)
 ```
 
 A call supplies the fixed parameters in order and **one or more** further
-arguments for the rest parameter. Inside the body, the rest parameter is a
-list: `rest : (list N T)`, where `N` is the number of rest arguments at that
-call site. The call `(name a1 ... ak b1 ... bm)` is the call of the definition
-with `a1 ... ak` for the fixed parameters and `(list b1 ... bm)` for the rest,
-so arguments are evaluated left to right and the list is typed by 2.5.6. Each
-call site is its own instance (2.6.2), with `N` bound to `m`.
+arguments for the rest parameter. Inside the body, the rest parameter is a list:
+`rest : (list N T)`, where `N` is the number of rest arguments at that call
+site. The call `(name a b t1 t2 t3 t4)` is the call of the definition with `a`
+and `b` for the fixed parameters and `(list t1 t2 t3 t4)` for the rest, so
+arguments are evaluated left to right and the list is typed by 2.5.6. Each call
+site is its own instance (2.6.2), with `N` bound to the number of rest
+arguments.
 
 A function that takes "two or more" is one definition. Its binary case is simply
 the call with one rest argument:
@@ -948,11 +949,12 @@ single obvious meaning, and "all equal" is `(and (is-eq a b) (is-eq a c))`.
 ### 2.7.1 Evaluation
 
 Evaluation is strict and left to right, except that inline parameters are
-evaluated by name (2.6.3) and `match` evaluates exactly one arm. Every
-expression evaluates to a value of its static type or aborts. A runtime value
-carries no static type information of its own; its size and shape are determined
-entirely by the value, and a value passed to a callee is exactly the value the
-caller computed.
+evaluated by name (2.6.3), `match` evaluates exactly one arm, and `and` and `or`
+stop at the first argument that decides the result (2.5.3). Every expression
+evaluates to a value of its static type or aborts. A runtime value carries no
+static type information of its own; its size and shape are determined entirely
+by the value, and a value passed to a callee is exactly the value the caller
+computed.
 
 ### 2.7.2 Runtime errors
 
