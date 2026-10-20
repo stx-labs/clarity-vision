@@ -161,20 +161,42 @@ reflexive, transitive relation such that:
   with an identical signature (structural sub-trait).
 - `(trait X) <: principal`.
 
+Two different traits that require the same functions with the same signatures
+are **equivalent**: each is a subtype of the other, but they remain distinct
+types, named by different trait identifiers. A contract that declares its own
+copy of a standard trait can therefore pass a value of its copy's type where the
+standard trait is expected, and the reverse. Subtyping is thus a preorder on
+trait types rather than a partial order.
+
 `lub(S, T)` is defined pointwise by the same rules (taking the larger bound, the
 lub of components, and so on) and is undefined when `S` and `T` have different
 shapes (for example `int` and `uint`, or tuples with different field sets). An
 undefined lub where one is required is a type error.
 
-Among the principal-like types the join is always defined, and it is the most
-specific type the rules above name, falling back to `principal`:
+Among the principal-like types the join is the most specific type the rules
+above name, falling back to `principal`:
 
 - `lub(S, S) = S`.
-- `lub(S, (trait X)) = (trait X)` when `S <: (trait X)`; symmetrically for the
-  other argument.
+- `lub(S, (trait X)) = (trait X)` when `S <: (trait X)` and `S` is not a trait
+  type equivalent to `X`; symmetrically for the other argument.
+- `lub((trait X), (trait Y))` is undefined when `X` and `Y` are different,
+  equivalent traits. Either would be a least upper bound, and choosing one would
+  put an arbitrary trait identifier into the contract interface (2.4.4). The
+  author states the intended trait with `as` (2.5.10): with `x : (trait X)` and
+  `y : (trait Y)`, `(list x (as (trait X) y))` has type `(list 2 (trait X))`.
 - Otherwise `lub(S, T) = principal`, including two different contract literals,
   two trait types neither of which is a sub-trait of the other, and anything
   with `principal`.
+
+`lub(T1, ..., Tn)` is taken over the whole set, not as a pairwise fold, so it
+does not depend on the order of its arguments. Among principal-like types it is
+the member of the set that every other member is a subtype of; it is undefined
+if two different equivalent traits both qualify, and it is `principal` if no
+member qualifies. Other types combine pointwise as above. For example, if traits
+`a` and `b` are equivalent and trait `c` requires a subset of their functions,
+then with `x : (trait a)`, `y : (trait b)`, and `z : (trait c)`, both
+`(list x y z)` and `(list x z y)` have type `(list 3 (trait c))`, while
+`(list x y)` is a type error.
 
 The join of two unrelated trait types is `principal` rather than an anonymous
 trait of their common functions, because such a trait has no name, could not be
@@ -720,6 +742,15 @@ instantiations that exist, the **least** one (pointwise under `<:`, and smallest
 size values) is chosen; if no least instantiation exists the candidate does not
 admit the call. This is the declarative form of the familiar "unify and take the
 least upper bound" algorithm.
+
+Equivalent traits (2.3.2) are each a subtype of the other, so "least" is read
+the way `lub` is, not as any minimal type in the preorder. A type variable whose
+lower bounds are the argument types `S1 ... Sk` is instantiated to
+`lub(S1, ..., Sk)`. One argument of type `(trait X)` instantiates it to
+`(trait X)`, never to some other trait equivalent to `X`. Arguments of two
+different equivalent trait types leave it with no least instantiation, so
+`(if c x y)` with `x : (trait a)` and `y : (trait b)`, where `a` and `b` are
+equivalent traits, is a type error, just as the corresponding `match` is.
 
 When a type variable occurs in both a parameter and the result of a
 `(function ...)` parameter, as the accumulator `A` does in `fold-left`, the
