@@ -41,7 +41,7 @@ Illustrative crate layout; names are placeholders.
 clarity-syntax      lexer, parser, source spans
 clarity-types       type checker, overload resolution, instantiation (spec ch. 2)
 clarity-std         the prelude source (spec/std/prelude.clar) and its tests
-clarity-compiler    inline expansion, lowering to Wasm, prelude linking,
+clarity-compiler    macro expansion, lowering to Wasm, prelude linking,
                     interface and types sections, provenance section
 clarity-analyzer    static cost bounds, asset-flow and authorization analyses
 clarity-verify      rebuilds a module from source and compares it

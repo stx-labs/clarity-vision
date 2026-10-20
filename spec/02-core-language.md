@@ -929,9 +929,9 @@ Rules:
   above, or in a primitive.
 - **Private only.** Public and read-only functions MUST NOT have rest
   parameters, because their declared signatures have a fixed arity (2.4.4).
-  Inline functions MUST NOT have them either: rest arguments are evaluated as a
-  list before the body runs, which would silently make an inline function strict
-  in those arguments.
+  Macros MUST NOT have them either: rest arguments are evaluated as a list
+  before the body runs, which would silently make a macro strict in those
+  arguments.
 - **Primitives** whose chapter 3 signature ends in `I...` or `S...` follow the
   same rules, including spread. Their result type may be tighter than a user
   definition could state; `concat`'s bound, for example, is the exact sum of its
