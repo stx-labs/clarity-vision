@@ -950,7 +950,7 @@ single obvious meaning, and "all equal" is `(and (is-eq a b) (is-eq a c))`.
 
 ### 2.7.1 Evaluation
 
-Evaluation is strict and left to right, except that inline parameters are
+Evaluation is strict and left to right, except that macro parameters are
 evaluated by name (2.6.3), `match` evaluates exactly one arm, and `and` and `or`
 stop at the first argument that decides the result (2.5.3). Every expression
 evaluates to a value of its static type or aborts. A runtime value carries no
