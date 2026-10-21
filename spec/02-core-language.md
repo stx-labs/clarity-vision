@@ -465,8 +465,20 @@ required patterns, each of which MUST appear exactly once:
 | `(response T E)` | `(ok x)`, `(err e)` | `x : T`, `e : E` |
 | `bool`           | `true`, `false`     | none             |
 
+A scrutinee of type `never` matches no row and is a type error; it is not
+widened to fit the patterns. This includes an instance in which a type variable
+is instantiated at `never` (2.6.2), and a macro such as `if` whose `match`
+receives an argument of type `never`.
+
 The type of the `match` is the lub of the arm types. Exactly one arm is
 evaluated.
+
+Every arm contributes to the type, including one that cannot be selected because
+its pattern binds a value of type `never` (`(some x)` on `(optional never)`,
+`(ok x)` on `(response never E)`, `(err e)` on `(response T never)`). Such an
+arm still MUST appear; its body is usually `(panic)`, whose type `never` leaves
+the lub unchanged. So on `r : (response int never)`,
+`(match r ((ok v) v) ((err e) (panic)))` has type `int`.
 
 `if` is a library function defined over `match` on `bool`.
 
@@ -851,7 +863,8 @@ because the definition graph is acyclic (2.4.3).
 The result type of a function instance is the lub of the type of its last body
 expression and the types of the operands of every `return` reachable in its body
 (after macro expansion). If the lub is undefined, it is a type error. For
-`define-public`, the result type MUST be a `response` type.
+`define-public`, the result type MUST be a `response` type; `never` is not one,
+so a public function whose every path aborts is a type error.
 
 The result type is not written in source, and may contain `never` (2.3.3). A
 function with no `err` path has an error type of `never`; a function with no
