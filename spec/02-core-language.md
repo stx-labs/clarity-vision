@@ -227,19 +227,26 @@ type error. A macro call is expanded as usual, and the argument lands where the
 body references it; the one form that rejects an operand of type `never` is a
 macro call that more than one candidate admits (2.6.2).
 
-**Dead scopes.** No value of type `never` exists, so a name of type `never` is
-never bound, and code in its scope cannot run. The following are **dead**: the
-bindings that follow a `let` binding of type `never`, and the `let` body; a
-`match` arm whose pattern binds a name of type `never` (`(some x)` on
-`(optional never)`, `(ok x)` on `(response never E)`, `(err e)` on
-`(response T never)`); and the body of a function instance that has a parameter
-of type `never` (2.6.2). Dead code is parsed and scope-checked but not
-type-checked, as an uninstantiated generic body is (2.6.2), and has type
-`never`; a compiler emits an abort in its place. Dead code arises in ordinary
-generic code: a generic function called with `none` instantiates `T` at `never`,
-and its `(some v)` arm is dead in that instance, which is not a mistake in its
-source. Because dead code is not type-checked, an error in it is not reported;
-the convention is to write `(panic)` in an arm that cannot be selected.
+**Dead code.** No value of type `never` exists, so a name of type `never` is
+never bound, and the three forms that bind names each have a rule for it:
+
+- A `let` (2.5.2) whose binding has type `never` has type `never`. The bindings
+  that follow it and the body are dead.
+- A `match` arm (2.5.3) whose pattern binds a name of type `never` (`(some x)`
+  on `(optional never)`, `(ok x)` on `(response never E)`, `(err e)` on
+  `(response T never)`) has type `never`. Its body is dead.
+- A function instance (2.6.2) with a parameter of type `never` has the result
+  type `never`. Its body is dead.
+
+Dead code is parsed and scope-checked but not type-checked, as an uninstantiated
+generic body is (2.6.2). These rules apply before any other rule to the form
+they name, so the type of such a form does not depend on its dead part, and a
+compiler emits an abort in its place. Dead code arises in ordinary generic code:
+a generic function called with `none` instantiates `T` at `never`, and its
+`(some v)` arm is dead in that instance, which is not a mistake in its source.
+Because dead code is not type-checked, an error in it is not reported, and a
+`return` in it contributes nothing to the enclosing result type (2.6.4); the
+convention is to write `(panic)` in an arm that cannot be selected.
 
 **Unreachable code.** When an expression of type `never` is a `match` scrutinee,
 the initializer of a `let` binding, an argument to a function that is not a
@@ -539,10 +546,11 @@ arm is evaluated.
 
 An arm whose pattern binds a name of type `never` (`(some x)` on
 `(optional never)`, `(ok x)` on `(response never E)`, `(err e)` on
-`(response T never)`) still MUST appear, but it is dead (2.3.3): it is not
-type-checked, and its type `never` leaves the lub unchanged. So on
-`r : (response int never)`, `(match r ((ok v) v) ((err e) (panic)))` has type
-`int`. The convention is `(panic)` in such an arm.
+`(response T never)`) still MUST appear, but it has type `never` and its body is
+dead (2.3.3): the body is not type-checked, and the arm leaves the lub
+unchanged. So on `r : (response int never)`,
+`(match r ((ok v) v) ((err e) (panic)))` has type `int`. The convention is
+`(panic)` in such an arm.
 
 `if` is a library function defined over `match` on `bool`.
 
@@ -839,8 +847,8 @@ difference is observable. A single admitting candidate is expanded, and the
 argument lands where the body references it: `(if (panic) a b)` is a `match` on
 `never` (2.5.3). More than one admitting candidate is an ambiguity error, so
 `(unwrap! (panic) e)` is one. A name bound by `let` or `match` at type `never`
-never reaches this rule: its scope is dead (2.3.3), and no call in it is
-resolved.
+never reaches this rule: the `let` body or arm body that could use it is dead
+(2.3.3), and no call in it is resolved.
 
 The result type of the call is the candidate's inferred result type under `σ`,
 with size arithmetic in primitive signatures evaluated on the concrete sizes. A
@@ -951,13 +959,16 @@ because the definition graph is acyclic (2.4.3).
 
 The result type of a function instance is the lub of the type of its last body
 expression and the types of the operands of every `return` reachable in its body
-(after macro expansion). If the lub is undefined, it is a type error. For
-`define-public`, the result type MUST be a `response` type; `never` is not one,
-so a public function whose every path aborts is a type error. Such a function
-states its interface with `as` (2.5.10): `(as (response bool uint) (panic))`.
-This is a rule about the declared interface, not about `never`; a read-only
-function, whose result need not be a `response`, may have the result type
-`never`. An instance whose body is dead (2.3.3) has the result type `never`.
+(after macro expansion). A `return` is **reachable** when it is not in dead code
+(2.3.3); dead code is not type-checked, so its `return` operands have no type to
+contribute. If the lub is undefined, it is a type error. For `define-public`,
+the result type MUST be a `response` type; `never` is not one, so a public
+function whose every path aborts is a type error. Such a function states its
+interface with `as` (2.5.10): `(as (response bool uint) (panic))`. This is a
+rule about the declared interface, not about `never`; a read-only function,
+whose result need not be a `response`, may have the result type `never`. An
+instance whose body is dead (2.3.3) has the result type `never`: its last
+expression is dead, and so is every `return` in it.
 
 The result type is not written in source, and may contain `never` (2.3.4). A
 function with no `err` path has an error type of `never`; a function with no
