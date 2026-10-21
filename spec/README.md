@@ -76,7 +76,7 @@ feature and is specified as such.
   `default-to`, ...) and the derived arithmetic, sequence, and conversion
   natives become library definitions whose semantics are _defined by their
   source_. There is nothing to specify about `unwrap!` beyond the four lines
-  that implement it. The remaining natives become about 80 primitives with
+  that implement it. The remaining natives become about 65 primitives with
   uniform typing rules.
 - **The language has no cost table.** Execution is metered in Wasm fuel, and the
   only other charges are the chain ABI's charges for host functions. There is no

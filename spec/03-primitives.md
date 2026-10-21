@@ -356,9 +356,9 @@ section 7.1).
 
 | Group                   | Primitives                        |
 | ----------------------- | --------------------------------- |
-| Arithmetic              | 11 (each in two integer families) |
-| Comparison and equality | 5                                 |
-| Sequences               | 9                                 |
+| Arithmetic              | 10 (each in two integer families) |
+| Comparison and equality | 2                                 |
+| Sequences               | 8                                 |
 | Conversions             | 8                                 |
 | Principals              | 4                                 |
 | Cryptography            | 10                                |
@@ -366,7 +366,7 @@ section 7.1).
 | Assets                  | 12                                |
 | Context                 | 4                                 |
 | Events and control      | 2                                 |
-| **Total**               | **70**                            |
+| **Total**               | **65**                            |
 
 For comparison, legacy Clarity 6 has 126 native functions and 16 native
 variables, most with bespoke typing rules.
