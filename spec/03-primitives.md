@@ -39,22 +39,21 @@ For `I` in {`int`, `uint`}:
 | `to-int`          | `(uint) -> int` | conversion                                                                                  | argument at least 2^127                                             |
 | `to-uint`         | `(int) -> uint` | conversion                                                                                  | argument negative                                                   |
 | `bit-and`         | `(I I...) -> I` | bitwise and                                                                                 |                                                                     |
-| `bit-or`          | `(I I...) -> I` | bitwise or                                                                                  |                                                                     |
 | `bit-xor`         | `(I I...) -> I` | bitwise exclusive or                                                                        |                                                                     |
 | `bit-shift-left`  | `(I uint) -> I` | shift left, discarding bits shifted out; the result reinterprets the 128-bit pattern as `I` | shift amount 128 or more                                            |
 | `bit-shift-right` | `(I uint) -> I` | shift right; arithmetic for `int`, logical for `uint`                                       | shift amount 128 or more                                            |
 
-Library, not primitive: `mod`, `pow`, `sqrti`, `log2`, `bit-not`, `max`, `min`,
-`abs`. Their error conditions are the same as legacy and are defined by their
-source.
+Library, not primitive: `mod`, `pow`, `sqrti`, `log2`, `bit-or`, `bit-not`,
+`max`, `min`, `abs`. Their error conditions are the same as legacy and are
+defined by their source.
 
 ## 3.2 Comparison and equality
 
 For `C` in {`int`, `uint`, `(buff N)`, `(string-ascii N)`, `(string-utf8 N)`}:
 
-| Primitive            | Signature       | Semantics                                                             |
-| -------------------- | --------------- | --------------------------------------------------------------------- |
-| `<`, `<=`, `>`, `>=` | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
+| Primitive | Signature       | Semantics                                                             |
+| --------- | --------------- | --------------------------------------------------------------------- |
+| `<=`      | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
 
 Sequences compare element by element from the start; the first unequal pair
 decides, and a proper prefix is less than the longer sequence. Elements are
@@ -63,6 +62,10 @@ code point for `string-utf8`. Code point order is the order of the strings'
 UTF-8 encodings compared bytewise, so the result does not depend on how a host
 stores strings. No Unicode normalization is applied: `u"\u{E9}"` and
 `u"e\u{301}"` are unequal, and the first is greater.
+
+Library, not primitive: `<`, `>`, `>=`, defined over `<=` and `not` for the same
+types. They are private functions, so both arguments are evaluated, left to
+right, before the comparison.
 
 | Primitive | Signature       | Semantics                                                                                                  |
 | --------- | --------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -82,7 +85,6 @@ kind-preserving: a `concat` of two buffers is a buffer.
 | `slice?`      | `(S[N] uint uint) -> (optional S[N])`         | elements in `[left, right)`; `none` if `left > right` or `right > len`                                                                                                  |                |
 | `as-max-len?` | `(S[N] size) -> (optional S[M])`              | the second argument is a size term `M` (2.3.1); `(some s)` if `len(s) <= M`, else `none`                                                                                |                |
 | `map`         | `((function (elem(S)) U) S[N]) -> (list N U)` | applies the function to each element in order                                                                                                                           |                |
-| `filter`      | `((function (elem(S)) bool) S[N]) -> S[N]`    | keeps elements for which the function returns `true`, preserving order                                                                                                  |                |
 | `fold-left`   | `((function (A elem(S)) A) A S[N]) -> A`      | `(f (f (f init x1) x2) ... xn)`: elements left to right, accumulator first                                                                                              |                |
 | `fold-right`  | `((function (elem(S) A) A) S[N] A) -> A`      | `(f x1 (f x2 ... (f xn init)))`: elements right to left, accumulator second                                                                                             |                |
 
@@ -93,7 +95,7 @@ that swaps `f`'s arguments, and a function cannot be closed over. Legacy `fold`
 (left to right, element first) is removed; it is `fold-left` with the callback's
 parameters swapped.
 
-Library, not primitive: `append`, `index-of?`, `replace-at?`. Legacy
+Library, not primitive: `append`, `filter`, `index-of?`, `replace-at?`. Legacy
 multi-sequence `map` (`(map f l1 l2)`) is dropped. It cannot be written in the
 library, because a fold would have to carry `f` in its accumulator.
 

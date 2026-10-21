@@ -42,6 +42,22 @@
   (if value false true))
 
 ;; ---------------------------------------------------------------------------
+;; Comparison
+;; ---------------------------------------------------------------------------
+
+;; `T` is instantiated at a type `<=` accepts (chapter 3.2). Both arguments
+;; are evaluated before the call, so swapping them in the body does not change
+;; evaluation order.
+(define-private (>= (left T) (right T))
+  (<= right left))
+
+(define-private (> (left T) (right T))
+  (not (<= left right)))
+
+(define-private (< (left T) (right T))
+  (not (<= right left)))
+
+;; ---------------------------------------------------------------------------
 ;; Early exit
 ;; ---------------------------------------------------------------------------
 
@@ -117,7 +133,7 @@
 ;; Arithmetic
 ;; ---------------------------------------------------------------------------
 
-;; `T` is any type `>` accepts: int, uint, or a buffer or string type, which
+;; `T` is any type `<=` accepts: int, uint, or a buffer or string type, which
 ;; compare lexicographically (chapter 3.2: bytes for buffers and ASCII
 ;; strings, code points for UTF-8 strings). (max a b c) folds the binary helper
 ;; over (list b c) starting from a.
@@ -142,6 +158,15 @@
 ;; does the most negative int with divisor -1, although its remainder is 0.
 (define-private (mod (dividend T) (divisor T))
   (- dividend (* (/ dividend divisor) divisor)))
+
+;; `T` is instantiated at int or uint. Each bit of `a xor b` is set where
+;; exactly one input has it, and `a and b` where both do; the two never overlap,
+;; so their xor is the or.
+(define-private (std-bit-or-pair (left T) (right T))
+  (bit-xor (bit-xor left right) (bit-and left right)))
+
+(define-private (bit-or (left T) (right T...))
+  (fold-left std-bit-or-pair left right))
 
 (define-private (bit-not (value int))
   (bit-xor value -1))
@@ -257,6 +282,54 @@
   (get found (fold-left std-index-of-step
                { found: none, index: u0, target: item }
                items)))
+
+;; Appends one element, per sequence kind: a list takes `(list item)` where the
+;; other kinds take the one-element sequence itself.
+(define-private (std-push (items (list N T)) (item T))
+  (concat items (list item)))
+
+(define-private (std-push (items (buff N)) (item (buff 1)))
+  (concat items item))
+
+(define-private (std-push (items (string-ascii N)) (item (string-ascii 1)))
+  (concat items item))
+
+(define-private (std-push (items (string-utf8 N)) (item (string-utf8 1)))
+  (concat items item))
+
+;; `flags` holds the predicate's result for every element, computed by `map`
+;; before the fold, because the fold's step function cannot call the predicate
+;; (chapter 2.3.6). `as-max-len?` holds `kept` at the input's bound `N`, so the
+;; fold's fixpoint closes in one step.
+(define-private (std-filter-step (acc { index: uint, flags: (list N bool), kept: K })
+                                 (item E))
+  { index: (+ (get index acc) u1),
+    flags: (get flags acc),
+    kept: (if (unwrap-panic (element-at? (get flags acc) (get index acc)))
+            (unwrap-panic (as-max-len? (std-push (get kept acc) item) N))
+            (get kept acc)) })
+
+;; One definition per sequence kind, differing only in the empty start value.
+;; The predicate is called once per element, left to right, by `map`.
+(define-private (filter (keep (function (T) bool)) (items (list N T)))
+  (get kept (fold-left std-filter-step
+              { index: u0, flags: (map keep items), kept: (as (list N T) (list)) }
+              items)))
+
+(define-private (filter (keep (function ((buff 1)) bool)) (items (buff N)))
+  (get kept (fold-left std-filter-step
+              { index: u0, flags: (map keep items), kept: (as (buff N) 0x) }
+              items)))
+
+(define-private (filter (keep (function ((string-ascii 1)) bool)) (items (string-ascii N)))
+  (get kept (fold-left std-filter-step
+              { index: u0, flags: (map keep items), kept: (as (string-ascii N) "") }
+              items)))
+
+(define-private (filter (keep (function ((string-utf8 1)) bool)) (items (string-utf8 N)))
+  (get kept (fold-left std-filter-step
+              { index: u0, flags: (map keep items), kept: (as (string-utf8 N) u"") }
+              items)))
 
 ;; One definition per sequence kind: a list takes `(list item)` where the
 ;; other kinds take the one-element sequence itself.
