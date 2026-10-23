@@ -183,6 +183,15 @@ of contract literals meant as trait values therefore states the trait once:
 `(list (as (trait X) .a) .b .c)` has type `(list 3 (trait X))` when all three
 implement `X`.
 
+Two types **meet** when some type that does not mention `never` is a subtype of
+both. Outside the principal-like types this is exactly the condition under which
+`lub` is defined: types of the same shape meet, and types of different shapes do
+not. Among the principal-like types, `principal` meets every one of them, a
+contract literal meets itself and every trait it conforms to, two different
+contract literals do not meet, and two trait types meet when no function is
+required by both with different signatures, since a contract could then
+implement both. Overloads of a name are required not to meet (2.6.2).
+
 Because tuple subtyping requires identical field sets, every runtime tuple has
 exactly the fields of its static type. There are no hidden fields, so no value
 ever needs to be re-shaped ("sanitized") when it crosses a function or contract
@@ -744,6 +753,54 @@ parameter types; there is no ranking. Because `never <: T` for every `T`, an
 argument of type `never` is admitted by every candidate, so
 `(unwrap! (panic) e)` is an ambiguity error; the call could not complete anyway.
 
+Every other ambiguity is an error where the definitions are written rather than
+at the call: the definitions of a name MUST NOT **overlap**. Two definitions
+overlap when, under some instantiation of each, their parameters meet (2.3.2) at
+every position. Reference-kind parameters meet when they are of the same kind
+with the same declared types, except that two `(function ...)` kinds meet when
+their parameter and result types meet pointwise. The check is on the
+definitions, whether or not the name is called:
+
+```
+(define-private (pad (b (buff 4))) (concat b 0x00))
+(define-private (pad (b (buff 8))) (concat b 0x0000))    ;; error: (buff 4) is below both
+
+(define-private (first (xs (list 5 (buff 4)))) ...)
+(define-private (first (xs (list 3 (buff 8)))) ...)      ;; error: (list 3 (buff 4)) is below both
+
+(define-private (show (x T)) ...)
+(define-private (show (x uint)) ...)                     ;; error: T at uint
+```
+
+Neither parameter type of `first` is a subtype of the other, but the two still
+meet. Definitions whose parameters differ in shape at some position, such as
+`int` and `uint`, `optional` and `response`, or a list and a `buff`, never
+overlap; the prelude's overloads are all of this kind. A call on an argument
+whose type mentions `never`, such as `(first (list))`, can still be admitted by
+both, and is an ambiguity error as above.
+
+The same rule applies to a name passed as a `(function (Q1 ... Qk) R)` argument.
+Its candidates are the definitions of that name that can be named at `k`
+parameters: those with exactly `k` parameters, and rest-parameter definitions
+with `k - 1` fixed parameters. An instantiation of the enclosing candidate fixes
+one of them, and exactly one MUST appear in some instantiation; zero is a type
+error and more than one is an ambiguity error. Usually only one fits:
+`(map int-to-ascii xs)` with `xs : (list 5 int)` uses the `int` definition.
+Because definitions do not overlap, more than one fits only when a parameter
+type of the function type mentions `never`, where a direct call would be
+ambiguous too:
+
+```
+(map int-to-ascii (list)) ;; ambiguity error: (list) is (list 0 never)
+```
+
+In a fold, the referenced definition is fixed for the whole fixpoint, since a
+single function is called on every element: each definition is tried with its
+own fixpoint, it appears in an instantiation if that fixpoint closes, and
+exactly one MUST. With the definition fixed, admitting the final accumulator
+type implies admitting every earlier one, since each step's type is a subtype of
+the next.
+
 The result type of the call is the candidate's inferred result type under `σ`,
 with size arithmetic in primitive signatures evaluated on the concrete sizes. A
 resulting size that exceeds the limit for the call's position (2.3.1) is a type
@@ -919,8 +976,8 @@ Rules:
 
 - **All fixed or all rest.** If any definition of a name has a rest parameter,
   every definition of that name MUST have one, with the same number of fixed
-  parameters. Overloads then differ only by type, and overload resolution needs
-  no rule about arity.
+  parameters. Overloads then differ only by type, MUST NOT overlap (2.6.2), and
+  overload resolution needs no rule about arity.
 - **Passing a rest function.** A rest-parameter function may be passed as a
   `(function ...)` argument at the type with one more parameter than its fixed
   parameters; the last argument becomes a one-element rest list (2.6.2). So
