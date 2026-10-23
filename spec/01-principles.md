@@ -33,7 +33,7 @@ and the base operations on each type's representation. Everything else is
 standard library.
 
 The core is therefore small enough to hold in one head: about a dozen top-level
-definition forms, about a dozen expression forms, and about eighty primitive
+definition forms, about a dozen expression forms, and about sixty-five primitive
 operations with uniform typing rules. The library holds everything else a
 contract author uses, about forty definitions.
 

@@ -30,8 +30,8 @@ in that language**.
 
 - The **core** is the syntax, the type system, about a dozen special forms
   (binding, `match`, `return`, definitions, calls, context scoping), and about
-  eighty primitive operations. A construct is core if it needs the host, cannot
-  be expressed in the language, is a cryptographic standard, or is a base
+  sixty-five primitive operations. A construct is core if it needs the host,
+  cannot be expressed in the language, is a cryptographic standard, or is a base
   operation on a type's representation ([spec/README.md](spec/README.md) states
   the rule). Cost is not a test.
 - The **standard library** is everything else: control flow (`if`, `unwrap!`,
