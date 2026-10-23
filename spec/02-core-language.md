@@ -18,7 +18,7 @@ once the design questions at the end of this chapter are settled.
   (natural numbers bounding sequence lengths).
 - `S <: T` means `S` is a subtype of `T` (2.3.2). `lub(S, T)` is their least
   upper bound when it exists.
-- `never` is the empty type (2.3.1).
+- `never` is the empty type (2.3.3).
 
 ## 2.2 Lexical structure
 
@@ -65,7 +65,7 @@ contract:
   literals `true`, `false`, `none`; the heads of special forms (2.5) and
   definition forms (2.4.1); the allowance forms (2.5.9); the pattern and
   constructor heads `some`, `ok`, `err`, `list`; the type names and reference
-  kinds of 2.3.1 and 2.3.6; and the `read-only` marker in trait definitions.
+  kinds of 2.3.1 and 2.3.7; and the `read-only` marker in trait definitions.
   Type names are keywords in value position too: `(let ((int u5)) ...)` is a
   static error.
 - A **reserved name** is a definition that is in scope in every contract: every
@@ -87,7 +87,7 @@ type      ::= int | uint | bool | principal | never
             | { name: type, ... }              ;; tuple; zero or more fields
             | (trait trait-identifier)
             | alias-name                       ;; introduced by define-type
-            | type-variable                    ;; see 2.3.4
+            | type-variable                    ;; see 2.3.5
             | contract-literal-type            ;; internal; see below
 
 size      ::= uint-literal | size-variable | static-constant-name
@@ -101,7 +101,7 @@ Meaning of each type:
 | `uint`             | unsigned 128-bit integers                                                                                                                                                                                                                                                                                                       |
 | `bool`             | `true`, `false`                                                                                                                                                                                                                                                                                                                 |
 | `principal`        | standard or contract principals                                                                                                                                                                                                                                                                                                 |
-| `never`            | no values. The type of `return`, `panic`, and the "other side" of `ok`/`err`/`none`; it stays in a type that nothing widens                                                                                                                                                                                                     |
+| `never`            | no values. The type of `return` and `panic`, and the side of `ok`, `err`, `none`, and `(list)` that no value reaches (2.3.3)                                                                                                                                                                                                    |
 | `(buff N)`         | byte sequences of length at most `N`                                                                                                                                                                                                                                                                                            |
 | `(string-ascii N)` | strings of at most `N` bytes from the `string-ascii` character set (2.2)                                                                                                                                                                                                                                                        |
 | `(string-utf8 N)`  | UTF-8 strings of at most `N` code points                                                                                                                                                                                                                                                                                        |
@@ -173,6 +173,11 @@ lub of components, and so on) and is undefined when `S` and `T` have different
 shapes (for example `int` and `uint`, or tuples with different field sets). An
 undefined lub where one is required is a type error.
 
+`lub(never, T) = T` for every `T`, since `never <: T`. This is how the empty
+side of a constructor is filled in:
+`lub((response int never), (response never uint))` is `(response int uint)`, and
+`lub((list 0 never), (list 1 int))` is `(list 1 int)`.
+
 Among the principal-like types the join is always defined, and it is the most
 specific type the rules above name, falling back to `principal`:
 
@@ -229,7 +234,70 @@ exactly the fields of its static type. There are no hidden fields, so no value
 ever needs to be re-shaped ("sanitized") when it crosses a function or contract
 boundary.
 
-### 2.3.3 Storable types and interface types
+### 2.3.3 The `never` type
+
+`never` is the type with no values, the bottom of the subtype order (2.3.2). It
+arises in two ways:
+
+- As the type of an expression that does not produce a value: `(return e)`
+  (2.5.4), `(panic)` (3.10), and the forms built on them.
+- As the side of a type that no value reaches: `(ok e)` has type
+  `(response T never)`, `(err e)` has type `(response never E)`, `none` has type
+  `(optional never)`, and `(list)` has type `(list 0 never)` (2.5.6). The lub
+  fills in the other side when an `ok` meets an `err` (2.6.4) or a fold widens
+  its accumulator (2.6.2), and `never` remains only where nothing ever flows. A
+  function with no `err` path therefore has the result type
+  `(response T never)`, which its interface declares (2.3.4, 2.6.4).
+
+`never` may be written in source wherever a type may, and may appear in storable
+and interface types (2.3.4). A position of type `never` holds nothing, which is
+harmless, and argument and result validation (2.5.8) admits no value for it.
+
+**Admission.** An expression of type `never` is admitted wherever a value is
+expected, since `never <: T` for every `T`, and this is not a type error in
+itself. Where a form's type is found by selecting something by the type of an
+operand, an operand of type `never` fits every choice, so no selection is made
+and the form has type `never`: a call to a function that is not a macro selects
+no candidate and creates no instance (2.6.2); a `match` selects its row by the
+written patterns alone (2.5.3); `(get f e)` and `(merge e1 e2)` select no field
+set (2.5.7); and a `contract-call?` whose trait-typed target has type `never`
+selects no trait (2.5.8). The other operands of such a form are still
+type-checked. So `(len (panic))`, `(+ 1 (return u0))`, `(if (panic) a b)`, and
+`(get balance (panic))` all have type `never`, and `(+ "a" (panic))` is still a
+type error. A macro call is expanded as usual, and the argument lands where the
+body references it; the one form that rejects an operand of type `never` is a
+macro call that more than one candidate admits (2.6.2).
+
+**Dead code.** No value of type `never` exists, so a name of type `never` is
+never bound, and the three forms that bind names each have a rule for it:
+
+- A `let` (2.5.2) whose binding has type `never` has type `never`. The bindings
+  that follow it and the body are dead.
+- A `match` arm (2.5.3) whose pattern binds a name of type `never` (`(some x)`
+  on `(optional never)`, `(ok x)` on `(response never E)`, `(err e)` on
+  `(response T never)`) has type `never`. Its body is dead.
+- A function instance (2.6.2) with a parameter of type `never` has the result
+  type `never`. Its body is dead.
+
+Dead code is parsed and scope-checked but not type-checked, as an uninstantiated
+generic body is (2.6.2). These rules apply before any other rule to the form
+they name, so the type of such a form does not depend on its dead part, and a
+compiler emits an abort in its place. Dead code arises in ordinary generic code:
+a generic function called with `none` instantiates `T` at `never`, and its
+`(some v)` arm is dead in that instance, which is not a mistake in its source.
+Because dead code is not type-checked, an error in it is not reported, and a
+`return` in it contributes nothing to the enclosing result type (2.6.4); the
+convention is to write `(panic)` in an arm that cannot be selected.
+
+**Unreachable code.** When an expression of type `never` is a `match` scrutinee,
+the initializer of a `let` binding, an argument to a function that is not a
+macro, or a body expression other than the last, the code that follows it cannot
+be reached. A checker SHOULD warn at such an expression. An argument to a macro
+is exempt, because it is evaluated only where the body references it (2.6.3):
+`(asserts! ok (panic))` aborts only when `ok` is false. A checker SHOULD NOT
+warn about dead code, which is usually dead in one instantiation only.
+
+### 2.3.4 Storable types and interface types
 
 A type is **storable** if it contains no trait type and no type or size
 variable. Only storable types may appear in `define-data-var`, `define-map`,
@@ -270,7 +338,7 @@ function cannot return `err`. The interpretation layer's grammar includes
 author who wants a wider type in the interface states it with `as` (2.5.10):
 `(as (response bool uint) (ok true))`.
 
-### 2.3.4 Type variables and size variables
+### 2.3.5 Type variables and size variables
 
 An identifier in type position that is not a built-in type name, a `define-type`
 alias, or a trait identifier denotes a **type variable**. An identifier in size
@@ -290,7 +358,7 @@ A **static constant** (2.4.1) of type `uint` may be used as a size, and a static
 constant of contract principal type may be used wherever a contract principal
 literal is required.
 
-### 2.3.5 Type aliases
+### 2.3.6 Type aliases
 
 `(define-type name type)` introduces a transparent alias. The alias is
 interchangeable with its definition everywhere. Aliases may not be recursive
@@ -299,7 +367,7 @@ interchangeable with its definition everywhere. Aliases may not be recursive
 This form replaces legacy `use-trait`:
 `(define-type sip010 (trait 'SP....sip-010-trait.sip-010-trait))`.
 
-### 2.3.6 Static reference kinds
+### 2.3.7 Static reference kinds
 
 Some parameters do not hold runtime values but refer statically to a definition
 in the current contract. These **reference kinds** are not types: they cannot
@@ -356,7 +424,7 @@ contract.
 | Form                                                                                                                      | Introduces                                                                                                                                                                                                                                                                          | Rules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `(define-constant name expr)`                                                                                             | A named value                                                                                                                                                                                                                                                                       | `expr` is deploy-time code (2.4.2), evaluated once; its type is inferred and MUST satisfy the value size limit (2.3.1). The type may contain `never`, so `(define-constant ERR-NOT-FOUND (err u404))` has type `(response never uint)` and is usable in any function whose error type is `uint`. If `expr` is a literal, or is built only from literals and other static constants using primitives that read neither state nor context (arithmetic, sequence, conversion, and hash primitives), the constant is **static**: its value is known at analysis time and it may be used wherever a literal is required (size terms, `contract-call?` targets, `as-max-len?` bounds) |
-| `(define-type name type)`                                                                                                 | A type alias                                                                                                                                                                                                                                                                        | 2.3.5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `(define-type name type)`                                                                                                 | A type alias                                                                                                                                                                                                                                                                        | 2.3.6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `(define-data-var name type expr)`                                                                                        | A persistent variable                                                                                                                                                                                                                                                               | `type` storable; `expr : T <: type` is deploy-time code (2.4.2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `(define-map name key-type value-type)`                                                                                   | A persistent map                                                                                                                                                                                                                                                                    | both types storable; the key prefix plus `serialized-size(key-type)` MUST fit the storage key limit (2.8, 3.7)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `(define-fungible-token name)` and `(define-fungible-token name expr)`                                                    | A fungible token, optionally with a total supply cap `expr : uint`                                                                                                                                                                                                                  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -506,8 +574,24 @@ required patterns, each of which MUST appear exactly once:
 | `(response T E)` | `(ok x)`, `(err e)` | `x : T`, `e : E` |
 | `bool`           | `true`, `false`     | none             |
 
-The type of the `match` is the lub of the arm types. Exactly one arm is
-evaluated.
+A scrutinee of type `never` fits every row (2.3.3). The written patterns select
+the row, and MUST be exactly the required patterns of that row; each binding of
+the row has type `never`, so an arm that binds one is dead (2.3.3). No arm can
+be reached, and the `match` has type `never`. This includes an instance in which
+a type variable is instantiated at `never` (2.6.2), and a macro such as `if`
+whose `match` receives an argument of type `never`, so `(if (panic) a b)` and
+`(if (not (panic)) a b)` both type-check, and both have type `never`.
+
+Otherwise the type of the `match` is the lub of the arm types, and exactly one
+arm is evaluated.
+
+An arm whose pattern binds a name of type `never` (`(some x)` on
+`(optional never)`, `(ok x)` on `(response never E)`, `(err e)` on
+`(response T never)`) still MUST appear, but it has type `never` and its body is
+dead (2.3.3): the body is not type-checked, and the arm leaves the lub
+unchanged. So on `r : (response int never)`,
+`(match r ((ok v) v) ((err e) (panic)))` has type `int`. The convention is
+`(panic)` in such an arm.
 
 `if` is a library function defined over `match` on `bool`.
 
@@ -574,6 +658,9 @@ number of arguments only through a rest parameter (2.6.5).
 - `(merge e1 e2)` with tuple types `R1`, `R2` has the tuple type whose fields
   are the union of both, taking the type from `R2` for fields present in both.
   At runtime, fields of `e2` overwrite fields of `e1`.
+- A tuple operand of type `never` fits every field set, so `(get f e)` or
+  `(merge e1 e2)` with such an operand has type `never` (2.3.3). The other
+  operand of `merge` MUST still have a tuple type.
 
 ### 2.5.8 Cross-contract calls
 
@@ -584,16 +671,18 @@ number of arguments only through a rest parameter (2.6.5).
 `contract` is a contract principal literal, a static constant (2.4.1) of
 contract principal type, or an expression of a trait type `(trait X)`; in the
 trait case `function-name` MUST be a function of `X`. Any expression of trait
-type is acceptable, including a tuple field or a `let`-bound name. Arguments are
-type-checked against the callee's declared signature in its `abi.types` (2.4.4)
-in the literal case, or against the trait's signature in the trait case, read
-from the `abi.types` of the contract that defines the trait. Either way the
-section read is an input to compilation, and the compiler records its hash in
-the module's provenance ([../03-architecture.md](../03-architecture.md) section
-2). In the literal case the callee's function MUST be declared; a function with
-no declared signature can only be called with `contract-call-raw?`. The result
-type is the declared result type. The callee MUST be a public or read-only
-function and MUST NOT be in the current contract.
+type is acceptable, including a tuple field or a `let`-bound name. A `contract`
+of type `never` fits every trait, so the call has type `never` and
+`function-name` is not checked (2.3.3). Arguments are type-checked against the
+callee's declared signature in its `abi.types` (2.4.4) in the literal case, or
+against the trait's signature in the trait case, read from the `abi.types` of
+the contract that defines the trait. Either way the section read is an input to
+compilation, and the compiler records its hash in the module's provenance
+([../03-architecture.md](../03-architecture.md) section 2). In the literal case
+the callee's function MUST be declared; a function with no declared signature
+can only be called with `contract-call-raw?`. The result type is the declared
+result type. The callee MUST be a public or read-only function and MUST NOT be
+in the current contract.
 
 The call is dispatched by the chain, which enforces the depth limit and the
 no-reentrancy rule (2.7.5). The callee may be written in any source language.
@@ -790,9 +879,26 @@ fold closes in two steps. A fold that needs a wider starting type states it with
 
 Overload resolution: exactly one candidate MUST admit the call. Zero is a type
 error; more than one is an ambiguity error. Overloading is by arity and by
-parameter types; there is no ranking. Because `never <: T` for every `T`, an
-argument of type `never` is admitted by every candidate, so
-`(unwrap! (panic) e)` is an ambiguity error; the call could not complete anyway.
+parameter types; there is no ranking.
+
+An argument of type `never` is the exception (2.3.3). Because `never <: T` for
+every `T`, such an argument fits every candidate and every instantiation, so no
+unique candidate can be expected. A call to a function that is not a macro, with
+a value argument of type `never`, is well-typed when at least one candidate
+admits the call; since the `never` argument fits any parameter, this is a
+condition on the other arguments. The call has type `never` and creates no
+instance: its arguments are evaluated left to right as usual, and the call
+itself is never made. So `(len (panic))` and `(+ 1 (return u0))` both have type
+`never`, and `(+ "a" (panic))` is still a type error.
+
+A macro call is resolved as usual, because candidates may differ in what they
+evaluate, or do, before they reach the argument, and with `(return e)` the
+difference is observable. A single admitting candidate is expanded, and the
+argument lands where the body references it: `(if (panic) a b)` is a `match` on
+`never` (2.5.3). More than one admitting candidate is an ambiguity error, so
+`(unwrap! (panic) e)` is one. A name bound by `let` or `match` at type `never`
+never reaches this rule: the `let` body or arm body that could use it is dead
+(2.3.3), and no call in it is resolved.
 
 Every other ambiguity is an error where the definitions are written rather than
 at the call: the definitions of a name MUST NOT **overlap**. Two definitions
@@ -852,7 +958,10 @@ distinct **instance**. Instances are what the compiler operates on; the
 definition graph (2.4.3) is over names and is checked before any instance
 exists. Instance bodies are type-checked with the concrete substitution applied
 ("template" semantics): a generic body that is never instantiated is parsed and
-scope-checked but not type-checked.
+scope-checked but not type-checked. An instance in which a parameter has type
+`never`, which arises through a `(function ...)` argument as in
+`(map f (list))`, has a dead body (2.3.3): it is likewise not type-checked, and
+its result type is `never`.
 
 A type error found while checking an instance body is reported at the call site
 that created the instance. The report MUST name the called definition and the
@@ -948,10 +1057,18 @@ because the definition graph is acyclic (2.4.3).
 
 The result type of a function instance is the lub of the type of its last body
 expression and the types of the operands of every `return` reachable in its body
-(after macro expansion). If the lub is undefined, it is a type error. For
-`define-public`, the result type MUST be a `response` type.
+(after macro expansion). A `return` is **reachable** when it is not in dead code
+(2.3.3); dead code is not type-checked, so its `return` operands have no type to
+contribute. If the lub is undefined, it is a type error. For `define-public`,
+the result type MUST be a `response` type; `never` is not one, so a public
+function whose every path aborts is a type error. Such a function states its
+interface with `as` (2.5.10): `(as (response bool uint) (panic))`. This is a
+rule about the declared interface, not about `never`; a read-only function,
+whose result need not be a `response`, may have the result type `never`. An
+instance whose body is dead (2.3.3) has the result type `never`: its last
+expression is dead, and so is every `return` in it.
 
-The result type is not written in source, and may contain `never` (2.3.3). A
+The result type is not written in source, and may contain `never` (2.3.4). A
 function with no `err` path has an error type of `never`; a function with no
 `ok` path has a value type of `never`. Either is a valid interface type and is
 what the compiler declares in `abi.types` (2.4.4).

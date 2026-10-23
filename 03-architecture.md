@@ -102,7 +102,7 @@ section 3):
   the contract defines and claims to implement, and its storage layout. This is
   what other contracts compile against and what wallets and explorers display
   values with. Its type grammar includes an empty type (`never` in Clarity, spec
-  2.3.3) so that a function can declare that it never returns `err`.
+  2.3.4) so that a function can declare that it never returns `err`.
 - **Provenance** (section 2).
 
 At deploy the chain checks that the module is valid Wasm within the profile and
