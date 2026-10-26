@@ -7,6 +7,11 @@ It is the first source language for a new chain that executes Wasm.
 These documents are working drafts intended to seed discussion. They are
 expected to eventually move to a dedicated language repository.
 
+All of these documents are published together as a single
+[PDF](https://stx-labs.github.io/clarity-vision/clarity-vision.pdf) and
+[web page](https://stx-labs.github.io/clarity-vision/), rebuilt on every push to
+`main`. To build the PDF locally, run `make pdf`.
+
 ## Documents
 
 | Document                                                 | Purpose                                                                                                                                                                    |
