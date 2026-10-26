@@ -269,9 +269,10 @@ chapter applies to it unchanged:
   `contract-call?` target (2.5.8) of type `never` are type errors.
 - An argument of type `never` fits every candidate of an overloaded name, so a
   call that more than one candidate admits is an ambiguity error (2.6.2):
-  `(unwrap! (panic) e)` is one. A candidate whose instantiation it leaves
-  undetermined does not admit the call: `(len (panic))` fixes no sequence kind.
-  The author states the intended type with `as` (2.5.10).
+  `(unwrap! (panic) e)` is one. A type variable that only such an argument would
+  fix is instantiated at `never`, the least type (2.6.2), but a sequence kind
+  (3.3) has no least member, so `(len (panic))` is a type error. The author
+  states the intended type with `as` (2.5.10).
 - A type variable may be instantiated at `never`, or at a type that mentions it,
   and the instance body is type-checked under that substitution like any other
   (2.6.2). An error in such a body is reported at the call site, as any instance
@@ -605,7 +606,10 @@ are core forms, not library functions, because short-circuiting over any number
 of arguments cannot be written in the language: a macro has a fixed number of
 by-name parameters, and a rest parameter (2.6.5) is a list value whose elements
 are all evaluated before the body runs. `(and a b c)` means exactly
-`(match a (true (match b (true c) (false false))) (false false))`.
+`(match a (true (match b (true c) (false false))) (false false))`. The operands
+are typed as the arguments of a macro are (2.6.3): each MUST be a `bool`, which
+an expression of type `never` is by subtyping, so `(and (panic) b)` has type
+`bool`.
 
 ### 2.5.4 `return`
 
@@ -879,12 +883,13 @@ Overload resolution: exactly one candidate MUST admit the call. Zero is a type
 error; more than one is an ambiguity error. Overloading is by arity and by
 parameter types; there is no ranking. Because `never <: T` for every `T`, an
 argument of type `never` is admitted by every candidate, so with an overloaded
-name it is an ambiguity error: `(unwrap! (panic) e)` is one. It also fixes no
-variable, so a candidate whose instantiation depends on it alone has no least
-instantiation and does not admit the call: `(len (panic))` is a type error,
-since the sequence kind is undetermined. Otherwise the call is typed as any
-other, so `(+ 1 (return u0))` has type `int` (2.3.3). An author who means a
-particular candidate states the type with `as` (2.5.10).
+name it is an ambiguity error: `(unwrap! (panic) e)` is one. A type variable
+that only such an argument would fix is instantiated at `never`, the least type.
+A sequence kind (3.3) has no least member, so a primitive whose kind only such
+an argument would fix has no least instantiation and does not admit the call:
+`(len (panic))` is a type error. Otherwise the call is typed as any other, so
+`(+ 1 (return u0))` has type `int` (2.3.3). An author who means a particular
+candidate states the type with `as` (2.5.10).
 
 Every other ambiguity is an error where the definitions are written rather than
 at the call: the definitions of a name MUST NOT **overlap**. Two definitions
