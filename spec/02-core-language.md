@@ -289,13 +289,9 @@ chapter applies to it unchanged:
 
 **Unreachable code.** When an expression of type `never` is the initializer of a
 `let` binding, an argument to a function that is not a macro, or a body
-expression other than the last, the code that follows it cannot be reached. A
-checker SHOULD warn at such an expression. An argument to a macro is exempt,
-because it is evaluated only where the body references it (2.6.3):
-`(asserts! ok (panic))` aborts only when `ok` is false. A checker SHOULD NOT
-warn about an expression whose type is `never` only in some instance, such as
-the payload of a generic function's `(some v)` arm when it is called with
-`none`.
+expression other than the last, the code that follows it cannot be reached. An
+argument to a macro is exempt, because it is evaluated only where the body
+references it (2.6.3): `(asserts! ok (panic))` aborts only when `ok` is false.
 
 ### 2.3.4 Storable types and interface types
 
