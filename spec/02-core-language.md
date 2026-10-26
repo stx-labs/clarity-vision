@@ -657,9 +657,7 @@ number of arguments only through a rest parameter (2.6.5).
 - `(merge e1 e2)` with tuple types `R1`, `R2` has the tuple type whose fields
   are the union of both, taking the type from `R2` for fields present in both.
   At runtime, fields of `e2` overwrite fields of `e1`.
-- The operand of `get` and both operands of `merge` MUST have tuple types. An
-  operand of type `never` is a type error (2.3.3), so `(get balance (panic))` is
-  rejected, as `(get balance (len (panic)))` is for the type of its operand.
+- The operand of `get` and both operands of `merge` MUST have tuple types.
 
 ### 2.5.8 Cross-contract calls
 
