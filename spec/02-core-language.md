@@ -253,49 +253,48 @@ arises in two ways:
 and interface types (2.3.4). A position of type `never` holds nothing, which is
 harmless, and argument and result validation (2.5.8) admits no value for it.
 
-**Admission.** An expression of type `never` is admitted wherever a value is
-expected, since `never <: T` for every `T`, and this is not a type error in
-itself. Where a form's type is found by selecting something by the type of an
-operand, an operand of type `never` fits every choice, so no selection is made
-and the form has type `never`: a call to a function that is not a macro selects
-no candidate and creates no instance (2.6.2); a `match` selects its row by the
-written patterns alone (2.5.3); `(get f e)` and `(merge e1 e2)` select no field
-set (2.5.7); and a `contract-call?` whose trait-typed target has type `never`
-selects no trait (2.5.8). The other operands of such a form are still
-type-checked. So `(len (panic))`, `(+ 1 (return u0))`, `(if (panic) a b)`, and
-`(get balance (panic))` all have type `never`, and `(+ "a" (panic))` is still a
-type error. A macro call is expanded as usual, and the argument lands where the
-body references it; the one form that rejects an operand of type `never` is a
-macro call that more than one candidate admits (2.6.2).
+`never` has no typing rules of its own. It is a type like any other, with
+`never <: T` for every `T` as its only distinction, and every rule of this
+chapter applies to it unchanged:
 
-**Dead code.** No value of type `never` exists, so a name of type `never` is
-never bound, and the three forms that bind names each have a rule for it:
+- An expression of type `never` is admitted wherever a value of some type `T` is
+  expected, by subtyping, and the enclosing form has the type its rule gives it:
+  `(+ 1 (return u0))` has type `int`, `(some (panic))` has type
+  `(optional never)`, and `(+ "a" (panic))` is a type error. A name bound at
+  type `never` by `let`, `match`, or a parameter is an ordinary name of that
+  type.
+- A form that selects something by the type of an operand requires that operand
+  to have a type of the shape it selects on, and `never` has no shape. A `match`
+  scrutinee (2.5.3), an operand of `get` or `merge` (2.5.7), and a trait-typed
+  `contract-call?` target (2.5.8) of type `never` are type errors.
+- An argument of type `never` fits every candidate of an overloaded name, so a
+  call that more than one candidate admits is an ambiguity error (2.6.2):
+  `(unwrap! (panic) e)` is one. A candidate whose instantiation it leaves
+  undetermined does not admit the call: `(len (panic))` fixes no sequence kind.
+  The author states the intended type with `as` (2.5.10).
+- A type variable may be instantiated at `never`, or at a type that mentions it,
+  and the instance body is type-checked under that substitution like any other
+  (2.6.2). An error in such a body is reported at the call site, as any instance
+  error is, and `as` on the argument that fixed the variable resolves it. If
+  `show` matches on a parameter of type `(optional T)` and calls the overloaded
+  `int-to-ascii` on the payload, `(show none)` is an ambiguity error in the
+  instance at `T = never`, and `(show (as (optional int) none))` is not.
+- Every arm, binding, and body expression is type-checked, whether or not it can
+  be reached. `(if (panic) 1 "hello")` is a type error because its arms have no
+  lub, as it would be with any other condition. An arm whose binding has type
+  `never` contributes its type to the `match` like any other arm (2.5.3), and a
+  `return` whose operand has type `never` contributes `never` to the result type
+  (2.6.4), which the lub absorbs.
 
-- A `let` (2.5.2) whose binding has type `never` has type `never`. The bindings
-  that follow it and the body are dead.
-- A `match` arm (2.5.3) whose pattern binds a name of type `never` (`(some x)`
-  on `(optional never)`, `(ok x)` on `(response never E)`, `(err e)` on
-  `(response T never)`) has type `never`. Its body is dead.
-- A function instance (2.6.2) with a parameter of type `never` has the result
-  type `never`. Its body is dead.
-
-Dead code is parsed and scope-checked but not type-checked, as an uninstantiated
-generic body is (2.6.2). These rules apply before any other rule to the form
-they name, so the type of such a form does not depend on its dead part, and a
-compiler emits an abort in its place. Dead code arises in ordinary generic code:
-a generic function called with `none` instantiates `T` at `never`, and its
-`(some v)` arm is dead in that instance, which is not a mistake in its source.
-Because dead code is not type-checked, an error in it is not reported, and a
-`return` in it contributes nothing to the enclosing result type (2.6.4); the
-convention is to write `(panic)` in an arm that cannot be selected.
-
-**Unreachable code.** When an expression of type `never` is a `match` scrutinee,
-the initializer of a `let` binding, an argument to a function that is not a
-macro, or a body expression other than the last, the code that follows it cannot
-be reached. A checker SHOULD warn at such an expression. An argument to a macro
-is exempt, because it is evaluated only where the body references it (2.6.3):
+**Unreachable code.** When an expression of type `never` is the initializer of a
+`let` binding, an argument to a function that is not a macro, or a body
+expression other than the last, the code that follows it cannot be reached. A
+checker SHOULD warn at such an expression. An argument to a macro is exempt,
+because it is evaluated only where the body references it (2.6.3):
 `(asserts! ok (panic))` aborts only when `ok` is false. A checker SHOULD NOT
-warn about dead code, which is usually dead in one instantiation only.
+warn about an expression whose type is `never` only in some instance, such as
+the payload of a generic function's `(some v)` arm when it is called with
+`none`.
 
 ### 2.3.4 Storable types and interface types
 
@@ -574,26 +573,26 @@ required patterns, each of which MUST appear exactly once:
 | `(response T E)` | `(ok x)`, `(err e)` | `x : T`, `e : E` |
 | `bool`           | `true`, `false`     | none             |
 
-A scrutinee of type `never` fits every row (2.3.3). The written patterns select
-the row, and MUST be exactly the required patterns of that row; each binding of
-the row has type `never`, so an arm that binds one is dead (2.3.3). No arm can
-be reached, and the `match` has type `never`. This includes an instance in which
-a type variable is instantiated at `never` (2.6.2), and a macro such as `if`
-whose `match` receives an argument of type `never`, so `(if (panic) a b)` and
-`(if (not (panic)) a b)` both type-check, and both have type `never`.
+The scrutinee MUST have a type in this table. A scrutinee of type `never` is a
+type error (2.3.3), including in an instance of a generic function whose type
+variable is instantiated at `never` (2.6.2).
 
-Otherwise the type of the `match` is the lub of the arm types, and exactly one
-arm is evaluated.
+The type of the `match` is the lub of the arm types, and exactly one arm is
+evaluated.
 
 An arm whose pattern binds a name of type `never` (`(some x)` on
 `(optional never)`, `(ok x)` on `(response never E)`, `(err e)` on
-`(response T never)`) still MUST appear, but it has type `never` and its body is
-dead (2.3.3): the body is not type-checked, and the arm leaves the lub
-unchanged. So on `r : (response int never)`,
-`(match r ((ok v) v) ((err e) (panic)))` has type `int`. The convention is
-`(panic)` in such an arm.
+`(response T never)`) cannot be reached, but it still MUST appear, and its body
+is type-checked and contributes to the lub like any other arm. On
+`r : (response int never)`, `(match r ((ok v) v) ((err e) e))` has type `int`,
+since `lub(int, never) = int`, and so does
+`(match r ((ok v) v) ((err e) (panic)))`. The convention is `(panic)` in such an
+arm.
 
-`if` is a library function defined over `match` on `bool`.
+`if` is a library function defined over `match` on `bool`. A macro body is
+type-checked with each parameter at its declared type (2.6.3), so the scrutinee
+of that `match` is a `bool` whatever the argument's type: `(if (panic) a b)` and
+`(if (not (panic)) a b)` both have type `lub(A, B)`.
 
 ```
 (and expr expr ...)
@@ -658,9 +657,9 @@ number of arguments only through a rest parameter (2.6.5).
 - `(merge e1 e2)` with tuple types `R1`, `R2` has the tuple type whose fields
   are the union of both, taking the type from `R2` for fields present in both.
   At runtime, fields of `e2` overwrite fields of `e1`.
-- A tuple operand of type `never` fits every field set, so `(get f e)` or
-  `(merge e1 e2)` with such an operand has type `never` (2.3.3). The other
-  operand of `merge` MUST still have a tuple type.
+- The operand of `get` and both operands of `merge` MUST have tuple types. An
+  operand of type `never` is a type error (2.3.3), so `(get balance (panic))` is
+  rejected, as `(get balance (len (panic)))` is for the type of its operand.
 
 ### 2.5.8 Cross-contract calls
 
@@ -672,17 +671,16 @@ number of arguments only through a rest parameter (2.6.5).
 contract principal type, or an expression of a trait type `(trait X)`; in the
 trait case `function-name` MUST be a function of `X`. Any expression of trait
 type is acceptable, including a tuple field or a `let`-bound name. A `contract`
-of type `never` fits every trait, so the call has type `never` and
-`function-name` is not checked (2.3.3). Arguments are type-checked against the
-callee's declared signature in its `abi.types` (2.4.4) in the literal case, or
-against the trait's signature in the trait case, read from the `abi.types` of
-the contract that defines the trait. Either way the section read is an input to
-compilation, and the compiler records its hash in the module's provenance
-([../03-architecture.md](../03-architecture.md) section 2). In the literal case
-the callee's function MUST be declared; a function with no declared signature
-can only be called with `contract-call-raw?`. The result type is the declared
-result type. The callee MUST be a public or read-only function and MUST NOT be
-in the current contract.
+of type `never` is a type error, since it names no trait (2.3.3). Arguments are
+type-checked against the callee's declared signature in its `abi.types` (2.4.4)
+in the literal case, or against the trait's signature in the trait case, read
+from the `abi.types` of the contract that defines the trait. Either way the
+section read is an input to compilation, and the compiler records its hash in
+the module's provenance ([../03-architecture.md](../03-architecture.md) section
+2). In the literal case the callee's function MUST be declared; a function with
+no declared signature can only be called with `contract-call-raw?`. The result
+type is the declared result type. The callee MUST be a public or read-only
+function and MUST NOT be in the current contract.
 
 The call is dispatched by the chain, which enforces the depth limit and the
 no-reentrancy rule (2.7.5). The callee may be written in any source language.
@@ -879,26 +877,14 @@ fold closes in two steps. A fold that needs a wider starting type states it with
 
 Overload resolution: exactly one candidate MUST admit the call. Zero is a type
 error; more than one is an ambiguity error. Overloading is by arity and by
-parameter types; there is no ranking.
-
-An argument of type `never` is the exception (2.3.3). Because `never <: T` for
-every `T`, such an argument fits every candidate and every instantiation, so no
-unique candidate can be expected. A call to a function that is not a macro, with
-a value argument of type `never`, is well-typed when at least one candidate
-admits the call; since the `never` argument fits any parameter, this is a
-condition on the other arguments. The call has type `never` and creates no
-instance: its arguments are evaluated left to right as usual, and the call
-itself is never made. So `(len (panic))` and `(+ 1 (return u0))` both have type
-`never`, and `(+ "a" (panic))` is still a type error.
-
-A macro call is resolved as usual, because candidates may differ in what they
-evaluate, or do, before they reach the argument, and with `(return e)` the
-difference is observable. A single admitting candidate is expanded, and the
-argument lands where the body references it: `(if (panic) a b)` is a `match` on
-`never` (2.5.3). More than one admitting candidate is an ambiguity error, so
-`(unwrap! (panic) e)` is one. A name bound by `let` or `match` at type `never`
-never reaches this rule: the `let` body or arm body that could use it is dead
-(2.3.3), and no call in it is resolved.
+parameter types; there is no ranking. Because `never <: T` for every `T`, an
+argument of type `never` is admitted by every candidate, so with an overloaded
+name it is an ambiguity error: `(unwrap! (panic) e)` is one. It also fixes no
+variable, so a candidate whose instantiation depends on it alone has no least
+instantiation and does not admit the call: `(len (panic))` is a type error,
+since the sequence kind is undetermined. Otherwise the call is typed as any
+other, so `(+ 1 (return u0))` has type `int` (2.3.3). An author who means a
+particular candidate states the type with `as` (2.5.10).
 
 Every other ambiguity is an error where the definitions are written rather than
 at the call: the definitions of a name MUST NOT **overlap**. Two definitions
@@ -922,9 +908,10 @@ definitions, whether or not the name is called:
 Neither parameter type of `first` is a subtype of the other, but the two still
 meet. Definitions whose parameters differ in shape at some position, such as
 `int` and `uint`, `optional` and `response`, or a list and a `buff`, never
-overlap; the prelude's overloads are all of this kind. A call on an argument
-whose type mentions `never`, such as `(first (list))`, can still be admitted by
-both, and is an ambiguity error as above.
+overlap; the prelude's overloads are all of this kind. Definitions that do not
+overlap can still both admit an argument whose type mentions `never`: one on
+`(list 5 (buff 4))` and one on `(list 3 uint)` both admit `(list)`, and such a
+call is an ambiguity error as above.
 
 The same rule applies to a name passed as a `(function (Q1 ... Qk) R)` argument.
 Its candidates are the definitions of that name that can be named at `k`
@@ -933,9 +920,8 @@ with `k - 1` fixed parameters. An instantiation of the enclosing candidate fixes
 one of them, and exactly one MUST appear in some instantiation; zero is a type
 error and more than one is an ambiguity error. Usually only one fits:
 `(map int-to-ascii xs)` with `xs : (list 5 int)` uses the `int` definition.
-Because definitions do not overlap, more than one fits only when a parameter
-type of the function type mentions `never`, where a direct call would be
-ambiguous too:
+Because definitions do not overlap, more than one fits only when some `Qi`
+mentions `never`, where a direct call would be ambiguous too:
 
 ```
 (map int-to-ascii (list)) ;; ambiguity error: (list) is (list 0 never)
@@ -958,10 +944,9 @@ distinct **instance**. Instances are what the compiler operates on; the
 definition graph (2.4.3) is over names and is checked before any instance
 exists. Instance bodies are type-checked with the concrete substitution applied
 ("template" semantics): a generic body that is never instantiated is parsed and
-scope-checked but not type-checked. An instance in which a parameter has type
-`never`, which arises through a `(function ...)` argument as in
-`(map f (list))`, has a dead body (2.3.3): it is likewise not type-checked, and
-its result type is `never`.
+scope-checked but not type-checked. An instance in which a type variable is
+instantiated at `never`, as `f` is in `(map f (list))`, is type-checked like any
+other (2.3.3).
 
 A type error found while checking an instance body is reported at the call site
 that created the instance. The report MUST name the called definition and the
@@ -990,8 +975,13 @@ each call site.
 
 Expansion is defined as follows:
 
-1. The body is type-checked at the call site with parameters bound to the
-   argument expressions' types (2.6.2).
+1. The call is resolved and the body is type-checked exactly as for a private
+   function (2.6.2): the arguments select the candidate and fix the
+   instantiation, and the body is checked with each parameter at its declared
+   type under that instantiation, not at the argument expression's own type. An
+   argument whose type is a strict subtype of the parameter's, such as `(panic)`
+   at a `bool` parameter, is seen by the body at the parameter's type, so
+   `(if (panic) a b)` and `(if (not (panic)) a b)` are typed alike (2.5.3).
 2. Evaluation of the call is evaluation of the body with each parameter
    reference replaced by its argument expression, evaluated in the caller's
    context at the point of reference (call by name). An argument whose parameter
@@ -1056,17 +1046,15 @@ because the definition graph is acyclic (2.4.3).
 ### 2.6.4 Result type inference
 
 The result type of a function instance is the lub of the type of its last body
-expression and the types of the operands of every `return` reachable in its body
-(after macro expansion). A `return` is **reachable** when it is not in dead code
-(2.3.3); dead code is not type-checked, so its `return` operands have no type to
-contribute. If the lub is undefined, it is a type error. For `define-public`,
-the result type MUST be a `response` type; `never` is not one, so a public
-function whose every path aborts is a type error. Such a function states its
-interface with `as` (2.5.10): `(as (response bool uint) (panic))`. This is a
-rule about the declared interface, not about `never`; a read-only function,
-whose result need not be a `response`, may have the result type `never`. An
-instance whose body is dead (2.3.3) has the result type `never`: its last
-expression is dead, and so is every `return` in it.
+expression and the types of the operands of every `return` in its body (after
+macro expansion), whether or not that `return` can be reached. A `return` whose
+operand has type `never` contributes `never`, which the lub absorbs (2.3.3). If
+the lub is undefined, it is a type error. For `define-public`, the result type
+MUST be a `response` type; `never` is not one, so a public function whose every
+path aborts is a type error. Such a function states its interface with `as`
+(2.5.10): `(as (response bool uint) (panic))`. This is a rule about the declared
+interface, not about `never`; a read-only function, whose result need not be a
+`response`, may have the result type `never`.
 
 The result type is not written in source, and may contain `never` (2.3.4). A
 function with no `err` path has an error type of `never`; a function with no
