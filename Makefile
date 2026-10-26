@@ -1,4 +1,5 @@
-# Build clarity-vision.pdf from the Markdown sources.
+# Build clarity-vision.pdf from the Markdown sources. CI publishes it to GitHub
+# Pages on every push to main (.github/workflows/pages.yml).
 #
 #   make pdf     build the PDF (default)
 #   make clean   remove build outputs and the Python venv
