@@ -85,6 +85,7 @@ kind-preserving: a `concat` of two buffers is a buffer.
 | `slice?`      | `(S[N] uint uint) -> (optional S[N])`         | elements in `[left, right)`; `none` if `left > right` or `right > len`                                                                                                  |                |
 | `as-max-len?` | `(S[N] size) -> (optional S[M])`              | the second argument is a size term `M` (2.3.1); `(some s)` if `len(s) <= M`, else `none`                                                                                |                |
 | `map`         | `((function (elem(S)) U) S[N]) -> (list N U)` | applies the function to each element in order                                                                                                                           |                |
+| `filter`      | `((function (elem(S)) bool) S[N]) -> S[N]`    | keeps elements for which the function returns `true`, preserving order                                                                                                  |                |
 | `fold-left`   | `((function (A elem(S)) A) A S[N]) -> A`      | `(f (f (f init x1) x2) ... xn)`: elements left to right, accumulator first                                                                                              |                |
 | `fold-right`  | `((function (elem(S) A) A) S[N] A) -> A`      | `(f x1 (f x2 ... (f xn init)))`: elements right to left, accumulator second                                                                                             |                |
 
@@ -95,9 +96,14 @@ that swaps `f`'s arguments, and a function cannot be closed over. Legacy `fold`
 (left to right, element first) is removed; it is `fold-left` with the callback's
 parameters swapped.
 
-Library, not primitive: `append`, `filter`, `index-of?`, `replace-at?`. Legacy
+Library, not primitive: `append`, `index-of?`, `replace-at?`. Legacy
 multi-sequence `map` (`(map f l1 l2)`) is dropped. It cannot be written in the
-library, because a fold would have to carry `f` in its accumulator.
+library, because a fold would have to carry `f` in its accumulator. `filter`
+stays primitive for the same reason: a fold's step function cannot call the
+predicate, so the predicate's results would have to travel in the accumulator
+beside the kept elements. That accumulator is a parameter, held to the value
+size limit (2.3.1), and is larger than the result, so a library `filter` would
+reject inputs near the limit that the primitive accepts.
 
 ## 3.4 Conversions and serialization
 

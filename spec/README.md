@@ -38,7 +38,7 @@ tests; otherwise it belongs in the standard library:
    type-directed behavior, takes a type or size argument, or needs a function
    argument that the language cannot close over. (Examples: `let`, `match`,
    `return`, `define-map`, `is-eq`, `as-max-len?`, `from-consensus-buff?`,
-   `uint-to-buff-be`, `map`.)
+   `uint-to-buff-be`, `map`, `filter`.)
 3. **Cryptographic standard.** It is an operation that an external standard
    defines for a hash function or signature scheme: hashing, signature
    verification, or key recovery. These are implemented once, by audited host

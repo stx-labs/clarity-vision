@@ -50,7 +50,6 @@ representation. Every other construct a contract author uses is here.
 | Arithmetic   | `pow`, `sqrti`, `log2`                                                                         | `fold-left` over a constant list of bit positions, with shifts                                                    |
 | Sequences    | `append`, `replace-at?`                                                                        | `concat`, `slice?`, `as-max-len?`                                                                                 |
 | Sequences    | `index-of?`                                                                                    | `fold-left` with the target in the accumulator                                                                    |
-| Sequences    | `filter`                                                                                       | `map` for the predicate's results, then `fold-left` with them in the accumulator, `element-at?`, `as-max-len?`    |
 | Conversions  | `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le`                                          | `buff-to-uint-be`, a byte-reversing `fold-left`, two's-complement arithmetic sign-extended from the actual length |
 | Conversions  | `int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?`                             | digit tables, `element-at?`, `index-of?`, a 39-step `fold-left`                                                   |
 | Conversions  | `to-ascii?`                                                                                    | `int-to-ascii`, `principal-to-ascii`, `map` with a hex or character table, `concat` with a spread                 |
@@ -70,11 +69,11 @@ whether a prelude function is `define-macro` or `define-private`:
 
 - **Families over integer or sequence kinds.** `pow`, `sqrti`, `log2`,
   `bit-not`, `int-to-ascii`, and `int-to-utf8` are overloaded on `int` and
-  `uint`. `replace-at?` and `filter` are overloaded on the four sequence kinds.
-  `<`, `>`, `>=`, `mod`, `max`, `min`, `bit-or`, `index-of?`, `string-to-int?`,
-  and `string-to-uint?` are single generic definitions checked per instance
-  (2.6.2); per-kind constants such as digit tables are selected by small
-  overloaded helpers.
+  `uint`. `replace-at?` is overloaded on the four sequence kinds. `<`, `>`,
+  `>=`, `mod`, `max`, `min`, `bit-or`, `index-of?`, `string-to-int?`, and
+  `string-to-uint?` are single generic definitions checked per instance (2.6.2);
+  per-kind constants such as digit tables are selected by small overloaded
+  helpers.
 - **`pow` does not overflow early.** It squares and multiplies from the most
   significant exponent bit down, so every intermediate is the base raised to a
   prefix of the exponent and no step overflows unless the result does.
@@ -183,7 +182,7 @@ it.
 | `element-at`, `index-of`                 | removed   | aliases                                                                |
 | `append`                                 | library   | `(concat items (list item))`                                           |
 | `map`                                    | primitive | single sequence only; multi-sequence form dropped (chapter 3.3)        |
-| `filter`                                 | library   | `map`, then `fold-left`; predicate called once per element, in order   |
+| `filter`                                 | primitive |                                                                        |
 | `fold`                                   | removed   | `fold-left` with the callback's parameters swapped (accumulator first) |
 
 ### Tuples
