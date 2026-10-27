@@ -91,18 +91,19 @@ whether a prelude function is `define-macro` or `define-private`:
 
 ### Kept primitive although expressible
 
-The representation-base test names a basis, not a minimal set, so some of its
-members could be written in terms of the others or of other primitives: `len`
-and `slice?` as folds, `element-at?` through `slice?`, `buff-to-uint-be` as a
-fold over the bytes with a binary search for each byte's value, the shifts as
-multiplication and division by a table of powers of two, `to-int` and `to-uint`
-through the `*-to-buff-*` primitives and deserialization, and comparison on
-sequences as a fold. Each is a single step on the representation that its
-derivation turns into a loop, a table lookup, or a round trip through
-serialization, so these stay core. The test sends to the library what is a
-fixed-size expression in the base operations and the special forms: `<`, `>`,
-and `>=` over `<=` and `not`, and `bit-xor` and `bit-or` over `bit-and`, `+`,
-and `-`.
+The representation-base test names a chosen basis, not a minimal set, so some of
+its members could be written in terms of the others or of other primitives:
+`len` and `slice?` as folds, `element-at?` on a list as a fold over a
+one-element slice, `buff-to-uint-be` as a fold over the bytes with a binary
+search for each byte's value, the shifts as multiplication and division by a
+table of powers of two, `to-int` and `to-uint` through the `*-to-buff-*`
+primitives and deserialization, and comparison on sequences as a fold. Each
+derivation adds work the operation itself does not need (a loop, a table, or a
+round trip through serialization), so these stay core. The test sends to the
+library what adds no such work: `<`, `>`, and `>=` over `<=` and `not`,
+`bit-xor` and `bit-or` over `bit-and`, `+`, and `-`, and the little-endian
+conversions over `buff-to-uint-be`, since one byte order is the base and
+reversing at most 16 bytes is the other's definition, not a detour around it.
 
 `secp256k1-verify` can be written with `secp256k1-recover?`, by trying the four
 recovery ids against the key. Both are operations the scheme's standard defines,

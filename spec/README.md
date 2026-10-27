@@ -47,33 +47,28 @@ tests; otherwise it belongs in the standard library:
    another. Constructions built from them are library code. (Examples: `sha256`,
    `secp256k1-verify`, `secp256k1-recover?`, `secp256k1-decompress?`; but
    `hash160`, `verify-merkle-proof`, and `principal-of?` are library.)
-4. **Representation base.** It is one of the base operations on a built-in
-   type's representation that everything else is written in terms of: integer
-   `+ - * /`, `bit-and`, and the shifts, `<=`, the conversions between
-   representations that the others are written in terms of (`to-int` and
-   `to-uint` between the integer types, `buff-to-uint-be` from bytes), and
-   sequence length, concatenation, indexing, and slicing. The base is a chosen
-   basis, not a minimal one: a member may be derivable from the others, but it
-   is a single step on the representation (a stored length, a load, a machine
-   instruction) that the language could only rebuild with a loop, a table, or a
-   detour through unrelated primitives. A `len` that counts in a fold is linear
-   where the length is stored; a byte's value found by binary search takes eight
-   comparisons where a load takes one. An operation the language expresses as a
-   fixed-size expression in the base operations and the special forms, or as the
-   same multi-step algorithm a direct implementation would use, is library,
-   however many steps it takes. (`<`, `>`, `>=`, `bit-xor`, `bit-or`, `mod`,
-   `pow`, `sqrti`, `buff-to-int-le`, and `int-to-ascii` are library. The
-   `*-to-buff-*` family is core by test 2, not this one: each takes a size
-   argument.)
+4. **Representation base.** It is one of the chosen base operations on a
+   built-in type's representation: integer `+ - * /`, `bit-and`, the shifts, and
+   `<=`; `to-int`, `to-uint`, and `buff-to-uint-be` (one byte order is the base,
+   the other is derived); and sequence length, concatenation, indexing, and
+   slicing. Some members can be derived from others, but only by adding work the
+   operation itself does not need: a loop (`len` counting in a fold, where the
+   length is stored), a table (shifts as multiplication by powers of two), or a
+   detour through unrelated primitives (`to-int` by way of serialization). An
+   operation whose derivation adds no such work is library, whether it is a
+   short expression (`<`, `bit-xor`, `mod`) or an algorithm that loops however
+   it is written (`pow`, `sqrti`, `int-to-ascii`). (The `*-to-buff-*` family is
+   core by test 2, not this one: each takes a size argument.)
+
+Two primitives fail every test and stay core only until their library
+definitions are written (chapter 3.12).
 
 Cost is not a test. Contracts are metered by the fuel their compiled Wasm
 consumes, so a library function costs what its code costs to run, and a function
 that turns out to be hot is optimized by a compiler that links a faster
-implementation, not by moving it into the core (chapter 4.1). Test 4 is as far
-as the rule goes toward speed: an operation the language can only rebuild with a
-loop, a table, or a detour is itself in the base, so the library never turns a
-single step into many. A constant-factor speedup never moves an operation into
-the core.
+implementation, not by moving it into the core (chapter 4.1). Test 4 asks what
+work an operation needs, not how fast an implementation of it runs; a
+constant-factor speedup never moves an operation into the core.
 
 The standard library has **no special powers**. It is ordinary vNEXT source that
 uses only features available to every contract. If the library needs a feature
