@@ -41,11 +41,12 @@ tests; otherwise it belongs in the standard library:
    `uint-to-buff-be`, `map`, `filter`.)
 3. **Cryptographic standard.** It is an operation that an external standard
    defines for a hash function or signature scheme: hashing, signature
-   verification, or key recovery. These are implemented once, by audited host
-   libraries, not reimplemented in the language, even where one operation of a
-   scheme could be derived from another. Constructions built from them are
-   library code. (Examples: `sha256`, `secp256k1-verify`, `secp256k1-recover?`;
-   but `hash160`, `verify-merkle-proof`, and `principal-of?` are library.)
+   verification, or public-key operations such as recovery and decompression.
+   These are implemented once, by audited host libraries, not reimplemented in
+   the language, even where one operation of a scheme could be derived from
+   another. Constructions built from them are library code. (Examples: `sha256`,
+   `secp256k1-verify`, `secp256k1-recover?`, `secp256k1-decompress?`; but
+   `hash160`, `verify-merkle-proof`, and `principal-of?` are library.)
 4. **Representation base.** It is one of the base operations on a built-in
    type's representation that everything else is written in terms of: integer
    `+ - * /`, `bit-and`, and the shifts, `<=`, the conversions between
