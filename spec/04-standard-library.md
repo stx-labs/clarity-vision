@@ -53,6 +53,7 @@ representation. Every other construct a contract author uses is here.
 | Conversions  | `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le`                                          | `buff-to-uint-be`, a byte-reversing `fold-left`, two's-complement arithmetic sign-extended from the actual length |
 | Conversions  | `int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?`                             | digit tables, `element-at?`, `index-of?`, a 39-step `fold-left`                                                   |
 | Conversions  | `to-ascii?`                                                                                    | `int-to-ascii`, `principal-to-ascii`, `map` with a hex or character table, `concat` with a spread                 |
+| Principals   | `principal-construct?`, `principal-destruct?`                                                  | `to-consensus-buff`, `from-consensus-buff?`, `slice?`, `get-current-context`                                      |
 | Principals   | `is-current-network`, `is-standard`, `principal-of?`                                           | `principal-destruct?`, `principal-construct?`, `hash160`                                                          |
 | Cryptography | `verify-merkle-proof`                                                                          | `sha256`, `log2`, `fold-left` over the proof                                                                      |
 | Storage      | `map-insert?`                                                                                  | `map-get?`, `map-set`                                                                                             |
@@ -106,13 +107,13 @@ recovery ids against the key. Both are operations the scheme's standard defines,
 so both are core by the cryptographic-standard test, which keeps the language
 from reimplementing either one in terms of the other.
 
-`principal-to-ascii`, `principal-construct?`, and `principal-destruct?` are also
-expressible: c32check is base-32 text with a double-SHA-256 checksum, and the
-other two can slice and build the SIP-005 encoding through `to-consensus-buff`
-and `from-consensus-buff?`. They are kept primitive for a different reason: the
-address encoding, the version bytes, and which version bytes belong to which
-network are defined and maintained with the chain, so the host applies them
-rather than the language fixing them in a frozen prelude.
+`principal-construct?` and `principal-destruct?` are library. They build and
+slice the principal's encoding (chain ABI 2.2) with `to-consensus-buff` and
+`from-consensus-buff?`, whose decoding checks the version byte and the contract
+name, and they read the network from `get-current-context` against the prelude's
+version-byte constants, as `principal-of?` does. `principal-to-ascii` is also
+expressible, since c32check is base-32 text with a double-SHA-256 checksum, but
+the derivation needs iteration and a table, so it stays core.
 
 ## 4.3 Disposition of every legacy construct
 
@@ -211,8 +212,8 @@ it.
 
 | Legacy                 | vNEXT     | Notes                                                                                                                                                                                                  |
 | ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `principal-construct?` | primitive | single signature with `(optional (string-ascii 40))` name; `error_code` field renamed `error-code`                                                                                                     |
-| `principal-destruct?`  | primitive |                                                                                                                                                                                                        |
+| `principal-construct?` | library   | single signature with `(optional (string-ascii 40))` name; `error_code` and `value` fields renamed `error-code` and `principal`; builds the encoding and decodes it with `from-consensus-buff?`        |
+| `principal-destruct?`  | library   | slices `to-consensus-buff`                                                                                                                                                                             |
 | `is-standard`          | library   | renamed `is-current-network`, since it tests the version byte against the current network and is true for contract principals too; vNEXT's `is-standard` tests for a standard (not contract) principal |
 | `principal-of?`        | library   | `hash160` plus `principal-construct?` with the network's version byte                                                                                                                                  |
 | `contract-of`          | removed   | `(trait X) <: principal` (2.3.2), so a trait value is already a principal wherever one is expected; `(as principal t)` states it explicitly                                                            |

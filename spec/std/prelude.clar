@@ -520,6 +520,56 @@
 ;; Principals
 ;; ---------------------------------------------------------------------------
 
+;; Version bytes for single-signature and multisig standard principals.
+(define-constant std-mainnet-p2pkh-version 0x16)
+(define-constant std-mainnet-p2sh-version 0x14)
+(define-constant std-testnet-p2pkh-version 0x1a)
+(define-constant std-testnet-p2sh-version 0x15)
+
+(define-private (std-current-network-version? (version (buff 1)))
+  (if (get is-mainnet (get-current-context))
+    (or (is-eq version std-mainnet-p2pkh-version)
+        (is-eq version std-mainnet-p2sh-version))
+    (or (is-eq version std-testnet-p2pkh-version)
+        (is-eq version std-testnet-p2sh-version))))
+
+;; A principal's encoding (chain ABI 2.2) is a prefix byte, the version byte,
+;; the 20 hash bytes, and for a contract principal the name's u8 length and the
+;; name. A name is at most 40 bytes, so its `string-ascii` encoding is 0x0d,
+;; three zero bytes, and then those same length and name bytes.
+(define-private (principal-destruct? (who principal))
+  (let ((bytes (to-consensus-buff who))
+        (version (unwrap-panic (as-max-len? (unwrap-panic (slice? bytes u1 u2)) u1)))
+        (parts { hash-bytes: (unwrap-panic (as-max-len? (unwrap-panic (slice? bytes u2 u22)) u20)),
+                 name: (if (is-eq (len bytes) u22)
+                         none
+                         (from-consensus-buff? (string-ascii 40)
+                           (concat 0x0d000000 (unwrap-panic (slice? bytes u22 (len bytes))))))
+                 version: version }))
+    (if (std-current-network-version? version) (ok parts) (err parts))))
+
+;; Builds the encoding and decodes it, so the chain ABI's decoding rules decide
+;; which names are valid. Error codes: u0 for a version byte that is not the
+;; current network's, with the principal; u1 for a version byte of 32 or more,
+;; or a version or hash buffer shorter than its bound; u2 for an invalid name.
+(define-private (principal-construct? (version (buff 1)) (hash-bytes (buff 20))
+                                      (name (optional (string-ascii 40))))
+  (if (not (and (is-eq (len version) u1)
+                (is-eq (len hash-bytes) u20)
+                (< (buff-to-uint-be version) u32)))
+    (err { error-code: u1, principal: none })
+    (match (from-consensus-buff? principal
+             (match name
+               ((some contract-name)
+                 (let ((name-bytes (to-consensus-buff contract-name)))
+                   (concat 0x06 version hash-bytes
+                           (unwrap-panic (slice? name-bytes u4 (len name-bytes))))))
+               (none (concat 0x05 version hash-bytes))))
+      ((some who) (if (std-current-network-version? version)
+                    (ok who)
+                    (err { error-code: u0, principal: (some who) })))
+      (none (err { error-code: u2, principal: none })))))
+
 ;; True if the principal's version byte is for the current network, whether it
 ;; is a standard or a contract principal. This is what legacy `is-standard`
 ;; tested, under a name that said otherwise.
@@ -532,10 +582,6 @@
   (match (principal-destruct? who)
     ((ok parts) (is-none (get name parts)))
     ((err parts) (is-none (get name parts)))))
-
-;; Version bytes for single-signature standard principals.
-(define-constant std-mainnet-p2pkh-version 0x16)
-(define-constant std-testnet-p2pkh-version 0x1a)
 
 ;; Derive the standard principal for a compressed public key on the current
 ;; network. Returns (err u1) if the key is not 33 bytes.
