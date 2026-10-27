@@ -46,7 +46,7 @@ representation. Every other construct a contract author uses is here.
 | Comparison   | `<`, `>`, `>=`                                                                                 | `<=`, `not`                                                                                                       |
 | Early exit   | `asserts!`, `unwrap!`, `unwrap-err!`, `try!`, `unwrap-panic`, `unwrap-err-panic`, `default-to` | `match`, `return`, `panic`                                                                                        |
 | Predicates   | `is-some`, `is-none`, `is-ok`, `is-err`                                                        | `match`                                                                                                           |
-| Arithmetic   | `max`, `min`, `bit-or` (rest parameters), `abs`, `mod`, `bit-not`                              | comparison, `+ - * /`, `bit-and`, `bit-xor`, `fold-left`                                                          |
+| Arithmetic   | `max`, `min`, `bit-xor`, `bit-or` (rest parameters), `abs`, `mod`, `bit-not`                   | comparison, `+ - * /`, `bit-and`, `fold-left`                                                                     |
 | Arithmetic   | `pow`, `sqrti`, `log2`                                                                         | `fold-left` over a constant list of bit positions, with shifts                                                    |
 | Sequences    | `append`, `replace-at?`                                                                        | `concat`, `slice?`, `as-max-len?`                                                                                 |
 | Sequences    | `index-of?`                                                                                    | `fold-left` with the target in the accumulator                                                                    |
@@ -70,10 +70,10 @@ whether a prelude function is `define-macro` or `define-private`:
 - **Families over integer or sequence kinds.** `pow`, `sqrti`, `log2`,
   `bit-not`, `int-to-ascii`, and `int-to-utf8` are overloaded on `int` and
   `uint`. `replace-at?` is overloaded on the four sequence kinds. `<`, `>`,
-  `>=`, `mod`, `max`, `min`, `bit-or`, `index-of?`, `string-to-int?`, and
-  `string-to-uint?` are single generic definitions checked per instance (2.6.2);
-  per-kind constants such as digit tables are selected by small overloaded
-  helpers.
+  `>=`, `mod`, `max`, `min`, `bit-xor`, `bit-or`, `index-of?`, `string-to-int?`,
+  and `string-to-uint?` are single generic definitions checked per instance
+  (2.6.2); per-kind constants such as digit tables are selected by small
+  overloaded helpers.
 - **`pow` does not overflow early.** It squares and multiplies from the most
   significant exponent bit down, so every intermediate is the base raised to a
   prefix of the exponent and no step overflows unless the result does.
@@ -98,7 +98,8 @@ through the `*-to-buff-*` primitives and deserialization, and comparison on
 sequences as a fold. Each derivation needs iteration, a table, or a primitive
 outside the base, so these stay core. The test sends to the library what is a
 fixed-size expression in the base operations and the special forms: `<`, `>`,
-and `>=` over `<=` and `not`, and `bit-or` over `bit-and` and `bit-xor`.
+and `>=` over `<=` and `not`, and `bit-xor` and `bit-or` over `bit-and`, `+`,
+and `-`.
 
 `secp256k1-verify` can be written with `secp256k1-recover?`, by trying the four
 recovery ids against the key. Both are operations the scheme's standard defines,
@@ -148,9 +149,10 @@ it.
 | `>=`, `<`, `>`                      | library   | private, over `<=` and `not`                                                      |
 | `to-int`, `to-uint`                 | primitive |                                                                                   |
 | `xor`                               | removed   | use `bit-xor`                                                                     |
-| `bit-and`, `bit-xor`                | primitive | rest parameter                                                                    |
-| `bit-or`                            | library   | rest parameter; `bit-xor` and `bit-and`                                           |
-| `bit-not`                           | library   | `bit-xor` with all ones                                                           |
+| `bit-and`                           | primitive | rest parameter                                                                    |
+| `bit-xor`                           | library   | rest parameter; `bit-and`, `+`, and `-`                                           |
+| `bit-or`                            | library   | rest parameter; `bit-and`, `+`, and `-`                                           |
+| `bit-not`                           | library   | all ones minus the value                                                          |
 | `bit-shift-left`, `bit-shift-right` | primitive | shift of 128 or more aborts instead of wrapping                                   |
 | `and`, `or`                         | form      | two or more arguments, short-circuit                                              |
 | `not`                               | library   | private                                                                           |

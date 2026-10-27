@@ -48,16 +48,16 @@ tests; otherwise it belongs in the standard library:
    but `verify-merkle-proof` and `principal-of?` are library.)
 4. **Representation base.** It is one of the base operations on a built-in
    type's representation that everything else is written in terms of: integer
-   `+ - * /`, `bit-and`, `bit-xor`, and the shifts, `<=`, one conversion per
-   pair of representations (`to-int`, `to-uint`, `buff-to-uint-be`), and
-   sequence length, concatenation, indexing, and slicing. The base is a chosen
-   basis, not a minimal one: a member may be derivable from the others, but only
-   through iteration or a table (a `len` that counts in a fold, a byte's value
-   found by binary search). An operation that is a fixed-size expression in the
-   base operations and the special forms is library. (`<`, `>`, `>=`, `bit-or`,
-   `mod`, `pow`, `sqrti`, `buff-to-int-le`, and `int-to-ascii` are library. The
-   `*-to-buff-*` family is core by test 2, not this one: each takes a size
-   argument.)
+   `+ - * /`, `bit-and`, and the shifts, `<=`, one conversion per pair of
+   representations (`to-int`, `to-uint`, `buff-to-uint-be`), and sequence
+   length, concatenation, indexing, and slicing. The base is a chosen basis, not
+   a minimal one: a member may be derivable from the others, but only through
+   iteration or a table (a `len` that counts in a fold, a byte's value found by
+   binary search). An operation that is a fixed-size expression in the base
+   operations and the special forms is library. (`<`, `>`, `>=`, `bit-xor`,
+   `bit-or`, `mod`, `pow`, `sqrti`, `buff-to-int-le`, and `int-to-ascii` are
+   library. The `*-to-buff-*` family is core by test 2, not this one: each takes
+   a size argument.)
 
 Cost is not a test. Contracts are metered by the fuel their compiled Wasm
 consumes, so a library function costs what its code costs to run, and a function

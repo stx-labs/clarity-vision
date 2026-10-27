@@ -39,13 +39,12 @@ For `I` in {`int`, `uint`}:
 | `to-int`          | `(uint) -> int` | conversion                                                                                  | argument at least 2^127                                             |
 | `to-uint`         | `(int) -> uint` | conversion                                                                                  | argument negative                                                   |
 | `bit-and`         | `(I I...) -> I` | bitwise and                                                                                 |                                                                     |
-| `bit-xor`         | `(I I...) -> I` | bitwise exclusive or                                                                        |                                                                     |
 | `bit-shift-left`  | `(I uint) -> I` | shift left, discarding bits shifted out; the result reinterprets the 128-bit pattern as `I` | shift amount 128 or more                                            |
 | `bit-shift-right` | `(I uint) -> I` | shift right; arithmetic for `int`, logical for `uint`                                       | shift amount 128 or more                                            |
 
-Library, not primitive: `mod`, `pow`, `sqrti`, `log2`, `bit-or`, `bit-not`,
-`max`, `min`, `abs`. Their error conditions are the same as legacy and are
-defined by their source.
+Library, not primitive: `mod`, `pow`, `sqrti`, `log2`, `bit-xor`, `bit-or`,
+`bit-not`, `max`, `min`, `abs`. Their error conditions are the same as legacy
+and are defined by their source.
 
 ## 3.2 Comparison and equality
 

@@ -159,20 +159,30 @@
 (define-private (mod (dividend T) (divisor T))
   (- dividend (* (/ dividend divisor) divisor)))
 
-;; `T` is instantiated at int or uint. Each bit of `a xor b` is set where
-;; exactly one input has it, and `a and b` where both do; the two never overlap,
-;; so their xor is the or.
+;; `T` is instantiated at int or uint. `(bit-and a b)` holds the bits set in
+;; both inputs, so `(- a (bit-and a b))` holds those set only in `a`. A
+;; two's-complement value is the sum of its bits' weights, so adding or
+;; subtracting bit patterns that share no bits is exact: none of these steps
+;; overflows, for int or uint.
+(define-private (std-bit-xor-pair (left T) (right T))
+  (let ((both (bit-and left right)))
+    (+ (- left both) (- right both))))
+
+(define-private (bit-xor (left T) (right T...))
+  (fold-left std-bit-xor-pair left right))
+
 (define-private (std-bit-or-pair (left T) (right T))
-  (bit-xor (bit-xor left right) (bit-and left right)))
+  (+ left (- right (bit-and left right))))
 
 (define-private (bit-or (left T) (right T...))
   (fold-left std-bit-or-pair left right))
 
+;; All ones minus `value` clears exactly the bits `value` has, with no borrow.
 (define-private (bit-not (value int))
-  (bit-xor value -1))
+  (- -1 value))
 
 (define-private (bit-not (value uint))
-  (bit-xor value u340282366920938463463374607431768211455))
+  (- u340282366920938463463374607431768211455 value))
 
 ;; Exponent bit positions, most significant first.
 (define-constant std-exponent-bits
