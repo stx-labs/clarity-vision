@@ -134,9 +134,9 @@ rule it is a candidate for the library; it stays primitive in this draft only
 because the parser (variable-length integers, SegWit markers, witness data) has
 not been written yet.
 
-`buff-to-uint-be` and `uint-to-buff-be` are the base conversions between
-integers and bytes. The `*-to-buff-*` family stays primitive because each takes
-a size argument, which a library function cannot. Library, not primitive:
+`buff-to-uint-be` is the base conversion from bytes to integers. The
+`*-to-buff-*` family, `uint-to-buff-be` included, stays primitive because each
+takes a size argument, which a library function cannot. Library, not primitive:
 `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le`, `int-to-ascii`,
 `int-to-utf8`, `string-to-int?`, `string-to-uint?`, and `to-ascii?`, with the
 same signatures as legacy. All but the signed buffer conversions also have the

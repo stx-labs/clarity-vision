@@ -48,13 +48,14 @@ tests; otherwise it belongs in the standard library:
    but `verify-merkle-proof` and `principal-of?` are library.)
 4. **Representation base.** It is one of the base operations on a built-in
    type's representation that everything else is written in terms of: integer
-   `+ - * /`, `bit-and`, and the shifts, `<=`, one conversion per pair of
-   representations (`to-int`, `to-uint`, `buff-to-uint-be`), and sequence
-   length, concatenation, indexing, and slicing. The base is a chosen basis, not
-   a minimal one: a member may be derivable from the others, but only through
-   iteration or a table (a `len` that counts in a fold, a byte's value found by
-   binary search). An operation that is a fixed-size expression in the base
-   operations and the special forms is library. (`<`, `>`, `>=`, `bit-xor`,
+   `+ - * /`, `bit-and`, and the shifts, `<=`, the conversions between
+   representations that the others are written in terms of (`to-int` and
+   `to-uint` between the integer types, `buff-to-uint-be` from bytes), and
+   sequence length, concatenation, indexing, and slicing. The base is a chosen
+   basis, not a minimal one: a member may be derivable from the others, but only
+   through iteration or a table (a `len` that counts in a fold, a byte's value
+   found by binary search). An operation that is a fixed-size expression in the
+   base operations and the special forms is library. (`<`, `>`, `>=`, `bit-xor`,
    `bit-or`, `mod`, `pow`, `sqrti`, `buff-to-int-le`, and `int-to-ascii` are
    library. The `*-to-buff-*` family is core by test 2, not this one: each takes
    a size argument.)
@@ -62,7 +63,11 @@ tests; otherwise it belongs in the standard library:
 Cost is not a test. Contracts are metered by the fuel their compiled Wasm
 consumes, so a library function costs what its code costs to run, and a function
 that turns out to be hot is optimized by a compiler that links a faster
-implementation, not by moving it into the core (chapter 4.1).
+implementation, not by moving it into the core (chapter 4.1). Test 4 is as far
+as the rule goes toward speed: an operation whose only derivation from the base
+needs iteration or a table is itself in the base, so the library never rebuilds
+a base operation out of a loop. A constant-factor speedup never moves an
+operation into the core.
 
 The standard library has **no special powers**. It is ordinary vNEXT source that
 uses only features available to every contract. If the library needs a feature
