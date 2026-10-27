@@ -1425,7 +1425,7 @@ Adopting this proposal changes the following. None of the changes is made yet.
    have the chain validate every argument and result: [02-goals.md](02-goals.md)
    (the guarantees list), [03-architecture.md](03-architecture.md) sections 3,
    4, 5, and 7, [04-spec-plan.md](04-spec-plan.md) (the ABI chapter and the ABI
-   vectors), and spec sections 2.3.3, 2.4.4, and 2.5.8. Under this ABI the
+   vectors), and spec sections 2.3.4, 2.4.4, and 2.5.8. Under this ABI the
    Clarity compiler emits argument validation in every function it exports and
    result validation after every contract call, and the spec defines the abort
    codes for a failure, which replace the chain classes `bad-arguments`,
