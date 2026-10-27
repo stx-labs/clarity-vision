@@ -55,6 +55,7 @@ representation. Every other construct a contract author uses is here.
 | Conversions  | `to-ascii?`                                                                                    | `int-to-ascii`, `principal-to-ascii`, `map` with a hex or character table, `concat` with a spread                 |
 | Principals   | `principal-construct?`, `principal-destruct?`                                                  | `to-consensus-buff`, `from-consensus-buff?`, `slice?`, `get-current-context`                                      |
 | Principals   | `is-current-network`, `is-standard`, `principal-of?`                                           | `principal-destruct?`, `principal-construct?`, `hash160`                                                          |
+| Cryptography | `hash160`                                                                                      | `ripemd160`, `sha256`                                                                                             |
 | Cryptography | `verify-merkle-proof`                                                                          | `sha256`, `log2`, `fold-left` over the proof                                                                      |
 | Storage      | `map-insert?`                                                                                  | `map-get?`, `map-set`                                                                                             |
 
@@ -223,7 +224,8 @@ it.
 
 | Legacy                                                            | vNEXT     | Notes                                                                                                                                    |
 | ----------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `hash160`, `sha256`, `sha512`, `sha512/256`, `keccak256`          | primitive | buffers only; integer inputs removed                                                                                                     |
+| `sha256`, `sha512`, `sha512/256`, `keccak256`                     | primitive | buffers only; integer inputs removed                                                                                                     |
+| `hash160`                                                         | library   | `ripemd160` of `sha256`, over buffers only; integer inputs removed                                                                       |
 | `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required; `secp256k1-verify` takes a `(buff 64)` signature only, where legacy also accepted 65 bytes and ignored the recovery byte |
 | `secp256r1-verify`, `ed25519-verify`                              | primitive | low-S required for ECDSA                                                                                                                 |
 | `verify-merkle-proof`                                             | library   | over `sha256`                                                                                                                            |

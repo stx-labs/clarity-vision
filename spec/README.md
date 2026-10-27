@@ -45,7 +45,7 @@ tests; otherwise it belongs in the standard library:
    libraries, not reimplemented in the language, even where one operation of a
    scheme could be derived from another. Constructions built from them are
    library code. (Examples: `sha256`, `secp256k1-verify`, `secp256k1-recover?`;
-   but `verify-merkle-proof` and `principal-of?` are library.)
+   but `hash160`, `verify-merkle-proof`, and `principal-of?` are library.)
 4. **Representation base.** It is one of the base operations on a built-in
    type's representation that everything else is written in terms of: integer
    `+ - * /`, `bit-and`, and the shifts, `<=`, the conversions between

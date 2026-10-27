@@ -76,9 +76,9 @@ Rules that bind every Clarity compiler:
   Contracts already deployed keep the code they were deployed with, and no chain
   upgrade is needed.
 - **Hashes are host functions.** `sha256`, `sha512`, `sha512/256`, `keccak256`,
-  and `hash160` are host functions, like the signature schemes (section 4): one
-  audited implementation at a native-speed price, which matters for the Merkle
-  and SPV proofs central to sBTC, shared by every source language
+  and `ripemd160` are host functions, like the signature schemes (section 4):
+  one audited implementation at a native-speed price, which matters for the
+  Merkle and SPV proofs central to sBTC, shared by every source language
   ([07-chain-abi.md](07-chain-abi.md) section 12, item 1).
 - **A new language version is a compiler release.** It needs the chain only when
   it depends on a new host function or ABI feature.
@@ -142,7 +142,7 @@ pass the layering rule's host-access test map onto them.
 | Calls        | contract-call by principal and function name; arguments and results pass through as bytes, validated by the modules (section 3)                                                                                                          |
 | Frames       | nested state frames: open, commit, discard. Used by `as-contract?` and `restrict-assets?` (with context switch and allowance checks) and by a module's internal calls to its own public functions, which roll back on `err` (spec 2.7.3) |
 | Events       | print (UTF-8 text) and asset events                                                                                                                                                                                                      |
-| Cryptography | hashes (SHA-256, SHA-512, SHA-512/256, Keccak-256, hash160) and signature schemes (secp256k1 recover/verify/decompress, secp256r1, ed25519)                                                                                              |
+| Cryptography | hashes (SHA-256, SHA-512, SHA-512/256, Keccak-256, RIPEMD-160) and signature schemes (secp256k1 recover/verify/decompress, secp256r1, ed25519)                                                                                           |
 
 The allowance comparison for `as-contract?` and `restrict-assets?` is host code,
 not compiled code over a host-provided movement log, so the guarantee holds for

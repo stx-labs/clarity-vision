@@ -171,11 +171,15 @@ address encoding that wallets and explorers must match byte for byte.
 ## 3.6 Cryptography
 
 Hash functions accept buffers only (P6, footguns table). Library, not primitive:
-`verify-merkle-proof`, a composition of `sha256` (chapter 4).
+`hash160` (`ripemd160` of `sha256`) and `verify-merkle-proof` (a composition of
+`sha256`), both in chapter 4.
+
+`ripemd160` is new. Legacy exposes RIPEMD-160 only inside `hash160`; exposing it
+on its own lets `hash160` be library code like every other composition.
 
 | Primitive               | Signature                                            | Semantics                                                                                                                                                                                                               |
 | ----------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hash160`               | `((buff N)) -> (buff 20)`                            | RIPEMD-160 of SHA-256                                                                                                                                                                                                   |
+| `ripemd160`             | `((buff N)) -> (buff 20)`                            | RIPEMD-160                                                                                                                                                                                                              |
 | `sha256`                | `((buff N)) -> (buff 32)`                            | SHA-256                                                                                                                                                                                                                 |
 | `sha512`                | `((buff N)) -> (buff 64)`                            | SHA-512                                                                                                                                                                                                                 |
 | `sha512/256`            | `((buff N)) -> (buff 32)`                            | SHA-512/256 (distinct IV; not a truncation of SHA-512)                                                                                                                                                                  |

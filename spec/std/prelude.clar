@@ -601,6 +601,10 @@
 ;; Cryptography
 ;; ---------------------------------------------------------------------------
 
+;; Bitcoin's HASH160.
+(define-private (hash160 (bytes (buff N)))
+  (ripemd160 (sha256 bytes)))
+
 (define-private (std-double-sha256 (bytes (buff 64)))
   (sha256 (sha256 bytes)))
 
