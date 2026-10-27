@@ -165,8 +165,9 @@ Library, not primitive: `principal-construct?`, `principal-destruct?`,
 `is-current-network`, `is-standard`, `principal-of?`.
 
 `principal-to-ascii` is new. It is the principal case of `to-ascii?`, which is
-otherwise library (3.4). It stays in the host because c32check is a chain
-address encoding that wallets and explorers must match byte for byte.
+otherwise library (3.4). It is expressible, so under the layering rule it is a
+candidate for the library; it stays primitive in this draft only because the
+c32check encoder has not been written yet (3.12).
 
 ## 3.6 Cryptography
 
@@ -401,3 +402,8 @@ frozen. Issue numbers refer to the stacks-core tracker; the dispositions are in
    is expressible as a byte-at-a-time fold and belongs in the library under the
    layering rule. It stays primitive until the parser is written and has its own
    conformance vectors.
+5. **c32check encoder in the prelude** (3.5). `principal-to-ascii` is
+   expressible with `principal-destruct?`, `sha256`, and base-32 regrouping of
+   the hash and checksum, and belongs in the library under the layering rule. It
+   stays primitive until the encoder is written and has its own conformance
+   vectors.

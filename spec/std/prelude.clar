@@ -467,8 +467,8 @@
 ;; `to-ascii?` renders the six kinds legacy accepts, with legacy's text and
 ;; result bounds, except that a principal's bound is 82, not 170, because
 ;; contract names are at most 40 characters. Only the string-utf8 overload
-;; can fail. Principals go through the `principal-to-ascii` primitive,
-;; because c32check is a chain encoding (chapter 3.5).
+;; can fail. Principals go through the `principal-to-ascii` primitive
+;; until the c32check encoder is written here (chapter 3.12).
 
 (define-private (to-ascii? (value int))
   (ok (int-to-ascii value)))

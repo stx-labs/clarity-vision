@@ -97,8 +97,9 @@ and `slice?` as folds, `element-at?` through `slice?`, `buff-to-uint-be` as a
 fold over the bytes with a binary search for each byte's value, the shifts as
 multiplication and division by a table of powers of two, `to-int` and `to-uint`
 through the `*-to-buff-*` primitives and deserialization, and comparison on
-sequences as a fold. Each derivation needs iteration, a table, or a primitive
-outside the base, so these stay core. The test sends to the library what is a
+sequences as a fold. Each is a single step on the representation that its
+derivation turns into a loop, a table lookup, or a round trip through
+serialization, so these stay core. The test sends to the library what is a
 fixed-size expression in the base operations and the special forms: `<`, `>`,
 and `>=` over `<=` and `not`, and `bit-xor` and `bit-or` over `bit-and`, `+`,
 and `-`.
@@ -113,8 +114,10 @@ slice the principal's encoding (chain ABI 2.2) with `to-consensus-buff` and
 `from-consensus-buff?`, whose decoding checks the version byte and the contract
 name, and they read the network from `get-current-context` against the prelude's
 version-byte constants, as `principal-of?` does. `principal-to-ascii` is also
-expressible, since c32check is base-32 text with a double-SHA-256 checksum, but
-the derivation needs iteration and a table, so it stays core.
+expressible, since c32check is base-32 text with a double-SHA-256 checksum, and
+passes none of the four tests, so it belongs here. Like
+`get-bitcoin-tx-output?`, it stays primitive only until it is written (chapter
+3.12).
 
 ## 4.3 Disposition of every legacy construct
 
