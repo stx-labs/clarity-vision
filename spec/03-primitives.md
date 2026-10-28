@@ -36,25 +36,29 @@ For `I` in {`int`, `uint`}:
 | `-`               | `(I I...) -> I` | subtraction                                                                                 | overflow/underflow                                                  |
 | `*`               | `(I I...) -> I` | multiplication                                                                              | overflow                                                            |
 | `/`               | `(I I...) -> I` | division truncating toward zero                                                             | divisor is zero; overflow (the most negative `int` divided by `-1`) |
+| `mod`             | `(I I) -> I`    | remainder of `/`, with the sign of the dividend                                             | as `/`                                                              |
 | `to-int`          | `(uint) -> int` | conversion                                                                                  | argument at least 2^127                                             |
 | `to-uint`         | `(int) -> uint` | conversion                                                                                  | argument negative                                                   |
 | `bit-and`         | `(I I...) -> I` | bitwise and                                                                                 |                                                                     |
 | `bit-or`          | `(I I...) -> I` | bitwise or                                                                                  |                                                                     |
 | `bit-xor`         | `(I I...) -> I` | bitwise exclusive or                                                                        |                                                                     |
+| `bit-not`         | `(I) -> I`      | bitwise complement of the 128-bit pattern                                                   |                                                                     |
 | `bit-shift-left`  | `(I uint) -> I` | shift left, discarding bits shifted out; the result reinterprets the 128-bit pattern as `I` | shift amount 128 or more                                            |
 | `bit-shift-right` | `(I uint) -> I` | shift right; arithmetic for `int`, logical for `uint`                                       | shift amount 128 or more                                            |
 
-Library, not primitive: `mod`, `pow`, `sqrti`, `log2`, `bit-not`, `max`, `min`,
-`abs`. Their error conditions are the same as legacy and are defined by their
-source.
+Library, not primitive: `pow`, `sqrti`, `log2`, `max`, `min`, `abs`. Their error
+conditions are the same as legacy and are defined by their source.
 
 ## 3.2 Comparison and equality
 
 For `C` in {`int`, `uint`, `(buff N)`, `(string-ascii N)`, `(string-utf8 N)`}:
 
-| Primitive            | Signature       | Semantics                                                             |
-| -------------------- | --------------- | --------------------------------------------------------------------- |
-| `<`, `<=`, `>`, `>=` | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
+| Primitive | Signature       | Semantics                                                             |
+| --------- | --------------- | --------------------------------------------------------------------- |
+| `<`       | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
+| `<=`      | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
+| `>`       | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
+| `>=`      | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
 
 Sequences compare element by element from the start; the first unequal pair
 decides, and a proper prefix is less than the longer sequence. Elements are
@@ -95,7 +99,12 @@ parameters swapped.
 
 Library, not primitive: `append`, `index-of?`, `replace-at?`. Legacy
 multi-sequence `map` (`(map f l1 l2)`) is dropped. It cannot be written in the
-library, because a fold would have to carry `f` in its accumulator.
+library, because a fold would have to carry `f` in its accumulator. `filter`
+stays primitive for the same reason: a fold's step function cannot call the
+predicate, so the predicate's results would have to travel in the accumulator
+beside the kept elements. That accumulator is a parameter, held to the value
+size limit (2.3.1), and is larger than the result, so a library `filter` would
+reject inputs near the limit that the primitive accepts.
 
 ## 3.4 Conversions and serialization
 
@@ -127,9 +136,9 @@ rule it is a candidate for the library; it stays primitive in this draft only
 because the parser (variable-length integers, SegWit markers, witness data) has
 not been written yet.
 
-`buff-to-uint-be` and `uint-to-buff-be` are the base conversions between
-integers and bytes. The `*-to-buff-*` family stays primitive because each takes
-a size argument, which a library function cannot. Library, not primitive:
+`buff-to-uint-be` is the base conversion from bytes to integers. The
+`*-to-buff-*` family, `uint-to-buff-be` included, stays primitive because each
+takes a size argument, which a library function cannot. Library, not primitive:
 `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le`, `int-to-ascii`,
 `int-to-utf8`, `string-to-int?`, `string-to-uint?`, and `to-ascii?`, with the
 same signatures as legacy. All but the signed buffer conversions also have the
@@ -149,27 +158,31 @@ aliasing class at the language level.
 
 ## 3.5 Principals
 
-| Primitive              | Signature                                                                                                                         | Semantics                                                                                                                                                                                                                                                                                            |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `principal-construct?` | `((buff 1) (buff 20) (optional (string-ascii 40))) -> (response principal { error-code: uint, principal: (optional principal) })` | builds a standard principal (no name) or contract principal (with name) from a version byte and hash bytes. `(err {error-code: u0, principal: (some p)})` if the version byte is valid but for the other network; `u1` if the version byte is invalid; `u2` if the name is not a valid contract name |
-| `principal-destruct?`  | `(principal) -> (response D D)` where `D = { hash-bytes: (buff 20), name: (optional (string-ascii 40)), version: (buff 1) }`      | decomposes a principal. `ok` if the version byte matches the current network, `err` with the same payload otherwise                                                                                                                                                                                  |
-| `principal-to-ascii`   | `(principal) -> (string-ascii 82)`                                                                                                | the principal's text form: the c32check address of a standard principal, or the address, `.`, and the name of a contract principal (41 for the address, 1 for the dot, 40 for the name)                                                                                                              |
-| `contract-hash?`       | `(principal) -> (response (buff 32) uint)`                                                                                        | SHA-512/256 of the deployed contract's module; `err u1` if the principal is a standard principal, `err u2` if no such contract is deployed. The chain never holds source; the source hash is available from the module's provenance section, off chain                                               |
+| Primitive            | Signature                                  | Semantics                                                                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `principal-to-ascii` | `(principal) -> (string-ascii 82)`         | the principal's text form: the c32check address of a standard principal, or the address, `.`, and the name of a contract principal (41 for the address, 1 for the dot, 40 for the name)                                                                |
+| `contract-hash?`     | `(principal) -> (response (buff 32) uint)` | SHA-512/256 of the deployed contract's module; `err u1` if the principal is a standard principal, `err u2` if no such contract is deployed. The chain never holds source; the source hash is available from the module's provenance section, off chain |
 
-Library, not primitive: `is-current-network`, `is-standard`, `principal-of?`.
+Library, not primitive: `principal-construct?`, `principal-destruct?`,
+`is-current-network`, `is-standard`, `principal-of?`.
 
 `principal-to-ascii` is new. It is the principal case of `to-ascii?`, which is
-otherwise library (3.4). It stays in the host because c32check is a chain
-address encoding that wallets and explorers must match byte for byte.
+otherwise library (3.4). It is expressible, so under the layering rule it is a
+candidate for the library; it stays primitive in this draft only because the
+c32check encoder has not been written yet (3.12).
 
 ## 3.6 Cryptography
 
 Hash functions accept buffers only (P6, footguns table). Library, not primitive:
-`verify-merkle-proof`, a composition of `sha256` (chapter 4).
+`hash160` (`ripemd160` of `sha256`) and `verify-merkle-proof` (a composition of
+`sha256`), both in chapter 4.
+
+`ripemd160` is new. Legacy exposes RIPEMD-160 only inside `hash160`; exposing it
+on its own lets `hash160` be library code like every other composition.
 
 | Primitive               | Signature                                            | Semantics                                                                                                                                                                                                               |
 | ----------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hash160`               | `((buff N)) -> (buff 20)`                            | RIPEMD-160 of SHA-256                                                                                                                                                                                                   |
+| `ripemd160`             | `((buff N)) -> (buff 20)`                            | RIPEMD-160                                                                                                                                                                                                              |
 | `sha256`                | `((buff N)) -> (buff 32)`                            | SHA-256                                                                                                                                                                                                                 |
 | `sha512`                | `((buff N)) -> (buff 64)`                            | SHA-512                                                                                                                                                                                                                 |
 | `sha512/256`            | `((buff N)) -> (buff 32)`                            | SHA-512/256 (distinct IV; not a truncation of SHA-512)                                                                                                                                                                  |
@@ -354,11 +367,11 @@ section 7.1).
 
 | Group                   | Primitives                        |
 | ----------------------- | --------------------------------- |
-| Arithmetic              | 11 (each in two integer families) |
+| Arithmetic              | 13 (each in two integer families) |
 | Comparison and equality | 5                                 |
 | Sequences               | 9                                 |
 | Conversions             | 8                                 |
-| Principals              | 4                                 |
+| Principals              | 2                                 |
 | Cryptography            | 10                                |
 | Storage                 | 5                                 |
 | Assets                  | 12                                |
@@ -391,3 +404,8 @@ frozen. Issue numbers refer to the stacks-core tracker; the dispositions are in
    is expressible as a byte-at-a-time fold and belongs in the library under the
    layering rule. It stays primitive until the parser is written and has its own
    conformance vectors.
+5. **c32check encoder in the prelude** (3.5). `principal-to-ascii` is
+   expressible with `principal-destruct?`, `sha256`, and base-32 regrouping of
+   the hash and checksum, and belongs in the library under the layering rule. It
+   stays primitive until the encoder is written and has its own conformance
+   vectors.

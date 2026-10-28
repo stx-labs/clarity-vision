@@ -48,8 +48,8 @@ vNEXT source is a sequence of S-expressions.
   trait `name` where a trait identifier is expected. A contract name is 1 to 40
   characters, starts with an ASCII letter, and continues with letters, digits,
   `-`, or `_`. The same limit applies wherever a contract name appears,
-  including `principal-construct?`, `principal-destruct?`, and
-  `principal-to-ascii` (3.5). There are no reserved or special-cased contract
+  including `principal-to-ascii` (3.5) and the library's `principal-construct?`
+  and `principal-destruct?`. There are no reserved or special-cased contract
   names (legacy admitted `__transient`).
 - **Tuple literal syntax**: `{ name: expr, ... }`. This is the only tuple
   constructor syntax.

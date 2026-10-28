@@ -22,7 +22,7 @@ the spec, and every chapter is organized around it:
 | Layer                | Contents                                                                                                                                                                                                                                                                                      | Where specified                                                                        |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | **Core language**    | Syntax, types, a fixed set of _special forms_ (binding, branching, early exit, definitions, constructors, tuple access, type ascription, calls, context scoping) and a fixed set of _primitive operations_ (host access, cryptography, and the base operations on each type's representation) | [02-core-language.md](02-core-language.md), [03-primitives.md](03-primitives.md)       |
-| **Standard library** | Every other construct a contract author uses: `if`, `unwrap!`, `try!`, `asserts!`, `default-to`, `mod`, `pow`, `append`, `index-of?`, `map-insert?`, integer/string conversions, `verify-merkle-proof`, and so on. Written in vNEXT and linked into every module by the compiler              | [04-standard-library.md](04-standard-library.md), [std/prelude.clar](std/prelude.clar) |
+| **Standard library** | Every other construct a contract author uses: `if`, `unwrap!`, `try!`, `asserts!`, `default-to`, `max`, `pow`, `append`, `index-of?`, `map-insert?`, integer/string conversions, `verify-merkle-proof`, and so on. Written in vNEXT and linked into every module by the compiler              | [04-standard-library.md](04-standard-library.md), [std/prelude.clar](std/prelude.clar) |
 
 ### The layering rule
 
@@ -39,19 +39,28 @@ tests; otherwise it belongs in the standard library:
    argument that the language cannot close over. (Examples: `let`, `match`,
    `return`, `define-map`, `is-eq`, `as-max-len?`, `from-consensus-buff?`,
    `uint-to-buff-be`, `map`, `filter`.)
-3. **Cryptographic standard.** It is a hash function or signature scheme defined
-   by an external standard. These are implemented once, by audited host
-   libraries, not reimplemented in the language. Constructions built from them
-   are library code. (Examples: `sha256`, `secp256k1-verify`; but
-   `verify-merkle-proof` and `principal-of?` are library.)
-4. **Representation base.** It is one of the minimal operations on a built-in
-   type's representation that everything else is written in terms of: integer
-   `+ - * /`, bitwise `and`/`or`/`xor` and shifts, comparison, one conversion
-   per pair of representations (`to-int`, `to-uint`, `buff-to-uint-be`), and
-   sequence length, concatenation, indexing, and slicing. Anything derivable
-   from these is library. (`mod`, `pow`, `sqrti`, `buff-to-int-le`, and
-   `int-to-ascii` are library. The `*-to-buff-*` family is core by test 2, not
-   this one: each takes a size argument.)
+3. **Cryptographic standard.** It is an operation that an external standard
+   defines for a hash function or signature scheme: hashing, signature
+   verification, or public-key operations such as recovery and decompression.
+   These are implemented once, by audited host libraries, not reimplemented in
+   the language, even where one operation of a scheme could be derived from
+   another. Constructions built from them are library code. (Examples: `sha256`,
+   `secp256k1-verify`, `secp256k1-recover?`, `secp256k1-decompress?`; but
+   `hash160`, `verify-merkle-proof`, and `principal-of?` are library.)
+4. **Representation base.** It is part of a built-in type's ordinary operator
+   vocabulary: the integer arithmetic operators `+ - * / mod`, the bitwise
+   operators (`bit-and`, `bit-or`, `bit-xor`, `bit-not`, and the shifts), the
+   comparisons (`<`, `<=`, `>`, `>=`), the base conversions (`to-int`,
+   `to-uint`, `buff-to-uint-be`), and sequence length, concatenation, indexing,
+   and slicing. Named functions over that vocabulary are library (`max`, `abs`,
+   `pow`, `sqrti`, `buff-to-int-le`, `int-to-ascii`). The list is a decision,
+   not a derivation: some members can be written in terms of others, and the
+   choice assumes nothing about how a compiler represents values or what an
+   operation costs. Adding to it is a core change. (The `*-to-buff-*` family is
+   core by test 2, not this one: each takes a size argument.)
+
+Two primitives fail every test and stay core only until their library
+definitions are written (chapter 3.12).
 
 Cost is not a test. Contracts are metered by the fuel their compiled Wasm
 consumes, so a library function costs what its code costs to run, and a function
@@ -70,7 +79,7 @@ feature and is specified as such.
   `default-to`, ...) and the derived arithmetic, sequence, and conversion
   natives become library definitions whose semantics are _defined by their
   source_. There is nothing to specify about `unwrap!` beyond the four lines
-  that implement it. The remaining natives become about 80 primitives with
+  that implement it. The remaining natives become about 70 primitives with
   uniform typing rules.
 - **The language has no cost table.** Execution is metered in Wasm fuel, and the
   only other charges are the chain ABI's charges for host functions. There is no

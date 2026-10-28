@@ -45,19 +45,21 @@ representation. Every other construct a contract author uses is here.
 | Branching    | `if`, `not`                                                                                    | `match` on `bool`                                                                                                 |
 | Early exit   | `asserts!`, `unwrap!`, `unwrap-err!`, `try!`, `unwrap-panic`, `unwrap-err-panic`, `default-to` | `match`, `return`, `panic`                                                                                        |
 | Predicates   | `is-some`, `is-none`, `is-ok`, `is-err`                                                        | `match`                                                                                                           |
-| Arithmetic   | `max`, `min` (rest parameters), `abs`, `mod`, `bit-not`                                        | comparison, `+ - * /`, `bit-xor`, `fold-left`                                                                     |
+| Arithmetic   | `max`, `min` (rest parameters), `abs`                                                          | comparison, `-`, `fold-left`                                                                                      |
 | Arithmetic   | `pow`, `sqrti`, `log2`                                                                         | `fold-left` over a constant list of bit positions, with shifts                                                    |
 | Sequences    | `append`, `replace-at?`                                                                        | `concat`, `slice?`, `as-max-len?`                                                                                 |
 | Sequences    | `index-of?`                                                                                    | `fold-left` with the target in the accumulator                                                                    |
 | Conversions  | `buff-to-uint-le`, `buff-to-int-be`, `buff-to-int-le`                                          | `buff-to-uint-be`, a byte-reversing `fold-left`, two's-complement arithmetic sign-extended from the actual length |
 | Conversions  | `int-to-ascii`, `int-to-utf8`, `string-to-int?`, `string-to-uint?`                             | digit tables, `element-at?`, `index-of?`, a 39-step `fold-left`                                                   |
 | Conversions  | `to-ascii?`                                                                                    | `int-to-ascii`, `principal-to-ascii`, `map` with a hex or character table, `concat` with a spread                 |
+| Principals   | `principal-construct?`, `principal-destruct?`                                                  | `to-consensus-buff`, `from-consensus-buff?`, `slice?`, `get-current-context`                                      |
 | Principals   | `is-current-network`, `is-standard`, `principal-of?`                                           | `principal-destruct?`, `principal-construct?`, `hash160`                                                          |
+| Cryptography | `hash160`                                                                                      | `ripemd160`, `sha256`                                                                                             |
 | Cryptography | `verify-merkle-proof`                                                                          | `sha256`, `log2`, `fold-left` over the proof                                                                      |
 | Storage      | `map-insert?`                                                                                  | `map-get?`, `map-set`                                                                                             |
 
-About forty public definitions, plus `std-*` helpers. Two conventions decide
-whether a prelude function is `define-macro` or `define-private`:
+About thirty-five public definitions, plus `std-*` helpers. Two conventions
+decide whether a prelude function is `define-macro` or `define-private`:
 
 - Anything that needs laziness or early exit is a macro: `if` and the early-exit
   family.
@@ -67,9 +69,9 @@ whether a prelude function is `define-macro` or `define-private`:
 ### Notes on specific definitions
 
 - **Families over integer or sequence kinds.** `pow`, `sqrti`, `log2`,
-  `bit-not`, `int-to-ascii`, and `int-to-utf8` are overloaded on `int` and
-  `uint`. `replace-at?` is overloaded on the four sequence kinds. `mod`, `max`,
-  `min`, `index-of?`, `string-to-int?`, and `string-to-uint?` are single generic
+  `int-to-ascii`, and `int-to-utf8` are overloaded on `int` and `uint`.
+  `replace-at?` is overloaded on the four sequence kinds. `max`, `min`,
+  `index-of?`, `string-to-int?`, and `string-to-uint?` are single generic
   definitions checked per instance (2.6.2); per-kind constants such as digit
   tables are selected by small overloaded helpers.
 - **`pow` does not overflow early.** It squares and multiplies from the most
@@ -87,17 +89,33 @@ whether a prelude function is `define-macro` or `define-private`:
 
 ### Kept primitive although expressible
 
-The layering rule's representation-base test keeps a few operations that could
-be written in the language, because everything else is written in terms of them:
-`element-at?` (expressible through `slice?`), `to-int` and `to-uint`
-(expressible through the byte conversions), the bitwise operations, and
-comparison on sequences. Moving them would lengthen the prelude without
-shrinking the set of things a compiler must implement.
+The representation-base test names a chosen set, not a minimal one, so some of
+its members could be written in terms of the others or of other primitives:
+`len` and `slice?` as folds, `element-at?` through `slice?`, `buff-to-uint-be`
+as a fold over the bytes, the shifts as multiplication and division by powers of
+two, `to-int` and `to-uint` through the `*-to-buff-*` primitives and
+deserialization, comparison on sequences as a fold, `<`, `>`, and `>=` over `<=`
+and `not`, `bit-xor`, `bit-or`, and `bit-not` over `bit-and`, `+`, and `-`, and
+`mod` over `/`, `*`, and `-`. They stay core because the spec chooses them as
+the vocabulary the library is written in, not because of how a compiler
+implements them. Everything else written over that vocabulary is library, such
+as `max`, `min`, `abs`, and the little-endian conversions over
+`buff-to-uint-be`.
 
-`principal-to-ascii` is also expressible (c32check is base-32 text with a
-double-SHA-256 checksum) and is kept primitive for a different reason: c32check
-is the chain's address encoding, defined and maintained with the chain, so the
-host renders it rather than the language fixing it in a frozen prelude.
+`secp256k1-verify` can be written with `secp256k1-recover?`, by trying the four
+recovery ids against the key. Both are operations the scheme's standard defines,
+so both are core by the cryptographic-standard test, which keeps the language
+from reimplementing either one in terms of the other.
+
+`principal-construct?` and `principal-destruct?` are library. They build and
+slice the principal's encoding (chain ABI 2.2) with `to-consensus-buff` and
+`from-consensus-buff?`, whose decoding checks the version byte and the contract
+name, and they read the network from `get-current-context` against the prelude's
+version-byte constants, as `principal-of?` does. `principal-to-ascii` is also
+expressible, since c32check is base-32 text with a double-SHA-256 checksum, and
+passes none of the four tests, so it belongs here. Like
+`get-bitcoin-tx-output?`, it stays primitive only until it is written (chapter
+3.12).
 
 ## 4.3 Disposition of every legacy construct
 
@@ -129,12 +147,15 @@ it.
 | Legacy                              | vNEXT     | Notes                                                                             |
 | ----------------------------------- | --------- | --------------------------------------------------------------------------------- |
 | `+`, `-`, `*`, `/`                  | primitive | rest parameter (2.6.5); at least two arguments, so unary `-` is written `(- 0 x)` |
-| `mod`, `pow`, `sqrti`, `log2`       | library   | same results as legacy                                                            |
-| `>=`, `<=`, `<`, `>`                | primitive |                                                                                   |
+| `mod`                               | primitive |                                                                                   |
+| `pow`, `sqrti`, `log2`              | library   | same results as legacy                                                            |
+| `<=`                                | primitive |                                                                                   |
+| `>=`, `<`, `>`                      | primitive |                                                                                   |
 | `to-int`, `to-uint`                 | primitive |                                                                                   |
 | `xor`                               | removed   | use `bit-xor`                                                                     |
-| `bit-and`, `bit-or`, `bit-xor`      | primitive | rest parameter                                                                    |
-| `bit-not`                           | library   | `bit-xor` with all ones                                                           |
+| `bit-and`                           | primitive | rest parameter                                                                    |
+| `bit-xor`, `bit-or`                 | primitive | rest parameter                                                                    |
+| `bit-not`                           | primitive |                                                                                   |
 | `bit-shift-left`, `bit-shift-right` | primitive | shift of 128 or more aborts instead of wrapping                                   |
 | `and`, `or`                         | form      | two or more arguments, short-circuit                                              |
 | `not`                               | library   | private                                                                           |
@@ -193,8 +214,8 @@ it.
 
 | Legacy                 | vNEXT     | Notes                                                                                                                                                                                                  |
 | ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `principal-construct?` | primitive | single signature with `(optional (string-ascii 40))` name; `error_code` field renamed `error-code`                                                                                                     |
-| `principal-destruct?`  | primitive |                                                                                                                                                                                                        |
+| `principal-construct?` | library   | single signature with `(optional (string-ascii 40))` name; `error_code` and `value` fields renamed `error-code` and `principal`; builds the encoding and decodes it with `from-consensus-buff?`        |
+| `principal-destruct?`  | library   | slices `to-consensus-buff`                                                                                                                                                                             |
 | `is-standard`          | library   | renamed `is-current-network`, since it tests the version byte against the current network and is true for contract principals too; vNEXT's `is-standard` tests for a standard (not contract) principal |
 | `principal-of?`        | library   | `hash160` plus `principal-construct?` with the network's version byte                                                                                                                                  |
 | `contract-of`          | removed   | `(trait X) <: principal` (2.3.2), so a trait value is already a principal wherever one is expected; `(as principal t)` states it explicitly                                                            |
@@ -204,7 +225,8 @@ it.
 
 | Legacy                                                            | vNEXT     | Notes                                                                                                                                    |
 | ----------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `hash160`, `sha256`, `sha512`, `sha512/256`, `keccak256`          | primitive | buffers only; integer inputs removed                                                                                                     |
+| `sha256`, `sha512`, `sha512/256`, `keccak256`                     | primitive | buffers only; integer inputs removed                                                                                                     |
+| `hash160`                                                         | library   | `ripemd160` of `sha256`, over buffers only; integer inputs removed                                                                       |
 | `secp256k1-recover?`, `secp256k1-verify`, `secp256k1-decompress?` | primitive | low-S required; `secp256k1-verify` takes a `(buff 64)` signature only, where legacy also accepted 65 bytes and ignored the recovery byte |
 | `secp256r1-verify`, `ed25519-verify`                              | primitive | low-S required for ECDSA                                                                                                                 |
 | `verify-merkle-proof`                                             | library   | over `sha256`                                                                                                                            |

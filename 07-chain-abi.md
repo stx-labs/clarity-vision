@@ -986,13 +986,13 @@ Writes the Keccak-256 hash of `data`, as defined in the Keccak submission to the
 SHA-3 competition (version 3), with its original padding. It is not FIPS 202
 SHA3-256, which pads differently and gives different results.
 
-##### `hash160`
+##### `ripemd160`
 
 ```
-hash160(data: bytes, out: out<20>)
+ripemd160(data: bytes, out: out<20>)
 ```
 
-Writes RIPEMD-160 (ISO/IEC 10118-3) of the SHA-256 hash (FIPS 180-4) of `data`.
+Writes the RIPEMD-160 hash of `data`, as defined in ISO/IEC 10118-3.
 
 ##### `secp256k1_recover`
 
