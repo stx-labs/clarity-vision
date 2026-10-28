@@ -42,22 +42,6 @@
   (if value false true))
 
 ;; ---------------------------------------------------------------------------
-;; Comparison
-;; ---------------------------------------------------------------------------
-
-;; `T` is instantiated at a type `<=` accepts (chapter 3.2). Both arguments
-;; are evaluated before the call, so swapping them in the body does not change
-;; evaluation order.
-(define-private (>= (left T) (right T))
-  (<= right left))
-
-(define-private (> (left T) (right T))
-  (not (<= left right)))
-
-(define-private (< (left T) (right T))
-  (not (<= right left)))
-
-;; ---------------------------------------------------------------------------
 ;; Early exit
 ;; ---------------------------------------------------------------------------
 
@@ -152,37 +136,6 @@
 ;; Aborts on the most negative int, as `(- 0 x)` overflows there.
 (define-private (abs (value int))
   (if (< value 0) (- 0 value) value))
-
-;; `T` is instantiated at int or uint. Division truncates toward zero, so the
-;; remainder takes the sign of the dividend. A zero divisor aborts in `/`, as
-;; does the most negative int with divisor -1, although its remainder is 0.
-(define-private (mod (dividend T) (divisor T))
-  (- dividend (* (/ dividend divisor) divisor)))
-
-;; `T` is instantiated at int or uint. `(bit-and a b)` holds the bits set in
-;; both inputs, so `(- a (bit-and a b))` holds those set only in `a`. A
-;; two's-complement value is the sum of its bits' weights, so adding or
-;; subtracting bit patterns that share no bits is exact: none of these steps
-;; overflows, for int or uint.
-(define-private (std-bit-xor-pair (left T) (right T))
-  (let ((both (bit-and left right)))
-    (+ (- left both) (- right both))))
-
-(define-private (bit-xor (left T) (right T...))
-  (fold-left std-bit-xor-pair left right))
-
-(define-private (std-bit-or-pair (left T) (right T))
-  (+ left (- right (bit-and left right))))
-
-(define-private (bit-or (left T) (right T...))
-  (fold-left std-bit-or-pair left right))
-
-;; All ones minus `value` clears exactly the bits `value` has, with no borrow.
-(define-private (bit-not (value int))
-  (- -1 value))
-
-(define-private (bit-not (value uint))
-  (- u340282366920938463463374607431768211455 value))
 
 ;; Exponent bit positions, most significant first.
 (define-constant std-exponent-bits

@@ -78,9 +78,9 @@ differ from the source everyone audited. The plan pays that down directly:
   computed on source and attach to a verified (source, compiler version, module)
   triple. They apply to the deployed code exactly when that triple checks.
 - **A compiler that is small by design.** The core language is about a dozen
-  forms and about sixty-five primitives with no bespoke evaluation rules, and
-  the standard library is compiled like user code. Validating the translation of
-  a first-order, loop-bounded language is far more tractable than for a
+  forms and about seventy primitives with no bespoke evaluation rules, and the
+  standard library is compiled like user code. Validating the translation of a
+  first-order, loop-bounded language is far more tractable than for a
   general-purpose one, which keeps verified compilation a realistic long-term
   goal.
 

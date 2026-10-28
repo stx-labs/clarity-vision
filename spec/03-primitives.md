@@ -36,15 +36,18 @@ For `I` in {`int`, `uint`}:
 | `-`               | `(I I...) -> I` | subtraction                                                                                 | overflow/underflow                                                  |
 | `*`               | `(I I...) -> I` | multiplication                                                                              | overflow                                                            |
 | `/`               | `(I I...) -> I` | division truncating toward zero                                                             | divisor is zero; overflow (the most negative `int` divided by `-1`) |
+| `mod`             | `(I I) -> I`    | remainder of `/`, with the sign of the dividend                                             | as `/`                                                              |
 | `to-int`          | `(uint) -> int` | conversion                                                                                  | argument at least 2^127                                             |
 | `to-uint`         | `(int) -> uint` | conversion                                                                                  | argument negative                                                   |
 | `bit-and`         | `(I I...) -> I` | bitwise and                                                                                 |                                                                     |
+| `bit-or`          | `(I I...) -> I` | bitwise or                                                                                  |                                                                     |
+| `bit-xor`         | `(I I...) -> I` | bitwise exclusive or                                                                        |                                                                     |
+| `bit-not`         | `(I) -> I`      | bitwise complement of the 128-bit pattern                                                   |                                                                     |
 | `bit-shift-left`  | `(I uint) -> I` | shift left, discarding bits shifted out; the result reinterprets the 128-bit pattern as `I` | shift amount 128 or more                                            |
 | `bit-shift-right` | `(I uint) -> I` | shift right; arithmetic for `int`, logical for `uint`                                       | shift amount 128 or more                                            |
 
-Library, not primitive: `mod`, `pow`, `sqrti`, `log2`, `bit-xor`, `bit-or`,
-`bit-not`, `max`, `min`, `abs`. Their error conditions are the same as legacy
-and are defined by their source.
+Library, not primitive: `pow`, `sqrti`, `log2`, `max`, `min`, `abs`. Their error
+conditions are the same as legacy and are defined by their source.
 
 ## 3.2 Comparison and equality
 
@@ -52,7 +55,10 @@ For `C` in {`int`, `uint`, `(buff N)`, `(string-ascii N)`, `(string-utf8 N)`}:
 
 | Primitive | Signature       | Semantics                                                             |
 | --------- | --------------- | --------------------------------------------------------------------- |
+| `<`       | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
 | `<=`      | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
+| `>`       | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
+| `>=`      | `(C C) -> bool` | numeric order for integers; lexicographic element order for sequences |
 
 Sequences compare element by element from the start; the first unequal pair
 decides, and a proper prefix is less than the longer sequence. Elements are
@@ -61,10 +67,6 @@ code point for `string-utf8`. Code point order is the order of the strings'
 UTF-8 encodings compared bytewise, so the result does not depend on how a host
 stores strings. No Unicode normalization is applied: `u"\u{E9}"` and
 `u"e\u{301}"` are unequal, and the first is greater.
-
-Library, not primitive: `<`, `>`, `>=`, defined over `<=` and `not` for the same
-types. They are private functions, so both arguments are evaluated, left to
-right, before the comparison.
 
 | Primitive | Signature       | Semantics                                                                                                  |
 | --------- | --------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -365,17 +367,17 @@ section 7.1).
 
 | Group                   | Primitives                        |
 | ----------------------- | --------------------------------- |
-| Arithmetic              | 10 (each in two integer families) |
-| Comparison and equality | 2                                 |
-| Sequences               | 8                                 |
+| Arithmetic              | 13 (each in two integer families) |
+| Comparison and equality | 5                                 |
+| Sequences               | 9                                 |
 | Conversions             | 8                                 |
-| Principals              | 4                                 |
+| Principals              | 2                                 |
 | Cryptography            | 10                                |
 | Storage                 | 5                                 |
 | Assets                  | 12                                |
 | Context                 | 4                                 |
 | Events and control      | 2                                 |
-| **Total**               | **65**                            |
+| **Total**               | **70**                            |
 
 For comparison, legacy Clarity 6 has 126 native functions and 16 native
 variables, most with bespoke typing rules.

@@ -33,9 +33,9 @@ and the base operations on each type's representation. Everything else is
 standard library.
 
 The core is therefore small enough to hold in one head: about a dozen top-level
-definition forms, about a dozen expression forms, and about sixty-five primitive
+definition forms, about a dozen expression forms, and about seventy primitive
 operations with uniform typing rules. The library holds everything else a
-contract author uses, about forty definitions.
+contract author uses, about thirty-five definitions.
 
 ## P3. The standard library has no special powers
 
@@ -46,9 +46,11 @@ do. If the library needs a language feature, that feature is designed and
 specified as a user feature.
 
 Corollary: a proposal to "just add a native" for something expressible in the
-language is rejected. The right fix is a library function, or if the library
-cannot express it well, a general language feature that lets it. Speed is not a
-reason to add a native; see P4.
+language is rejected, unless it belongs in a type's operator vocabulary under
+the layering rule's representation-base test, which is a core change judged on
+that ground alone. Otherwise the right fix is a library function, or if the
+library cannot express it well, a general language feature that lets it. Speed
+is never a reason to add a native; see P4.
 
 ## P4. Cost is not a language concern
 
