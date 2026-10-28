@@ -8,10 +8,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: pages
@@ -19,9 +16,14 @@ concurrency:
 
 jobs:
   build:
+    name: Build site
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # check out the repository
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build PDF
         run: make pdf CHROME=google-chrome
       - name: Assemble site
@@ -29,14 +31,18 @@ jobs:
           mkdir -p _site
           cp clarity-vision.pdf _site/
           cp .build/clarity-vision.html _site/index.html
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
 
   deploy:
+    name: Deploy to Pages
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write # deploy the site to GitHub Pages
+      id-token: write # authenticate the deployment via OIDC
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}clarity-vision.pdf
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
