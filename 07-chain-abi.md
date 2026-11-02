@@ -21,8 +21,8 @@ The ABI has two layers, specified in two documents:
   explorers use to encode and decode the values it exchanges.
 
 The chain depends only on the runtime layer. Arguments, results, storage, and
-`print` messages are bytes to it (R1), and a module that follows no
-interpretation convention still deploys and runs. Tools depend on both layers.
+event data are bytes to it (R1), and a module that follows no interpretation
+convention still deploys and runs. Tools depend on both layers.
 
 This document draws on two prior systems:
 
@@ -61,12 +61,12 @@ account's balances, and an allowance's fields are each passed on their own (6.2,
 7.2), so the host has no record layout to decode or produce.
 
 The values a contract exchanges are not host values: arguments, results,
-storage, and `print` messages are bytes the host passes through or stores (5.4,
-4.2, 6.2). The interpretation layer defines a type grammar and an encoding for
-them ([08-value-interpretation.md](08-value-interpretation.md) sections 2–3),
-whose encoding of a principal is the one in 2.2. Nothing in this document
-depends on that layer, except a call between a legacy and a Wasm contract
-(section 13, question 4).
+storage, and event data are bytes the host passes through or stores (5.4, 4.2,
+6.2). The interpretation layer defines a type grammar and an encoding for them
+([08-value-interpretation.md](08-value-interpretation.md) sections 2–3), whose
+encoding of a principal is the one in 2.2. Nothing in this document depends on
+that layer, except a call between a legacy and a Wasm contract (section 13,
+question 4).
 
 ### 2.1 Names
 
@@ -176,8 +176,8 @@ that pays its charges.
 ### 4.1 Contents
 
 The `abi.interface` section records what the chain acts on: which functions
-exist, how each may be called, and which tokens the contract defines. Its bytes
-are, in order:
+exist, how each may be called, which tokens the contract defines, and which
+events it emits. Its bytes are, in order:
 
 | Field         | Encoding                                                                     |
 | ------------- | ---------------------------------------------------------------------------- |
@@ -185,8 +185,9 @@ are, in order:
 | `functions`   | u32 BE count, then per function: name, kind byte (`0` public, `1` read-only) |
 | `fts`         | u32 BE count, then per fungible token: name                                  |
 | `nfts`        | u32 BE count, then per non-fungible token: name                              |
+| `events`      | u32 BE count, then per event: name                                           |
 
-A name is a u8 length and the name's bytes (2.1). No bytes may follow `nfts`.
+A name is a u8 length and the name's bytes (2.1). No bytes may follow `events`.
 
 Rules:
 
@@ -195,13 +196,14 @@ Rules:
   hash: `sha512/256` of the section bytes.
 - The interface carries no types and no traits. A function's arguments and
   result are bytes to the chain (5.2), and their declared types, the type of
-  each NFT's identifiers, and the contract's traits are in the `abi.types`
-  section, which the interpretation layer defines
+  each NFT's identifiers, the type of each event's data, and the contract's
+  traits are in the `abi.types` section, which the interpretation layer defines
   ([08-value-interpretation.md](08-value-interpretation.md) section 5) and the
   chain does not read.
-- A token is addressed by its index in its sorted list. The index is a
-  module-local handle; the chain keys state by name (section 8.1), so the name,
-  not the index, is the stable identity.
+- A token or an event is addressed by its index in its sorted list. The index is
+  a module-local handle; the chain keys state by name (section 8.1) and records
+  events by name (section 8.3), so the name, not the index, is the stable
+  identity.
 
 ### 4.2 Storage is untyped
 
@@ -362,8 +364,8 @@ with Wasm type `(param i64 i64 i32 i32) (result i32)`.
   call has any effect.
 - The host reads every input before it writes any output, so an output may
   overlap an input.
-- An index argument (`token`, `kind`) outside its range is a `bad-host-argument`
-  runtime error.
+- An index argument (`token`, `event`, `kind`) outside its range is a
+  `bad-host-argument` runtime error.
 - Every host function has a charge (section 9.2).
 
 ### 6.2 Functions
@@ -924,19 +926,21 @@ contract principal is the address, `.`, and the name.
 
 #### Events
 
-##### `print`
+##### `emit`
 
 ```
-print(msg: bytes)
+emit(event: i32, data: bytes)
 ```
 
-Emits `msg` as a contract event. `msg` must be valid UTF-8 (no surrogates, no
-overlong forms) and at most the print message limit (section 9.3); anything else
-is `bad-host-argument`. It also counts toward the transaction's event bytes. The
-chain does not interpret the text: the source language decides how a value is
-rendered ([08-value-interpretation.md](08-value-interpretation.md) section 7.1),
-and a module that wants to emit structured data formats it itself. Asset events
-are emitted by the asset functions themselves.
+Emits a contract event. `event` is an index into `events` (4.1), so a contract
+can emit only the events its interface names. The event records the emitting
+contract, the event's name, and `data` (8.3). `data` is at most the event data
+limit (section 9.3); a longer one is `bad-host-argument`. It also counts toward
+the transaction's event bytes. The chain does not interpret `data`: by
+convention it is the canonical encoding of a value of the event's declared type
+([08-value-interpretation.md](08-value-interpretation.md) section 7.1), which is
+what indexers and explorers decode. Asset events are emitted by the asset
+functions themselves.
 
 #### Cryptography
 
@@ -1157,9 +1161,11 @@ mean.
 
 ### 8.3 Events
 
-Events are `print` events and asset events, each tagged with the emitting
-contract. They live in the frame that emitted them and commit or discard with
-it.
+Events are contract events and asset events, each tagged with the emitting
+contract. A contract event also carries its name, from the contract's interface
+(4.1), and its data bytes (6.2), so an observer can select events by contract
+and name without decoding any data. Events live in the frame that emitted them
+and commit or discard with it.
 
 ### 8.4 Post-conditions
 
@@ -1309,7 +1315,7 @@ chain pins the engine's behavior to the schedule.
 | Storage value               | 1 MiB               | bytes per value                                                    |
 | Arguments                   | 1 MiB               | bytes per transaction, query, or `call`                            |
 | Result                      | 1 MiB               | bytes per `result_set`                                             |
-| Print message               | 1 MiB               | bytes per `print`                                                  |
+| Event data                  | 1 MiB               | bytes per `emit`                                                   |
 | Allowances per frame        | 128                 |                                                                    |
 | Fuel per block              | TBD                 | 9.1                                                                |
 | Fuel per read-only query    | node's choice       | 9.1                                                                |
@@ -1410,10 +1416,15 @@ Adopting this proposal changes the following. None of the changes is made yet.
    [03-architecture.md](03-architecture.md) section 4 lists data-var and map
    host functions; they become one key-value store.
 4. **A fungible token's cap is set by a host call during `init`** (6.2).
-5. **`print` emits a string** (6.2). Legacy emits the printed value in SIP-005
-   encoding, and spec section 3 types `print` as `(T) -> T`. Under this ABI the
-   Clarity compiler renders the value as text, so the spec must define that
-   rendering, and tools that decode legacy print events need a second path.
+5. **Events are declared and typed** (4.1, 6.2). Legacy `print` emits any value,
+   in SIP-005 encoding, with nothing to say which shape of event it is, so
+   indexers match on conventions such as a `topic` field. Under this ABI a
+   contract names its events in its interface and declares each one's data type
+   in `abi.types`, like Solidity's event ABI, and `emit` takes the event's index
+   and the data's bytes. The Clarity compiler encodes the data canonically, so a
+   Clarity event's data has the same bytes legacy `print` emits for the same
+   value, and one decoder serves both. Clarity replaces `print` with
+   `define-event` and `emit` (spec sections 2.4.1 and 3.10).
 6. **NFT identifiers are bytes** (6.2). The identifier type of
    `define-non-fungible-token` stays in the Clarity spec and in the `abi.types`
    section, for tools, but leaves the interface the chain reads. The Clarity

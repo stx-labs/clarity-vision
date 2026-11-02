@@ -322,9 +322,9 @@ lifting it later is backward compatible and restoring it would not be.
 
 A type is an **interface type** if it contains no type or size variable. Trait
 types are allowed. Only interface types may appear in the parameter and result
-types of public and read-only functions and in trait definitions. They are the
-types the compiler declares in `abi.types` (2.4.4), and each is a type of the
-interpretation layer's grammar
+types of public and read-only functions, in trait definitions, and in event
+definitions. They are the types the compiler declares in `abi.types` (2.4.4),
+and each is a type of the interpretation layer's grammar
 ([../08-value-interpretation.md](../08-value-interpretation.md) section 2).
 
 An interface type may contain `never`. A public function whose body is
@@ -374,6 +374,7 @@ ref-kind  ::= (var type)
             | (map type type)
             | (fungible-token)
             | (non-fungible-token type)
+            | (event type)
             | (function (type ...) type)
 ```
 
@@ -382,8 +383,8 @@ of the matching kind in the current contract, or a parameter of the same kind in
 the enclosing function. References are resolved at instantiation time (2.6.2)
 and have no runtime representation.
 
-Reference kinds let one helper serve every map (or variable, or token) of a
-given shape; each distinct reference is its own instance, so which storage a
+Reference kinds let one helper serve every map (or variable, token, or event) of
+a given shape; each distinct reference is its own instance, so which storage a
 function touches stays statically known. Reference kinds may appear only in
 `define-private` and `define-macro` parameters. `(function ...)` arguments may
 name any function defined in the current contract or the prelude, but not a
@@ -425,6 +426,7 @@ contract.
 | `(define-map name key-type value-type)`                                                                                   | A persistent map                                                                                                                                                                                                                                                                    | both types storable; the key prefix plus `serialized-size(key-type)` MUST fit the storage key limit (2.8, 3.7)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `(define-fungible-token name)` and `(define-fungible-token name expr)`                                                    | A fungible token, optionally with a total supply cap `expr : uint`                                                                                                                                                                                                                  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `(define-non-fungible-token name type)`                                                                                   | A non-fungible token with identifier type `type`                                                                                                                                                                                                                                    | `type` storable                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `(define-event name type)`                                                                                                | A contract event whose data has type `type`, emitted with `emit` (3.10)                                                                                                                                                                                                             | `type` is an interface type (2.3.4) whose `serialized-size` MUST satisfy the value size limit (2.8); monomorphic. The name is in the contract's interface and the type in `abi.types` (2.4.4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `(define-trait name ((fn-name (type ...) type) ...))` and `(define-trait name ((fn-name (type ...) type read-only) ...))` | A trait: a set of function names with interface-typed signatures whose result types are `response` types. A function marked `read-only` may only be implemented by a read-only function, and may be called through the trait from read-only code (2.7.4)                            |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `(impl-trait trait-identifier)`                                                                                           | A conformance claim, checked statically: every function in the trait MUST be defined as a public or read-only function with a compatible signature (parameters contravariant, result covariant), and a function the trait marks `read-only` MUST be defined with `define-read-only` |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `(define-public (name (param type) ...) expr ...)`                                                                        | An externally callable function                                                                                                                                                                                                                                                     | parameter types are interface types; result type MUST be a `response`; monomorphic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -492,16 +494,17 @@ The compiler emits two sections describing the contract into its module
 ([../07-chain-abi.md](../07-chain-abi.md) section 3.4):
 
 - **`abi.interface`** ([../07-chain-abi.md](../07-chain-abi.md) section 4.1)
-  names the public and read-only functions with their kinds, and the fungible
-  and non-fungible tokens. The chain validates it against the module at deploy
-  and acts on nothing else.
+  names the public and read-only functions with their kinds, the fungible and
+  non-fungible tokens, and the events. The chain validates it against the module
+  at deploy and acts on nothing else.
 - **`abi.types`**
   ([../08-value-interpretation.md](../08-value-interpretation.md) section 5)
   declares the parameter and result types of every public and read-only
-  function, the identifier type of every non-fungible token, the traits the
-  contract defines, the traits it claims with `impl-trait`, and the layout of
-  its data variables and maps (3.7). A Clarity contract declares all of them, so
-  none of its functions, tokens, or storage is undeclared.
+  function, the identifier type of every non-fungible token, the data type of
+  every event, the traits the contract defines, the traits it claims with
+  `impl-trait`, and the layout of its data variables and maps (3.7). A Clarity
+  contract declares all of them, so none of its functions, tokens, events, or
+  storage is undeclared.
 
 The chain does not read `abi.types`. Other contracts, whatever their source
 language, compile typed calls against it (2.5.8), and wallets and explorers
@@ -1223,9 +1226,9 @@ recursion every call chain is visible in the definition graph.
 
 ### 2.7.6 Events
 
-`print` and every asset primitive emit events into the transaction's event
-batch. A `print` event is the text rendering of its value (3.10). Events of a
-rolled-back frame are discarded with it.
+`emit` and every asset primitive emit events into the transaction's event batch.
+An `emit` event carries the event's name and the canonical encoding of its value
+(3.10). Events of a rolled-back frame are discarded with it.
 
 ### 2.7.7 Cost
 
@@ -1270,7 +1273,7 @@ source size and transaction budgets.
 | Maximum function call depth within a contract (2.7.5)                                | 128             | `MAX_CALL_STACK_DEPTH`; contract-call depth is the chain ABI's                                      |
 | Maximum allowances per `as-contract?` / `restrict-assets?`                           | 128             | `MAX_ALLOWANCES`                                                                                    |
 | Maximum storage key: a map's key prefix plus `serialized-size` of its key type (3.7) | 1,024 bytes     | new; the chain ABI's storage key limit                                                              |
-| Maximum `print` message: the rendered length bound of the argument's type (3.10)     | 1,048,576 bytes | new; the chain ABI's print message limit                                                            |
+| Maximum event data: `serialized-size` of the event's type (2.4.1)                    | 1,048,576 bytes | new; the chain ABI's event data limit                                                               |
 
 There is no limit on the size of a contract after macro expansion and
 instantiation, which can grow exponentially (definitions that each call the next
@@ -1307,7 +1310,7 @@ once the dependency named in each is settled.
    iteration" item of the specification plan.
 5. **RFC: host bindings in the prelude.** A `define-host` declaration form would
    let the prelude declare every host-calling primitive (storage, assets,
-   context, chain data, signature schemes, `print`) by name and signature, with
+   context, chain data, signature schemes, `emit`) by name and signature, with
    semantics cited from the chain ABI rather than restated in chapter 3. The
    same form could cover compiled primitives with ordinary signatures, leaving
    chapter 3 with only the primitives whose typing cannot be written as a

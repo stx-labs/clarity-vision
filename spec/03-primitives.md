@@ -330,38 +330,36 @@ sender's nonce.)
 
 ## 3.10 Events and control
 
-| Primitive | Signature     | Semantics                                                                                                            |
-| --------- | ------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `print`   | `(T) -> T`    | emits the value's rendering (below) as an event and returns the value                                                |
-| `panic`   | `() -> never` | aborts the transaction with a runtime error. The library's `unwrap-panic` and `unwrap-err-panic` are defined with it |
+| Primitive | Signature               | Semantics                                                                                                            |
+| --------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `emit`    | `((event T) T) -> bool` | emits the value as an event of the named definition (2.4.1); returns `true`                                          |
+| `panic`   | `() -> never`           | aborts the transaction with a runtime error. The library's `unwrap-panic` and `unwrap-err-panic` are defined with it |
 
-The chain records a `print` event as UTF-8 text and does not interpret it
-([../07-chain-abi.md](../07-chain-abi.md) section 6.2), so the language fixes
-how a value is rendered. The **rendering** of a value is its Clarity literal
-syntax (2.2, 2.5.6), so a tool can show it as written and parse it back:
+`emit`'s first argument names a `define-event` of the current contract, or an
+`(event T)` reference parameter (2.3.7), and its second has a type that is a
+subtype of the event's declared type. The chain records the event as the
+emitting contract, the event's name, and the value's canonical encoding
+([../07-chain-abi.md](../07-chain-abi.md) sections 6.2 and 8.3), which an
+indexer decodes against the event's type in `abi.types`
+([../08-value-interpretation.md](../08-value-interpretation.md) section 7.1).
+The declared type's `serialized-size` is within the value size limit (2.8),
+which is the chain's event data limit, so `emit` never fails at runtime.
 
-| Value              | Rendering                                                                                                       |
-| ------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `int`              | decimal, with `-` if negative: `-7`                                                                             |
-| `uint`             | `u`, then decimal: `u42`                                                                                        |
-| `bool`             | `true` or `false`                                                                                               |
-| `principal`        | `'` then the text form of `principal-to-ascii` (3.5): `'SP...` or `'SP....name`                                 |
-| `(buff N)`         | `0x`, then two lowercase hex digits per byte: `0x`, `0xdeadbeef`                                                |
-| `(string-ascii N)` | `"`, the characters, `"`, with `\\`, `\"`, `\n`, `\t`, `\r` escaped as in literals                              |
-| `(string-utf8 N)`  | `u"`, the characters, `"`, escaped as `string-ascii`, and any other code point below 0x20, or 0x7F, as `\u{XX}` |
-| `(optional T)`     | `none`, or `(some v)`                                                                                           |
-| `(response T E)`   | `(ok v)` or `(err v)`                                                                                           |
-| `(list N T)`       | `(list v1 v2 ...)`; the empty list is `(list)`                                                                  |
-| tuple              | `{ f1: v1, f2: v2 }`, fields in ascending byte order of name; the empty tuple is `{}`                           |
+```
+(define-map listings uint { seller: principal, price: uint })
+(define-event listed { id: uint, seller: principal, price: uint })
 
-The spacing is exactly as shown: one space between the parts of a form, and in a
-tuple one space after `{`, after each `:` and `,`, and before `}`. A trait-typed
-value renders as its principal. Every type has a statically known **rendered
-length bound**, the longest rendering of any of its values, and a `print` whose
-argument type's bound exceeds the print message limit (2.8) is a type error, so
-`print` never fails at runtime. Legacy `print` emits the value in SIP-005
-encoding instead ([../08-value-interpretation.md](../08-value-interpretation.md)
-section 7.1).
+(define-public (list-item (id uint) (price uint))
+  (let ((seller (get sender (get-current-context))))
+    (asserts! (is-none (map-get? listings id)) (err u1))
+    (map-set listings id { seller: seller, price: price })
+    (emit listed { id: id, seller: seller, price: price })
+    (ok true)))
+```
+
+`emit` replaces legacy `print`. A legacy `print` event carries the value's
+SIP-005 encoding with no name or declared type; an event's data are the same
+bytes for the same value, so one decoder reads both.
 
 ## 3.11 Count
 

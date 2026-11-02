@@ -94,15 +94,16 @@ section 3):
 - **Imports**: host functions only (section 4). A module that imports anything
   else is rejected.
 - **`abi.interface`** (a custom section, validated by the chain): each exported
-  function's name and kind (public or read-only), and the contract's token
-  names. This is what the chain dispatches against, and all it reads.
+  function's name and kind (public or read-only), and the contract's token and
+  event names. This is what the chain dispatches against, and all it reads.
 - **`abi.types`** (a custom section the chain does not read,
   [08-value-interpretation.md](08-value-interpretation.md) section 5): each
-  function's parameter and result types, each NFT's identifier type, the traits
-  the contract defines and claims to implement, and its storage layout. This is
-  what other contracts compile against and what wallets and explorers display
-  values with. Its type grammar includes an empty type (`never` in Clarity, spec
-  2.3.4) so that a function can declare that it never returns `err`.
+  function's parameter and result types, each NFT's identifier type, each
+  event's data type, the traits the contract defines and claims to implement,
+  and its storage layout. This is what other contracts compile against and what
+  wallets and explorers display values with. Its type grammar includes an empty
+  type (`never` in Clarity, spec 2.3.4) so that a function can declare that it
+  never returns `err`.
 - **Provenance** (section 2).
 
 At deploy the chain checks that the module is valid Wasm within the profile and
@@ -141,7 +142,7 @@ pass the layering rule's host-access test map onto them.
 | Chain data   | Stacks block, tenure, and burn block lookups, one function per field. All total: a height the host cannot serve is reported through the result, never a failure                                                                          |
 | Calls        | contract-call by principal and function name; arguments and results pass through as bytes, validated by the modules (section 3)                                                                                                          |
 | Frames       | nested state frames: open, commit, discard. Used by `as-contract?` and `restrict-assets?` (with context switch and allowance checks) and by a module's internal calls to its own public functions, which roll back on `err` (spec 2.7.3) |
-| Events       | print (UTF-8 text) and asset events                                                                                                                                                                                                      |
+| Events       | contract events, named in the interface, with data typed in `abi.types`; asset events                                                                                                                                                    |
 | Cryptography | hashes (SHA-256, SHA-512, SHA-512/256, Keccak-256, RIPEMD-160) and signature schemes (secp256k1 recover/verify/decompress, secp256r1, ed25519)                                                                                           |
 
 The allowance comparison for `as-contract?` and `restrict-assets?` is host code,

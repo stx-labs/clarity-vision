@@ -2,10 +2,10 @@
 
 This is the interpretation layer of the chain ABI, the companion to
 [07-chain-abi.md](07-chain-abi.md), which is the runtime layer. The runtime
-layer passes a contract's arguments, results, storage, and `print` messages
-through as bytes and never interprets them (chain ABI R1). This document says
-what those bytes mean: the types a contract declares, how values of those types
-are encoded, and what compilers, wallets, explorers, and indexers may rely on.
+layer passes a contract's arguments, results, storage, and event data through as
+bytes and never interprets them (chain ABI R1). This document says what those
+bytes mean: the types a contract declares, how values of those types are
+encoded, and what compilers, wallets, explorers, and indexers may rely on.
 
 The chain enforces nothing here, with one exception: a call between a legacy and
 a Wasm contract converts values by the encoding of section 3 (chain ABI 13,
@@ -17,11 +17,11 @@ the form "chain ABI 5.2" are to sections of [07-chain-abi.md](07-chain-abi.md).
 
 | Value                                                | Chain ABI (runtime)                                                        | This document                           |
 | ---------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------- |
-| Interface                                            | reads function names and kinds, and token names (4.1)                      | typed signatures and traits (5)         |
+| Interface                                            | reads function names and kinds, and token and event names (4.1)            | typed signatures and traits (5)         |
 | Arguments                                            | passes the bytes to the callee unchanged (5.2)                             | their types (5) and layout (6.1, 6.4)   |
 | Results                                              | passes the bytes and the result flag; the flag closes a public frame (5.2) | their types (5) and encoding (6.2, 6.4) |
 | Storage                                              | stores bytes under byte keys (4.2)                                         | its declared layout (7.2)               |
-| `print` messages                                     | records UTF-8 text (6.2)                                                   | how a language renders values (7.1)     |
+| Event data                                           | records the bytes with the contract and event name (6.2, 8.3)              | their declared type (7.1)               |
 | NFT identifiers                                      | stores and compares bytes (6.2)                                            | their declared type (7.3)               |
 | Host values: principals, `u128` words, and raw bytes | defines them and acts on them (2)                                          | nothing                                 |
 
@@ -57,8 +57,8 @@ trait-ref ::= contract-principal "." name
 | `(trait X)`        | contract principals, meant to conform to trait `X` (5.2) |
 
 A contract declares the type of each parameter and result of its functions, of
-each function of its traits, and of each NFT's identifiers in this grammar
-(section 5). A source language maps its own types onto it.
+each function of its traits, of each NFT's identifiers, and of each event's data
+in this grammar (section 5). A source language maps its own types onto it.
 
 - Every type is closed: no type variables, no unknown parts (chain ABI R3).
 - `never` may appear anywhere a type may. A position of type `never` can hold
@@ -205,6 +205,7 @@ one canonically encoded record:
 | `version`    | the version of this format (section 8)                                                              |
 | `functions`  | per function: name, parameters (name, type), result type                                            |
 | `nfts`       | per non-fungible token: name, identifier type                                                       |
+| `events`     | per event: name, data type (7.1)                                                                    |
 | `traits`     | per trait the contract defines: name, then per function: name, kind, parameter types, result type   |
 | `implements` | the trait references of the traits the contract claims to conform to                                |
 | `storage`    | per variable or map (not per value): name, kind, key prefix, key type (maps only), value type (7.2) |
@@ -216,9 +217,9 @@ Rules:
   hash: `sha512/256` of its bytes. Provenance records it for each callee,
   alongside the hash of the callee's `abi.interface`
   ([03-architecture.md](03-architecture.md) section 2).
-- `functions` and `nfts` name functions and NFTs of the module's `abi.interface`
-  (chain ABI 4.1), not necessarily all of them. A function or NFT left out is
-  undeclared (6.4, 7.3).
+- `functions`, `nfts`, and `events` name functions, NFTs, and events of the
+  module's `abi.interface` (chain ABI 4.1), not necessarily all of them. A
+  function, NFT, or event left out is undeclared (6.4, 7.3, 7.1).
 - A `public` function's result type is a `response`, whose arms describe the
   result for each value of the flag that `result_set` takes (chain ABI 5.2). A
   `read-only` function's result type is any type. The same holds for the
@@ -330,13 +331,24 @@ either; leaving its functions undeclared costs it clear-signing.
 
 ## 7. Events, storage, and identifiers
 
-### 7.1 `print` messages
+### 7.1 Events
 
-A `print` message is UTF-8 text that the chain records without interpreting it
-(chain ABI 6.2). Each source language defines how it renders a value as text;
-the Clarity spec will define Clarity's (chain ABI 12, item 5). Legacy `print`
-events carry the printed value in SIP-005 encoding, so a tool that shows both
-decodes legacy events as values and Wasm events as text.
+The chain records a contract event as the emitting contract, the event's name,
+and its data bytes, without interpreting the data (chain ABI 6.2, 8.3). The data
+bytes are the canonical encoding of a value of the event's declared data type
+(section 5), so an indexer selects events by contract and name and decodes each
+one against its declared type, as it decodes a result. The Clarity compiler
+encodes event data this way (chain ABI 12, item 5).
+
+Legacy `print` events carry the printed value in the same encoding, so one
+decoder serves both. The difference is that a legacy event has no name and no
+declared type: a tool decodes it by its self-describing prefixes and matches its
+shape by convention.
+
+An event the interface names but `abi.types` does not declare is undeclared: its
+data are raw bytes, which a tool shows as hex. A language that wants free-form
+text events declares the event's type as a `string-utf8`, and a tool shows the
+text.
 
 ### 7.2 Storage
 
@@ -400,3 +412,12 @@ every existing tool.
    instead of each checking for itself. Against it: deploy gains a type decoder
    for a section the chain otherwise ignores, and a valid declaration still says
    nothing about the values a module accepts (section 5).
+2. **Indexed event fields.** Solidity lets an event mark up to three parameters
+   `indexed`, which the chain records as separate topics that nodes can filter
+   on without decoding the data. Here an observer can select by contract and
+   event name (7.1) but must decode the data to filter on a field, such as every
+   transfer to one recipient. A declaration could mark fields of a tuple data
+   type as indexed, and `emit` could take their encodings as separate byte
+   strings that the chain records and indexes. Open are whether node-side
+   filtering is worth a second argument to `emit` and a larger receipt, and how
+   many fields an event may index.
