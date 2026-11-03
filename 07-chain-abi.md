@@ -99,16 +99,13 @@ consensus data.
 
 ### 3.1 Wasm profile
 
-Allowed: Wasm 1.0 plus mutable globals, sign-extension operators, and
-multi-value.
+Allowed: Wasm 1.0 plus mutable globals, sign-extension operators, multi-value,
+and bulk memory (`memory.copy`, `memory.fill`, and the passive-segment and table
+operators).
 
 Rejected at deploy:
 
 - all floating-point types and instructions (no NaN canonicalization questions);
-- bulk memory (`memory.copy`, `memory.fill`, and the passive-segment operators),
-  because engine metering charges one operator the same whatever length it
-  covers (9.2). A compiler emits loops instead; a later version may allow these
-  operators with a per-byte charge;
 - SIMD, threads, reference types (`externref`), exceptions, multiple memories,
   memory64, tail calls, and any later proposal not listed above;
 - a `start` function (initialization is an explicit export, section 3.3);
@@ -1276,7 +1273,8 @@ example by caching state, but the charge does not depend on it.
   a free way to make it do more.
 - **Execution.** Wasm execution is metered by the engine: each operator consumes
   the fuel the schedule assigns it, and the engine traps when the budget runs
-  out. Growing memory is charged per page.
+  out. Bulk-memory and table operators (3.1) also consume fuel per byte or
+  element they copy, fill, or initialize. Growing memory is charged per page.
 - **Host functions.** Each has a base charge plus a per-byte charge on its
   inputs and outputs.
 - **Storage.** Reads and writes are charged per access and per byte, priced so
@@ -1292,7 +1290,9 @@ versioned, may change at an epoch, and applies to every module
 moves under a deployed module (R7). Because execution is metered by the engine,
 the engine's fuel accounting is part of the schedule: an engine upgrade that
 changes how much fuel any execution consumes is a consensus change, and the
-chain pins the engine's behavior to the schedule.
+chain pins the engine's behavior to the schedule. The engine is
+[wasmi](https://github.com/wasmi-labs/wasmi), whose fuel costs and stack limits
+are configurable; the schedule and 9.3 fix them, and no node sets its own.
 
 ### 9.3 Limits
 
@@ -1317,10 +1317,12 @@ chain pins the engine's behavior to the schedule.
 
 Two of these need care beyond a number:
 
-- **Stack.** Engine stack limits (wasmtime's `max_wasm_stack`) are in native
-  bytes and differ by engine version and platform, so a stack overflow would not
-  be deterministic. The chain bounds stack height in its own units, computed per
-  function at deploy, and sets the native stack well above the maximum.
+- **Stack.** wasmi's stack limits (value stack height and recursion depth) are
+  in the engine's own units, which depend on how it translates code and may
+  change between engine versions, so a stack overflow it detects would not be
+  stable across upgrades. The chain bounds stack height in its own units,
+  computed per function at deploy, and sets the engine's limits well above the
+  maximum.
 - **Memory.** Without a transaction cap, 64 nested instances at 16 MiB each is 1
   GiB. Growth is charged in fuel, and the cap is a runtime error.
 
@@ -1473,14 +1475,10 @@ Adopting this proposal changes the following. None of the changes is made yet.
 2. **Wasm profile.** Section 3.1 hand-picks a subset of Wasm. The alternative is
    to adopt the deterministic profile of the Wasm specification, which would
    admit floating point and other features whose results it pins down. Open are
-   which features that admits beyond 3.1, whether the chosen engine implements
-   the profile exactly, and how each admitted operator is metered. Bulk memory
-   is the known case: `memory.copy` and `memory.fill` need a per-byte charge,
-   either from the engine or from deploy-time instrumentation of just those
-   operators, and their real cost on the chosen engine, against the loops a
-   compiler emits instead, decides whether that is worth it.
-3. **Limit and price values** in 9.2 and 9.3, from benchmarks on the chosen
-   engine, including the fuel per block and the storage prices.
+   which features that admits beyond 3.1, whether wasmi implements the profile
+   exactly, and how each admitted operator is metered.
+3. **Limit and price values** in 9.2 and 9.3, from benchmarks on wasmi,
+   including the fuel per block and the storage prices.
 4. **Legacy interop.** The mapping from legacy interfaces
    ([03-architecture.md](03-architecture.md) section 7) produces both an
    interface (4.1) and typed signatures
