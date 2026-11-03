@@ -70,10 +70,10 @@ question 4).
 
 ### 2.1 Names
 
-| Kind                     | Grammar                                                                       | Length      |
-| ------------------------ | ----------------------------------------------------------------------------- | ----------- |
-| Function and token names | ASCII letters, digits, and `- _ ! ? + < > = / * ^`, not starting with a digit | 1–128 bytes |
-| Contract names           | an ASCII letter, then letters, digits, `-`, `_`                               | 1–40 bytes  |
+| Kind                             | Grammar                                                                       | Length      |
+| -------------------------------- | ----------------------------------------------------------------------------- | ----------- |
+| Function, token, and event names | ASCII letters, digits, and `- _ ! ? + < > = / * ^`, not starting with a digit | 1–128 bytes |
+| Contract names                   | an ASCII letter, then letters, digits, `-`, `_`                               | 1–40 bytes  |
 
 Every source language shares these rules. One contract-name limit applies
 everywhere: in deploys, in principals, and on the wire. Legacy has 40 at deploy
@@ -936,11 +936,28 @@ Emits a contract event. `event` is an index into `events` (4.1), so a contract
 can emit only the events its interface names. The event records the emitting
 contract, the event's name, and `data` (8.3). `data` is at most the event data
 limit (section 9.3); a longer one is `bad-host-argument`. It also counts toward
-the transaction's event bytes. The chain does not interpret `data`: by
+the transaction's event bytes (section 9.3), and passing that limit is an
+`events-exceeded` runtime error. The chain does not interpret `data`: by
 convention it is the canonical encoding of a value of the event's declared type
 ([08-value-interpretation.md](08-value-interpretation.md) section 7.1), which is
 what indexers and explorers decode. Asset events are emitted by the asset
 functions themselves.
+
+##### `log`
+
+```
+log(data: bytes)
+```
+
+Records `data` as debug output, which the chain discards. It is not an event: it
+is in no receipt and does not count toward the transaction's event bytes. `data`
+is at most the event data limit (section 9.3); a longer one is
+`bad-host-argument` on every node, and the call is charged like any other host
+function (9.2), so a call costs and fails the same whether or not anything shows
+the output. A node running a simulation or a development network MAY show `data`
+to the developer. The chain does not interpret it; a source language passes
+whatever helps debugging, and Clarity passes a value's canonical encoding (spec
+section 3.10).
 
 #### Cryptography
 
@@ -1315,11 +1332,11 @@ chain pins the engine's behavior to the schedule.
 | Storage value               | 1 MiB               | bytes per value                                                    |
 | Arguments                   | 1 MiB               | bytes per transaction, query, or `call`                            |
 | Result                      | 1 MiB               | bytes per `result_set`                                             |
-| Event data                  | 1 MiB               | bytes per `emit`                                                   |
+| Event data                  | 1 MiB               | bytes per `emit` or `log`                                          |
 | Allowances per frame        | 128                 |                                                                    |
 | Fuel per block              | TBD                 | 9.1                                                                |
 | Fuel per read-only query    | node's choice       | 9.1                                                                |
-| Event bytes per transaction | TBD                 |                                                                    |
+| Event bytes per transaction | TBD                 | `events-exceeded` (10.2)                                           |
 
 Two of these need care beyond a number:
 
@@ -1363,6 +1380,7 @@ The receipt of an aborted transaction names one class:
 | `memory-exceeded`     | instance or transaction memory                                    |
 | `stack-exceeded`      | Wasm stack limit                                                  |
 | `depth-exceeded`      | contract-call depth                                               |
+| `events-exceeded`     | the transaction's event bytes (9.3)                               |
 | `reentrancy`          | 7.3                                                               |
 | `read-only-violation` | 7.4                                                               |
 | `no-such-function`    | 5.1; 5.3, step 1                                                  |
@@ -1424,7 +1442,8 @@ Adopting this proposal changes the following. None of the changes is made yet.
    and the data's bytes. The Clarity compiler encodes the data canonically, so a
    Clarity event's data has the same bytes legacy `print` emits for the same
    value, and one decoder serves both. Clarity replaces `print` with
-   `define-event` and `emit` (spec sections 2.4.1 and 3.10).
+   `define-event` and `emit` (spec sections 2.4.1 and 3.10), and its debugging
+   use with `log`, whose output the chain discards (6.2).
 6. **NFT identifiers are bytes** (6.2). The identifier type of
    `define-non-fungible-token` stays in the Clarity spec and in the `abi.types`
    section, for tools, but leaves the interface the chain reads. The Clarity

@@ -333,6 +333,7 @@ sender's nonce.)
 | Primitive | Signature               | Semantics                                                                                                            |
 | --------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `emit`    | `((event T) T) -> bool` | emits the value as an event of the named definition (2.4.1); returns `true`                                          |
+| `log`     | `(T) -> T`              | records the value as debug output, which the chain discards; returns the value                                       |
 | `panic`   | `() -> never`           | aborts the transaction with a runtime error. The library's `unwrap-panic` and `unwrap-err-panic` are defined with it |
 
 `emit`'s first argument names a `define-event` of the current contract, or an
@@ -343,7 +344,9 @@ emitting contract, the event's name, and the value's canonical encoding
 indexer decodes against the event's type in `abi.types`
 ([../08-value-interpretation.md](../08-value-interpretation.md) section 7.1).
 The declared type's `serialized-size` is within the value size limit (2.8),
-which is the chain's event data limit, so `emit` never fails at runtime.
+which is also the chain's limit on one event's data, so no single `emit` is too
+large. The chain also caps the event bytes of a whole transaction, and an `emit`
+that passes that cap aborts the transaction, with a runtime error (10.2).
 
 ```
 (define-map listings uint { seller: principal, price: uint })
@@ -361,6 +364,16 @@ which is the chain's event data limit, so `emit` never fails at runtime.
 SIP-005 encoding with no name or declared type; an event's data are the same
 bytes for the same value, so one decoder reads both.
 
+`log` is for debugging, which legacy `print` also served. It takes a value of
+any type whose `serialized-size` is within the value size limit (2.8), checked
+at instantiation, and passes the value's canonical encoding to the chain's `log`
+host function ([../07-chain-abi.md](../07-chain-abi.md) section 6.2). The chain
+charges for the call and discards the output: it is not an event, is in no
+receipt, and does not count toward the transaction's event bytes. A simulator or
+development network may show it, decoded by its self-describing encoding. Since
+`log` returns its argument, it can wrap any subexpression:
+`(+ (log (get price listing)) fee)`.
+
 ## 3.11 Count
 
 | Group                   | Primitives                        |
@@ -374,8 +387,8 @@ bytes for the same value, so one decoder reads both.
 | Storage                 | 5                                 |
 | Assets                  | 12                                |
 | Context                 | 4                                 |
-| Events and control      | 2                                 |
-| **Total**               | **70**                            |
+| Events and control      | 3                                 |
+| **Total**               | **71**                            |
 
 For comparison, legacy Clarity 6 has 126 native functions and 16 native
 variables, most with bespoke typing rules.

@@ -380,8 +380,11 @@ ref-kind  ::= (var type)
 
 An argument in a reference-kind position MUST be either the name of a definition
 of the matching kind in the current contract, or a parameter of the same kind in
-the enclosing function. References are resolved at instantiation time (2.6.2)
-and have no runtime representation.
+the enclosing function. A matching kind has identical types, not merely related
+ones (2.6.2): a `(map K V)` reference is both read and written, and an
+`(event T)` reference's data must fit the type the event declares in
+`abi.types`, so neither may be widened or narrowed. References are resolved at
+instantiation time (2.6.2) and have no runtime representation.
 
 Reference kinds let one helper serve every map (or variable, token, or event) of
 a given shape; each distinct reference is its own instance, so which storage a
@@ -396,6 +399,11 @@ A contract is a version declaration followed by a sequence of top-level forms. A
 definition may refer to any other definition in the contract, earlier or later,
 as long as the definition graph is acyclic (2.4.3). Source order matters only
 for code evaluated at deploy (2.4.2).
+
+Top-level names share one namespace, whatever the kind of definition. Two
+definitions MUST NOT have the same name, except overloads of a function or macro
+(2.6.2): a contract cannot have an event and a map both named `listed`, or a
+constant and a function both named `fee`.
 
 ### 2.4.0 Version declaration
 
@@ -528,10 +536,10 @@ special forms. Anything not listed here is either a primitive
 
 A bare identifier denotes a `let`- or `match`-bound variable, a function
 parameter, or a `define-constant`; because there is no shadowing (2.5.2), at
-most one of these applies at any point. Function, map, variable, and token names
-are not values and may appear only in application or reference-argument
-position. There are no other bare names: the execution context is read with
-`get-current-context` (3.9).
+most one of these applies at any point. Function, map, variable, token, and
+event names are not values and may appear only in application or
+reference-argument position. There are no other bare names: the execution
+context is read with `get-current-context` (3.9).
 
 ### 2.5.2 `let`
 
@@ -837,12 +845,13 @@ variables `X`, an **instantiation** is a substitution `σ` over `X` such that:
 
 - for each value parameter, `type(ai) <: Pi[σ]`;
 - for each reference-kind parameter, `ai` is a name (or reference parameter) of
-  the matching kind whose declared types match `Pi[σ]`; for
-  `(function (Q ...) R)`, the named function MUST itself admit an instantiation
-  whose parameter types are supertypes of `Q[σ]...` and whose result type is a
-  subtype of `R[σ]`. A rest-parameter definition with `k` fixed parameters is
-  named at a function type with `k + 1` parameters, and the last one fills its
-  rest parameter as a one-element list (2.6.5).
+  the matching kind whose declared types are identical to the types in `Pi[σ]`,
+  with no subtyping in either direction; for `(function (Q ...) R)`, the named
+  function MUST itself admit an instantiation whose parameter types are
+  supertypes of `Q[σ]...` and whose result type is a subtype of `R[σ]`. A
+  rest-parameter definition with `k` fixed parameters is named at a function
+  type with `k + 1` parameters, and the last one fills its rest parameter as a
+  one-element list (2.6.5).
 
 The candidate **admits** the call if an instantiation exists. Among the
 instantiations that exist, the **least** one (pointwise under `<:`, and smallest
@@ -1228,7 +1237,8 @@ recursion every call chain is visible in the definition graph.
 
 `emit` and every asset primitive emit events into the transaction's event batch.
 An `emit` event carries the event's name and the canonical encoding of its value
-(3.10). Events of a rolled-back frame are discarded with it.
+(3.10). Events of a rolled-back frame are discarded with it. `log` emits no
+event (3.10).
 
 ### 2.7.7 Cost
 
@@ -1265,7 +1275,7 @@ source size and transaction budgets.
 
 | Limit                                                                                | Value           | Inherited from                                                                                      |
 | ------------------------------------------------------------------------------------ | --------------- | --------------------------------------------------------------------------------------------------- |
-| Maximum serialized value size                                                        | 1,048,576 bytes | `MAX_VALUE_SIZE`                                                                                    |
+| Maximum serialized value size                                                        | 1,048,576 bytes | `MAX_VALUE_SIZE`; also the chain ABI's event data limit, which bounds `emit` and `log` (3.10)       |
 | Maximum intermediate value size (2.3.1)                                              | 8,388,608 bytes | new, provisional; MUST stay below the chain's Wasm memory limit                                     |
 | Fixpoint step limit for fold accumulators (2.6.2)                                    | 8               | new, provisional                                                                                    |
 | Maximum type nesting depth                                                           | 32              | `MAX_TYPE_DEPTH`                                                                                    |
@@ -1273,7 +1283,6 @@ source size and transaction budgets.
 | Maximum function call depth within a contract (2.7.5)                                | 128             | `MAX_CALL_STACK_DEPTH`; contract-call depth is the chain ABI's                                      |
 | Maximum allowances per `as-contract?` / `restrict-assets?`                           | 128             | `MAX_ALLOWANCES`                                                                                    |
 | Maximum storage key: a map's key prefix plus `serialized-size` of its key type (3.7) | 1,024 bytes     | new; the chain ABI's storage key limit                                                              |
-| Maximum event data: `serialized-size` of the event's type (2.4.1)                    | 1,048,576 bytes | new; the chain ABI's event data limit                                                               |
 
 There is no limit on the size of a contract after macro expansion and
 instantiation, which can grow exponentially (definitions that each call the next
@@ -1310,11 +1319,11 @@ once the dependency named in each is settled.
    iteration" item of the specification plan.
 5. **RFC: host bindings in the prelude.** A `define-host` declaration form would
    let the prelude declare every host-calling primitive (storage, assets,
-   context, chain data, signature schemes, `emit`) by name and signature, with
-   semantics cited from the chain ABI rather than restated in chapter 3. The
-   same form could cover compiled primitives with ordinary signatures, leaving
-   chapter 3 with only the primitives whose typing cannot be written as a
-   signature. Parked; it requires an admission rule on the ABI side.
+   context, chain data, signature schemes, `emit`, `log`) by name and signature,
+   with semantics cited from the chain ABI rather than restated in chapter 3.
+   The same form could cover compiled primitives with ordinary signatures,
+   leaving chapter 3 with only the primitives whose typing cannot be written as
+   a signature. Parked; it requires an admission rule on the ABI side.
 6. **Static memory bound.** The intermediate size limit only has to stay below
    the chain's instance memory limit, so whether a well-typed contract's live
    values fit in memory depends on code generation, and exceeding it is a

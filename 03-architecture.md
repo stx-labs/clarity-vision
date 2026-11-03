@@ -142,7 +142,7 @@ pass the layering rule's host-access test map onto them.
 | Chain data   | Stacks block, tenure, and burn block lookups, one function per field. All total: a height the host cannot serve is reported through the result, never a failure                                                                          |
 | Calls        | contract-call by principal and function name; arguments and results pass through as bytes, validated by the modules (section 3)                                                                                                          |
 | Frames       | nested state frames: open, commit, discard. Used by `as-contract?` and `restrict-assets?` (with context switch and allowance checks) and by a module's internal calls to its own public functions, which roll back on `err` (spec 2.7.3) |
-| Events       | contract events, named in the interface, with data typed in `abi.types`; asset events                                                                                                                                                    |
+| Events       | contract events, named in the interface, with data typed in `abi.types`; asset events; debug output (`log`), which the chain charges for and discards                                                                                    |
 | Cryptography | hashes (SHA-256, SHA-512, SHA-512/256, Keccak-256, RIPEMD-160) and signature schemes (secp256k1 recover/verify/decompress, secp256r1, ed25519)                                                                                           |
 
 The allowance comparison for `as-contract?` and `restrict-assets?` is host code,
