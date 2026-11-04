@@ -345,8 +345,10 @@ indexer decodes against the event's type in `abi.types`
 ([../08-value-interpretation.md](../08-value-interpretation.md) section 7.1).
 The declared type's `serialized-size` is within the value size limit (2.8),
 which is also the chain's limit on one event's data, so no single `emit` is too
-large. The chain also caps the event bytes of a whole transaction, and an `emit`
-that passes that cap aborts the transaction, with a runtime error (10.2).
+large. The chain also caps the event bytes of a whole transaction, asset events
+included, and an `emit` or asset operation that passes that cap aborts the
+transaction with an `events-exceeded` runtime error
+([../07-chain-abi.md](../07-chain-abi.md) sections 8.3 and 10.2).
 
 ```
 (define-map listings uint { seller: principal, price: uint })
