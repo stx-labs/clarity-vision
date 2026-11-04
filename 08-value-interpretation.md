@@ -139,7 +139,10 @@ is exactly the encoding of some value of `T`:
 - no bytes remain after the value.
 
 There is no sanitizing and no untyped decoding. Self-describing prefixes are
-kept for tooling, but every decode is against a type.
+kept for tooling, but every decode that a contract or the chain relies on is
+against a type. A tool may still read a value by its prefixes alone to show it,
+as for `log` output (spec 3.10); such a reading is for display and admits no
+value into a contract.
 
 ## 4. Sizes and type encoding
 
