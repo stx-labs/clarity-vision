@@ -164,10 +164,10 @@ value into a contract.
 | `{ f1: T1, ... }`              | 5 + Σ (1 + len(fi) + size(Ti)) |
 
 The **value size limit**, 1 MiB, is a limit on `serialized-size`. It matches the
-chain's byte limits on arguments, results, and NFT identifiers (chain ABI 9.3),
-so every value of a declared type fits them. Legacy measures a separate abstract
-"size" that disagrees with the bytes (a principal is 148 there and up to 151 on
-the wire); this layer has one measure.
+chain's byte limits on arguments, results, event data, and NFT identifiers
+(chain ABI 9.3), so every value of a declared type fits them. Legacy measures a
+separate abstract "size" that disagrees with the bytes (a principal is 148 there
+and up to 151 on the wire); this layer has one measure.
 
 A caller can size its buffer for a callee's result from `serialized-size` of the
 declared result type (chain ABI 5.3).
@@ -265,9 +265,9 @@ trait and check that the principal it names conforms.
 Outside the legacy bridge (chain ABI 13, question 4), the chain checks only that
 the section fits the module size limit; it does not decode it. A section that
 breaks the rules of 5.1 is malformed, and tools treat it as absent: every
-function and NFT of a module without a usable section is undeclared. A compiler
-refuses to compile a typed call to an undeclared function, but an untyped call
-(6.4) needs no declaration.
+function, event, and NFT of a module without a usable section is undeclared. A
+compiler refuses to compile a typed call to an undeclared function, but an
+untyped call (6.4) needs no declaration.
 
 Nothing ties a declaration to what the module does. The chain does not check
 values against declared types (chain ABI 5.4), so a module can declare one type
