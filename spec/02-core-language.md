@@ -1237,8 +1237,9 @@ recursion every call chain is visible in the definition graph.
 
 `emit` and every asset primitive emit events into the transaction's event batch.
 An `emit` event carries the event's name and the canonical encoding of its value
-(3.10). Events of a rolled-back frame are discarded with it. `log` emits no
-event (3.10).
+(3.10). Events of a rolled-back frame are discarded with it and no longer count
+toward the transaction's event bytes ([../07-chain-abi.md](../07-chain-abi.md)
+section 8.3). `log` emits no event (3.10).
 
 ### 2.7.7 Cost
 

@@ -936,12 +936,12 @@ Emits a contract event. `event` is an index into `events` (4.1), so a contract
 can emit only the events its interface names. The event records the emitting
 contract, the event's name, and `data` (8.3). `data` is at most the event data
 limit (section 9.3); a longer one is `bad-host-argument`. It also counts toward
-the transaction's event bytes (section 9.3), and passing that limit is an
-`events-exceeded` runtime error. The chain does not interpret `data`: by
-convention it is the canonical encoding of a value of the event's declared type
-([08-value-interpretation.md](08-value-interpretation.md) section 7.1), which is
-what indexers and explorers decode. Asset events are emitted by the asset
-functions themselves.
+the transaction's event bytes (section 8.3), and passing their limit (section
+9.3) is an `events-exceeded` runtime error. The chain does not interpret `data`:
+by convention it is the canonical encoding of a value of the event's declared
+type ([08-value-interpretation.md](08-value-interpretation.md) section 7.1),
+which is what indexers and explorers decode. Asset events are emitted by the
+asset functions themselves.
 
 ##### `log`
 
@@ -1165,9 +1165,7 @@ the chain's PoX contract, as legacy does:
   function that locks uSTX. A `staking` allowance covers their sum within the
   frame.
 - **PoX action**: the staker, recorded by every PoX function that otherwise
-  changes or ends the staker's position. It is recorded whether or not the call
-  succeeds, so an allowance gates even a failed attempt. A `pox` allowance
-  covers it.
+  changes or ends the staker's position. A `pox` allowance covers it.
 
 The staker is the frame's `sender` at the call. The ABI fixes what each kind of
 entry means; the PoX contract specifies which of its functions record which
@@ -1181,8 +1179,20 @@ mean.
 Events are contract events and asset events, each tagged with the emitting
 contract. A contract event also carries its name, from the contract's interface
 (4.1), and its data bytes (6.2), so an observer can select events by contract
-and name without decoding any data. Events live in the frame that emitted them
-and commit or discard with it.
+and name without decoding any data. An asset event is an entry of the asset map
+(8.2), of any kind, including stake and PoX-action entries. Events live in the
+frame that emitted them and commit or discard with it.
+
+An event's size is the total length of its fields as the ABI encodes them:
+principals as in 2.2, names as in 2.1, amounts as 16 bytes, and a contract
+event's data or an NFT event's identifier as its bytes. Every event has a
+nonzero size, including an `emit` with empty data. The transaction's **event
+bytes** are the total size of its live events: those recorded in a frame that
+has not rolled back. Recording an event adds its size, and a frame that rolls
+back subtracts the sizes of the events it discards, so they stop counting. A
+host function whose event would pass the limit (9.3) is an `events-exceeded`
+runtime error. The limit therefore bounds the receipt, not the work of recording
+events, which fuel already charges (9.2).
 
 ### 8.4 Post-conditions
 
@@ -1336,7 +1346,7 @@ chain pins the engine's behavior to the schedule.
 | Allowances per frame        | 128                 |                                                                    |
 | Fuel per block              | TBD                 | 9.1                                                                |
 | Fuel per read-only query    | node's choice       | 9.1                                                                |
-| Event bytes per transaction | TBD                 | `events-exceeded` (10.2)                                           |
+| Event bytes per transaction | TBD                 | live events only (8.3); `events-exceeded` (10.2)                   |
 
 Two of these need care beyond a number:
 
@@ -1380,7 +1390,7 @@ The receipt of an aborted transaction names one class:
 | `memory-exceeded`     | instance or transaction memory                                    |
 | `stack-exceeded`      | Wasm stack limit                                                  |
 | `depth-exceeded`      | contract-call depth                                               |
-| `events-exceeded`     | the transaction's event bytes (9.3)                               |
+| `events-exceeded`     | the transaction's event bytes (8.3, 9.3)                          |
 | `reentrancy`          | 7.3                                                               |
 | `read-only-violation` | 7.4                                                               |
 | `no-such-function`    | 5.1; 5.3, step 1                                                  |
