@@ -380,11 +380,21 @@ ref-kind  ::= (var type)
 
 An argument in a reference-kind position MUST be either the name of a definition
 of the matching kind in the current contract, or a parameter of the same kind in
-the enclosing function. A matching kind has identical types, not merely related
-ones (2.6.2): a `(map K V)` reference is both read and written, and an
-`(event T)` reference's data must fit the type the event declares in
-`abi.types`, so neither may be widened or narrowed. References are resolved at
-instantiation time (2.6.2) and have no runtime representation.
+the enclosing function. How the argument's types must relate to the parameter's
+depends on the kind (2.6.2):
+
+- `(var T)`, `(map K V)`, `(non-fungible-token T)`: identical types, not merely
+  related ones. A variable or map is both read and written, so its types may be
+  neither widened nor narrowed; an NFT's identifier type is matched the same
+  way.
+- `(event T)`: the event's declared type may be a supertype of `T`. The
+  reference is only emitted to, and every value that fits `T` fits the type the
+  event declares in `abi.types`.
+- `(function (type ...) type)`: by the rule of 2.6.2.
+- `(fungible-token)`: no types to match.
+
+References are resolved at instantiation time (2.6.2) and have no runtime
+representation.
 
 Reference kinds let one helper serve every map (or variable, token, or event) of
 a given shape; each distinct reference is its own instance, so which storage a
@@ -845,13 +855,16 @@ variables `X`, an **instantiation** is a substitution `σ` over `X` such that:
 
 - for each value parameter, `type(ai) <: Pi[σ]`;
 - for each reference-kind parameter, `ai` is a name (or reference parameter) of
-  the matching kind whose declared types are identical to the types in `Pi[σ]`,
-  with no subtyping in either direction; for `(function (Q ...) R)`, the named
-  function MUST itself admit an instantiation whose parameter types are
-  supertypes of `Q[σ]...` and whose result type is a subtype of `R[σ]`. A
-  rest-parameter definition with `k` fixed parameters is named at a function
-  type with `k + 1` parameters, and the last one fills its rest parameter as a
-  one-element list (2.6.5).
+  the matching kind (2.3.7), and:
+  - for `(var T)`, `(map K V)`, and `(non-fungible-token T)`, its declared types
+    are identical to the types in `Pi[σ]`, with no subtyping in either
+    direction;
+  - for `(event T)`, its declared type is a supertype of `T[σ]`;
+  - for `(function (Q ...) R)`, the named function admits an instantiation whose
+    parameter types are supertypes of `Q[σ]...` and whose result type is a
+    subtype of `R[σ]`. A rest-parameter definition with `k` fixed parameters is
+    named at a function type with `k + 1` parameters, and the last one fills its
+    rest parameter as a one-element list (2.6.5).
 
 The candidate **admits** the call if an instantiation exists. Among the
 instantiations that exist, the **least** one (pointwise under `<:`, and smallest
