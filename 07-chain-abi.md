@@ -1183,16 +1183,17 @@ and name without decoding any data. An asset event is an entry of the asset map
 (8.2), of any kind, including stake and PoX-action entries. Events live in the
 frame that emitted them and commit or discard with it.
 
-An event's size is the total length of its fields as the ABI encodes them:
-principals as in 2.2, names as in 2.1, amounts as 16 bytes, and a contract
-event's data or an NFT event's identifier as its bytes. Every event has a
-nonzero size, including an `emit` with empty data. The transaction's **event
-bytes** are the total size of its live events: those recorded in a frame that
-has not rolled back. Recording an event adds its size, and a frame that rolls
-back subtracts the sizes of the events it discards, so they stop counting. A
-host function whose event would pass the limit (9.3) is an `events-exceeded`
-runtime error. The limit therefore bounds the receipt, not the work of recording
-events, which fuel already charges (9.2).
+An event's size is the total length of its fields as the ABI encodes them: its
+kind as one byte, principals as in 2.2, names as in 2.1, amounts as 16 bytes,
+and its byte-string fields as their bytes: a contract event's data, an NFT
+event's identifier, and an STX transfer's memo (6.2). Every event has a nonzero
+size, including an `emit` with empty data. The transaction's **event bytes** are
+the total size of its live events: those recorded in a frame that has not rolled
+back. Recording an event adds its size, and a frame that rolls back subtracts
+the sizes of the events it discards, so they stop counting. A host function
+whose event would pass the limit (9.3) is an `events-exceeded` runtime error.
+The limit therefore bounds the receipt, not the work of recording events, which
+fuel already charges (9.2).
 
 ### 8.4 Post-conditions
 

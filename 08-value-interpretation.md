@@ -222,7 +222,7 @@ Rules:
   ([03-architecture.md](03-architecture.md) section 2).
 - `functions`, `nfts`, and `events` name functions, NFTs, and events of the
   module's `abi.interface` (chain ABI 4.1), not necessarily all of them. A
-  function, NFT, or event left out is undeclared (6.4, 7.3, 7.1).
+  function, event, or NFT left out is undeclared (6.4, 7.1, 7.3).
 - A `public` function's result type is a `response`, whose arms describe the
   result for each value of the flag that `result_set` takes (chain ABI 5.2). A
   `read-only` function's result type is any type. The same holds for the
@@ -350,8 +350,8 @@ shape by convention.
 
 An event the interface names but `abi.types` does not declare is undeclared: its
 data are raw bytes, which a tool shows as hex. A language that wants free-form
-text events declares the event's type as a `string-utf8`, and a tool shows the
-text.
+text events declares the event's type as a `(string-utf8 N)`, and a tool shows
+the text.
 
 ### 7.2 Storage
 

@@ -338,8 +338,10 @@ sender's nonce.)
 
 `emit`'s first argument names a `define-event` of the current contract, or an
 `(event T)` reference parameter (2.3.7), and its second has a type that is a
-subtype of the event's declared type. The chain records the event as the
-emitting contract, the event's name, and the value's canonical encoding
+subtype of `T`: the event's declared type when the first argument names a
+definition, or the parameter's type when it names a parameter, which may be
+narrower (2.3.7). The chain records the event as the emitting contract, the
+event's name, and the value's canonical encoding
 ([../07-chain-abi.md](../07-chain-abi.md) sections 6.2 and 8.3), which an
 indexer decodes against the event's type in `abi.types`
 ([../08-value-interpretation.md](../08-value-interpretation.md) section 7.1).
