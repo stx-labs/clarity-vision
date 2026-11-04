@@ -365,9 +365,9 @@ SIP-005 encoding with no name or declared type; an event's data are the same
 bytes for the same value, so one decoder reads both.
 
 `log` is for debugging, which legacy `print` also served. It takes a value of
-any type whose `serialized-size` is within the value size limit (2.8), checked
-at instantiation, and passes the value's canonical encoding to the chain's `log`
-host function ([../07-chain-abi.md](../07-chain-abi.md) section 6.2). The chain
+any type, bounded like any primitive's argument by the intermediate size limit
+(2.3.1), and passes the value's canonical encoding to the chain's `log` host
+function ([../07-chain-abi.md](../07-chain-abi.md) section 6.2). The chain
 charges for the call and discards the output: it is not an event, is in no
 receipt, and does not count toward the transaction's event bytes. A simulator or
 development network may show it, decoded by its self-describing encoding. Since

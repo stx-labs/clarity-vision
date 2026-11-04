@@ -1275,7 +1275,7 @@ source size and transaction budgets.
 
 | Limit                                                                                | Value           | Inherited from                                                                                      |
 | ------------------------------------------------------------------------------------ | --------------- | --------------------------------------------------------------------------------------------------- |
-| Maximum serialized value size                                                        | 1,048,576 bytes | `MAX_VALUE_SIZE`; also the chain ABI's event data limit, which bounds `emit` and `log` (3.10)       |
+| Maximum serialized value size                                                        | 1,048,576 bytes | `MAX_VALUE_SIZE`; also the chain ABI's event data limit, which bounds `emit` (3.10)                 |
 | Maximum intermediate value size (2.3.1)                                              | 8,388,608 bytes | new, provisional; MUST stay below the chain's Wasm memory limit                                     |
 | Fixpoint step limit for fold accumulators (2.6.2)                                    | 8               | new, provisional                                                                                    |
 | Maximum type nesting depth                                                           | 32              | `MAX_TYPE_DEPTH`                                                                                    |

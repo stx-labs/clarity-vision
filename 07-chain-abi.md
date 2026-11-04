@@ -950,14 +950,14 @@ log(data: bytes)
 ```
 
 Records `data` as debug output, which the chain discards. It is not an event: it
-is in no receipt and does not count toward the transaction's event bytes. `data`
-is at most the event data limit (section 9.3); a longer one is
-`bad-host-argument` on every node, and the call is charged like any other host
-function (9.2), so a call costs and fails the same whether or not anything shows
-the output. A node running a simulation or a development network MAY show `data`
-to the developer. The chain does not interpret it; a source language passes
-whatever helps debugging, and Clarity passes a value's canonical encoding (spec
-section 3.10).
+is in no receipt and does not count toward the transaction's event bytes. No
+limit applies to `data` beyond the instance memory that holds it: the host
+copies nothing on a node that discards it. The call is charged like any other
+host function (9.2), so a call costs and fails the same whether or not anything
+shows the output. A node running a simulation or a development network MAY show
+`data` to the developer. The chain does not interpret it; a source language
+passes whatever helps debugging, and Clarity passes a value's canonical encoding
+(spec section 3.10).
 
 #### Cryptography
 
@@ -1332,7 +1332,7 @@ chain pins the engine's behavior to the schedule.
 | Storage value               | 1 MiB               | bytes per value                                                    |
 | Arguments                   | 1 MiB               | bytes per transaction, query, or `call`                            |
 | Result                      | 1 MiB               | bytes per `result_set`                                             |
-| Event data                  | 1 MiB               | bytes per `emit` or `log`                                          |
+| Event data                  | 1 MiB               | bytes per `emit`                                                   |
 | Allowances per frame        | 128                 |                                                                    |
 | Fuel per block              | TBD                 | 9.1                                                                |
 | Fuel per read-only query    | node's choice       | 9.1                                                                |
