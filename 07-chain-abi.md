@@ -1180,15 +1180,33 @@ Events are contract events and asset events, each tagged with the emitting
 contract. A contract event also carries its name, from the contract's interface
 (4.1), and its data bytes (6.2), so an observer can select events by contract
 and name without decoding any data. An asset event is an entry of the asset map
-(8.2), of any kind, including stake and PoX-action entries. Events live in the
-frame that emitted them and commit or discard with it.
+(8.2), of any kind, including stake and PoX-action entries, which the PoX
+contract emits. Events live in the frame that emitted them and commit or discard
+with it.
 
-An event's size is the total length of its fields as the ABI encodes them: its
-kind as one byte, principals as in 2.2, names as in 2.1, amounts as 16 bytes,
-and its byte-string fields as their bytes: a contract event's data, an NFT
-event's identifier, and an STX transfer's memo (6.2). Every event has a nonzero
-size, including an `emit` with empty data. The transaction's **event bytes** are
-the total size of its live events: those recorded in a frame that has not rolled
+An event's **size** is a byte count fixed by the ABI, regardless of the encoding
+a node uses for its receipts. Every event counts its kind as 1 byte and its
+emitting contract as a principal, and then its own fields:
+
+| Event                   | Fields counted              |
+| ----------------------- | --------------------------- |
+| Contract event (`emit`) | name, data                  |
+| STX transfer            | from, to, amount, memo      |
+| STX burn                | from, amount                |
+| Fungible-token transfer | token, from, to, amount     |
+| Fungible-token mint     | token, to, amount           |
+| Fungible-token burn     | token, from, amount         |
+| NFT transfer            | token, from, to, identifier |
+| NFT mint                | token, to, identifier       |
+| NFT burn                | token, from, identifier     |
+| Stake                   | staker, amount              |
+| PoX action              | staker                      |
+
+A principal counts the length of its SIP-005 encoding (2.2). An amount counts 16
+bytes. A name, data, an identifier, and a memo count their length in bytes. A
+token counts only its name, since a module emits events only for its own tokens
+and its contract is the emitting one. The transaction's **event bytes** are the
+total size of its live events: those recorded in a frame that has not rolled
 back. Recording an event adds its size, and a frame that rolls back subtracts
 the sizes of the events it discards, so they stop counting. A host function
 whose event would pass the limit (9.3) is an `events-exceeded` runtime error.
