@@ -18,6 +18,8 @@ once the design questions at the end of this chapter are settled.
   (natural numbers bounding sequence lengths).
 - `S <: T` means `S` is a subtype of `T` (2.3.2). `lub(S, T)` is their least
   upper bound when it exists.
+- `T[σ]` is `T` with the substitution `σ` applied: each type or size variable in
+  `T` is replaced by the type or size `σ` assigns it (2.6.2).
 - `never` is the empty type (2.3.3).
 
 ## 2.2 Lexical structure
@@ -854,7 +856,8 @@ definition, fewer than `n` fixed parameters (2.6.5). A call whose last argument
 is a spread `e...` is accepted only by rest-parameter definitions with exactly
 `n - 1` fixed parameters. For a candidate with parameter types `P1 ... Pn`
 (which may contain type variables, size variables, and reference kinds) and free
-variables `X`, an **instantiation** is a substitution `σ` over `X` such that:
+variables `X`, an **instantiation** is a substitution `σ` over `X`, assigning a
+type to each type variable and a size to each size variable, such that:
 
 - for each value parameter, `type(ai) <: Pi[σ]`;
 - for each reference-kind parameter, `ai` is a name (or reference parameter) of
@@ -862,11 +865,20 @@ variables `X`, an **instantiation** is a substitution `σ` over `X` such that:
   - for `(var T)`, `(map K V)`, and `(non-fungible-token T)`, its declared types
     are identical to the types in `Pi[σ]`, with no subtyping in either
     direction;
-  - for `(event T)`, its declared type `D` is a supertype of `T[σ]`. A variable
-    that occurs only in event references has no lower bound from a value
-    argument, so for such a variable `T[σ]` is `D` itself: `(event X)` is
-    instantiated at the declared type, and `(event (string-ascii N))` at the
-    declared size;
+  - for `(event T)`, its declared type `D` is a supertype of `T[σ]`. This bounds
+    the variables in `T` only from above, so a variable that occurs nowhere but
+    in event references is not left to the least-instantiation rule below, which
+    would put it at `never` or size 0. It is matched as in `(var T)`: it takes
+    the type or size that `D` has at its position, so `(event X)` is
+    instantiated at the declared type and `(event (string-ascii N))` at the
+    declared size. The declared types MUST agree at every position of such a
+    variable: `N` in two `(event (buff N))` parameters given events of
+    `(buff 10)` and `(buff 20)` has no instantiation, and separate variables
+    give each its own. A variable that also occurs outside event references is
+    instantiated by those occurrences, and `D` only bounds the result: emitting
+    `0x42` through `(event (buff N))` and `(x (buff N))` to an event of
+    `(buff 10)` instantiates `N` at 1, and to an event of `(buff 0)` has no
+    instantiation;
   - for `(function (Q ...) R)`, the named function admits an instantiation whose
     parameter types are supertypes of `Q[σ]...` and whose result type is a
     subtype of `R[σ]`. A rest-parameter definition with `k` fixed parameters is
@@ -921,9 +933,11 @@ Every other ambiguity is an error where the definitions are written rather than
 at the call: the definitions of a name MUST NOT **overlap**. Two definitions
 overlap when, under some instantiation of each, their parameters meet (2.3.2) at
 every position. Reference-kind parameters meet when they are of the same kind
-with the same declared types, except that two `(function ...)` kinds meet when
-their parameter and result types meet pointwise. The check is on the
-definitions, whether or not the name is called:
+with the same declared types, except that two `(event ...)` kinds meet when
+`lub` of their types is defined, since an event declared at that type is
+admitted by both, and two `(function ...)` kinds meet when their parameter and
+result types meet pointwise. The check is on the definitions, whether or not the
+name is called:
 
 ```
 (define-private (pad (b (buff 4))) (concat b 0x00))
@@ -934,6 +948,9 @@ definitions, whether or not the name is called:
 
 (define-private (show (x T)) ...)
 (define-private (show (x uint)) ...)                     ;; error: T at uint
+
+(define-private (note (e (event (buff 4)))) ...)
+(define-private (note (e (event (buff 8)))) ...)         ;; error: an event of (buff 8) fits both
 ```
 
 Neither parameter type of `first` is a subtype of the other, but the two still
