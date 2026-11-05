@@ -6,12 +6,20 @@ enumerated in [03-primitives.md](03-primitives.md); everything else a contract
 author uses is defined in the standard library
 ([04-standard-library.md](04-standard-library.md)).
 
-The presentation here is semi-formal. Typing rules are given as prose with
-signatures. The formal judgment-style rules and the full EBNF are follow-up work
-once the design questions at the end of this chapter are settled.
+The presentation here is semi-formal. The syntax is given by the grammar
+[grammar/clarity.ebnf](grammar/clarity.ebnf), whose reading guide is chapter 5;
+its rules are quoted where each form is introduced. Typing rules are given as
+prose with signatures. The formal judgment-style rules are follow-up work once
+the design questions at the end of this chapter are settled.
 
 ## 2.1 Notation
 
+- Syntax is defined by the grammar [grammar/clarity.ebnf](grammar/clarity.ebnf),
+  in ISO/IEC 14977 EBNF (chapter 5 explains how to read it). Each form below is
+  introduced by its own grammar rules, quoted from that file; a rule shared by
+  many forms is quoted once, in the section of the concept it defines (such as
+  `size_term` in 2.3.1), and the file has them all. Rule names are snake_case,
+  such as `let_form`.
 - `name : (A B) -> R` is a signature: `name` takes an `A` and a `B` and produces
   an `R`.
 - `T`, `E`, `K`, `V`, `A`, `U` are type variables. `N`, `M` are size variables
@@ -22,15 +30,26 @@ once the design questions at the end of this chapter are settled.
 
 ## 2.2 Lexical structure
 
-vNEXT source is a sequence of S-expressions.
+vNEXT source is a sequence of S-expressions, written in ASCII. Separators are
+space, tab and line feed, and comments. Any other control character (carriage
+return included), DEL, and any non-ASCII character is a parse error, inside
+tokens and comments as well as between them; so a CR LF line end is rejected,
+and non-ASCII text in a string is written with escapes (5.2). This keeps every
+character of a contract visible to a reviewer, with no invisible or look-alike
+characters, and gives each source one byte form.
 
-- **Comments** begin with `;;` and run to end of line.
+- **Comments** begin with `;;` and run to end of line. They hold printable ASCII
+  and tab only.
 - **Identifiers** are non-empty sequences of ASCII letters, digits, and the
-  characters `- _ ! ? + < > = / * ^`, not starting with a digit, at most 128
-  bytes long. Identifiers are case-sensitive.
-- **Integer literals**: `uint` literals are `u` followed by decimal digits
-  (`u42`); `int` literals are optional `-` followed by decimal digits (`42`,
-  `-7`). Values outside the 128-bit range are a parse error.
+  characters `- _ ! ? + < > = / * ^`, at most 128 bytes long. An identifier does
+  not start with a digit, nor with `u`, `-`, `+`, `-u` or `+u` followed by a
+  digit: `u1x`, `-u1`, `+5` and `+u1` are parse errors, not identifiers.
+  Identifiers are case-sensitive.
+- **Integer literals**: `uint` literals are `u` followed by a decimal numeral
+  (`u42`); `int` literals are an optional `-` followed by a decimal numeral
+  (`42`, `-7`). A numeral is `0` or a nonzero digit followed by zero or more
+  digits, so `007`, `u00` and `-0` are parse errors. Values outside the 128-bit
+  range are a parse error.
 - **Boolean literals**: `true`, `false`.
 - **Buffer literals**: `0x` followed by an even number of hex digits (`0x`,
   `0xdeadbeef`).
@@ -40,58 +59,181 @@ vNEXT source is a sequence of S-expressions.
   literal may contain only these characters, the three control characters only
   through their escapes, and no value of a `string-ascii` type ever holds any
   other byte.
-- **UTF-8 string literals**: `u"..."` with the same escapes plus `\u{XXXX}` code
-  point escapes.
+- **UTF-8 string literals**: `u"..."` with the same escapes plus `\u{H}` code
+  point escapes. `H` is 1 to 6 hex digits with no leading zero (`\u{0}` is
+  U+0000), names a Unicode scalar value, and is not tab, line feed, carriage
+  return or printable ASCII, which are written directly or with the escapes
+  above. Every non-ASCII character is written as an escape, and each character
+  has one spelling up to the case of its hex digits.
 - **Principal literals**: standard principals `'SP...` / `'ST...` (c32check
-  encoded); contract principals `'SP....name` or the deployer-relative `.name`;
-  trait identifiers `'SP....contract.trait`, `.contract.trait`, or a bare local
-  trait `name` where a trait identifier is expected. A contract name is 1 to 40
-  characters, starts with an ASCII letter, and continues with letters, digits,
-  `-`, or `_`. The same limit applies wherever a contract name appears,
-  including `principal-to-ascii` (3.5) and the library's `principal-construct?`
-  and `principal-destruct?`. There are no reserved or special-cased contract
-  names (legacy admitted `__transient`).
-- **Tuple literal syntax**: `{ name: expr, ... }`. This is the only tuple
-  constructor syntax.
+  encoded; the version character after `S` is `P` or `M` on mainnet, `T` or `N`
+  on testnet, and any other is a parse error: a principal value of another
+  version, such as one `principal-construct?` builds, has no literal); contract
+  principals `'SP....name` or the deployer-relative `.name`; trait identifiers
+  `'SP....contract.trait`, `.contract.trait`, or a bare local trait `name` where
+  a trait identifier is expected. A contract name is 1 to 40 characters, starts
+  with an ASCII letter, and continues with letters, digits, `-`, or `_`. The
+  same limit applies wherever a contract name appears, including
+  `principal-to-ascii` (3.5) and the library's `principal-construct?` and
+  `principal-destruct?`. There are no reserved or special-cased contract names
+  (legacy admitted `__transient`).
+- **Tuple literal syntax**: `{ name: expr, ... }`, with at most one trailing
+  comma after the last entry. This is the only tuple constructor syntax.
 - **`none`** is the literal of type `(optional never)`.
 
-Parentheses delimit lists; `{`, `}`, `:`, `,` are used only by tuple syntax.
+Parentheses delimit lists; `{`, `}`, `:`, `,` are used only by tuple syntax;
+`...` marks a spread argument or a rest parameter (2.6.5). In prose and in
+examples such as `'SP...` or `(begin expr ...)`, `...` is an ellipsis that
+elides text, not the token.
+
+The token rules (Part L of the grammar; tokenization and layout in 5.2, value
+checks in 5.3):
+
+```ebnf
+comment = ";;", {comment_char}, (line_end | end_of_input) ;
+identifier = identifier_start_plain, 127 * [identifier_char]
+           | "u", [identifier_char_nondigit, 126 * [identifier_char]]
+           | ("-" | "+"),
+             [identifier_char_nondigit_except_u, 126 * [identifier_char]
+              | "u", [identifier_char_nondigit, 125 * [identifier_char]]] ;
+natural_literal = "0" | nonzero_digit, {decimal_digit} ;
+negative_int_literal = "-", nonzero_digit, {decimal_digit} ;
+uint_literal = "u", natural_literal ;
+buffer_literal = "0x", {hex_digit, hex_digit} ;
+string_ascii_literal = '"', {string_plain_char | ascii_escape}, '"' ;
+ascii_escape = "\", ("\" | '"' | "n" | "t" | "r") ;
+string_utf8_literal = "u", '"', {utf8_string_char | ascii_escape | utf8_escape},
+                      '"' ;
+utf8_escape = "\u{", ("0" | nonzero_hex_digit, 5 * [hex_digit]), "}" ;
+standard_principal_literal = "'", "S", c32_char, {c32_char} ;
+contract_principal_literal = [standard_principal_literal], ".", contract_name ;
+contract_name = ascii_letter, 39 * [contract_name_char] ;
+trait_identifier_literal = [standard_principal_literal], ".", contract_name,
+                           ".", trait_name_part ;
+trait_name_part = identifier ;
+```
+
+The token rules have these consequences, each shown with a valid and an invalid
+spelling (5.7 has more examples):
+
+- A separator is required between two atoms, between an atom and a following `(`
+  or `{`, and between `)` or `}` and a following atom, `(` or `{`:
+  `(list x (- 0 x))`, not `(list x(- 0 x))`. It is optional after `( { : ,` and
+  before `) } : ,`, and not allowed before `...` (layout rule W1, 5.2).
+- Lines end with LF; a carriage return is an error anywhere, so a CR LF line end
+  is rejected.
+- Comments hold printable ASCII and TAB only.
+- No identifier starts like a number: `u-1`, `u+1`, `-x` and `+u` are
+  identifiers; `u1x`, `+5`, `-u1` and `+u1` are errors, not identifiers or two
+  tokens.
+- Numerals have no leading zero: `0`, `7` and `u0` are literals; `007`, `u00`
+  and `-0` are errors.
+- `\u{H}` has 1 to 6 hex digits, no leading zero, and never names TAB, LF, CR or
+  printable ASCII: `u"caf\u{e9}"` is valid; `u"\u{41}"` and `u"\u{0e9}"` are
+  errors. Non-ASCII text is written only this way.
+- A trait name follows the identifier rule: `.c.t` and `.c.u-1` are trait
+  identifiers; `.c.u1` is an error.
 
 **Keywords and reserved names.** Two kinds of identifier cannot be bound by a
 contract:
 
 - A **keyword** is an identifier whose meaning is fixed by the grammar. It is
   never a name of anything and cannot appear where a name is expected: the
-  literals `true`, `false`, `none`; the heads of special forms (2.5) and
-  definition forms (2.4.1); the allowance forms (2.5.9); the pattern and
-  constructor heads `some`, `ok`, `err`, `list`; the type names and reference
-  kinds of 2.3.1 and 2.3.7; and the `read-only` marker in trait definitions.
-  Type names are keywords in value position too: `(let ((int u5)) ...)` is a
-  static error.
+  literals `true`, `false`, `none`; `clarity-version`; the heads of special
+  forms (2.5) and definition forms (2.4.1); the allowance forms (2.5.9); the
+  pattern and constructor heads `some`, `ok`, `err`, `list`; the type names and
+  reference kinds of 2.3.1 and 2.3.7; and the `read-only` marker in trait
+  definitions. Type names are keywords in binding and value positions too:
+  `(let ((int u5)) ...)` is a parse error. Four positions take any identifier,
+  keywords included, because they name something that is not a binding of this
+  contract: a tuple field name, the function name in `contract-call?` and
+  `contract-call-raw?`, a function name in a `define-trait` signature, and the
+  trait name in a trait identifier (2.5.1).
 - A **reserved name** is a definition that is in scope in every contract: every
   primitive ([03-primitives.md](03-primitives.md)) and every prelude definition
   (chapter 4). It behaves like a top-level definition of the contract itself and
   so cannot be rebound (2.5.2). Reserved names are fixed per language version,
   because the prelude is part of the language version.
 
+In the grammar a keyword is any word of `keyword` (each class is its own rule in
+the grammar file), and the rules that take a name exclude it:
+
+```ebnf
+keyword = literal_keyword
+        | special_form_keyword
+        | definition_keyword
+        | version_keyword
+        | allowance_keyword
+        | constructor_keyword
+        | type_name_keyword
+        | ref_kind_keyword
+        | trait_marker_keyword ;
+literal_keyword = "true" | "false" | "none" ;
+special_form_keyword = "let" | "begin" | "match" | "and" | "or" | "return"
+                     | "as" | "get" | "merge" | "contract-call?"
+                     | "contract-call-raw?" | "as-contract?"
+                     | "restrict-assets?" ;
+definition_keyword = "define-constant" | "define-type" | "define-data-var"
+                   | "define-map" | "define-fungible-token"
+                   | "define-non-fungible-token" | "define-trait"
+                   | "impl-trait" | "define-public" | "define-read-only"
+                   | "define-private" | "define-macro" ;
+version_keyword = "clarity-version" ;
+allowance_keyword = "with-stx" | "with-ft" | "with-nft" | "with-staking"
+                  | "with-pox" | "with-all-assets-unsafe" ;
+constructor_keyword = "some" | "ok" | "err" | "list" ;
+type_name_keyword = "int" | "uint" | "bool" | "principal" | "never" | "buff"
+                  | "string-ascii" | "string-utf8" | "list" | "optional"
+                  | "response" | "trait" ;
+ref_kind_keyword = "var" | "map" | "fungible-token" | "non-fungible-token"
+                 | "function" ;
+trait_marker_keyword = "read-only" ;
+```
+
 ## 2.3 Types
 
 ### 2.3.1 Type grammar
 
+```ebnf
+type = base_type
+     | buff_type
+     | string_ascii_type
+     | string_utf8_type
+     | list_type
+     | optional_type
+     | response_type
+     | tuple_type
+     | trait_type
+     | type_reference ;
+base_type = "int" | "uint" | "bool" | "principal" | "never" ;
+buff_type = "(", "buff", type_size, ")" ;
+string_ascii_type = "(", "string-ascii", type_size, ")" ;
+string_utf8_type = "(", "string-utf8", type_size, ")" ;
+list_type = "(", "list", type_size, type, ")" ;
+optional_type = "(", "optional", type, ")" ;
+response_type = "(", "response", type, type, ")" ;
+tuple_type = "{", [tuple_type_entry, {",", tuple_type_entry}, [","]], "}" ;
+tuple_type_entry = field_name, ":", type ;
+trait_type = "(", "trait", trait_identifier, ")" ;
+trait_identifier = trait_identifier_literal | name ;
+type_reference = name ;
+type_size = natural_literal | name ;
+size_term = uint_literal | name | size_term_bare_numeral ;
+size_term_bare_numeral = int_literal ;
 ```
-type      ::= int | uint | bool | principal | never
-            | (buff size) | (string-ascii size) | (string-utf8 size)
-            | (list size type)
-            | (optional type)
-            | (response type type)
-            | { name: type, ... }              ;; tuple; zero or more fields
-            | (trait trait-identifier)
-            | alias-name                       ;; introduced by define-type
-            | type-variable                    ;; see 2.3.5
-            | contract-literal-type            ;; internal; see below
 
-size      ::= uint-literal | size-variable | static-constant-name
-```
+A `type_reference` is a `define-type` alias, a trait name or a type variable
+(2.3.5); a bare trait name is a static error, the type is written `(trait X)`. A
+size in a type is a numeral or a name: `(buff 32)`, not `(buff u32)`, which is a
+parse error. A size passed as an argument (to `as-max-len?`, the `*-to-buff-*`
+primitives and `contract-call-raw?`) is a `size_term`: a `u` literal or a size
+variable or static constant name, so `(as-max-len? s u32)`; an expression there
+is a parse error. The two positions differ on purpose. A type is written with
+bare numbers, as every type in this specification is, so a `u` literal there is
+a parse error. In a size-term position a bare number is read as an `int` literal
+(`size_term_bare_numeral`): it parses, LX6 bounds it, and like any `int` where a
+`uint` is required it is a type error (5.4, C11). The contract-literal type
+below has no rule: it cannot be written in source.
 
 Meaning of each type:
 
@@ -108,7 +250,7 @@ Meaning of each type:
 | `(list N T)`       | sequences of at most `N` values of type `T`                                                                                                                                                                                                                                                                                     |
 | `(optional T)`     | `none` or `(some v)` with `v : T`                                                                                                                                                                                                                                                                                               |
 | `(response T E)`   | `(ok v)` with `v : T` or `(err e)` with `e : E`                                                                                                                                                                                                                                                                                 |
-| `{ f: T, ... }`    | records with exactly the listed fields                                                                                                                                                                                                                                                                                          |
+| `{ f: T, ... }`    | records with exactly the listed fields; field names MUST be distinct                                                                                                                                                                                                                                                            |
 | `(trait X)`        | contract principals that conform to trait `X` (2.3.2); checked at compile time, not at runtime (2.5.8)                                                                                                                                                                                                                          |
 | contract literal   | the one contract principal named by a literal `'SP...123.c` or `.c`, or by a static constant holding one (2.4.1). Internal: it cannot be written in source, is never an interface or storable type, and exists so that a literal can be used wherever a trait type is expected (2.3.2) and as a `contract-call?` target (2.5.8) |
 
@@ -291,7 +433,8 @@ chapter applies to it unchanged:
 `let` binding, an argument to a function that is not a macro, or a body
 expression other than the last, the code that follows it cannot be reached. An
 argument to a macro is exempt, because it is evaluated only where the body
-references it (2.6.3): `(asserts! ok (panic))` aborts only when `ok` is false.
+references it (2.6.3): `(asserts! cond (panic))` aborts only when `cond` is
+false.
 
 ### 2.3.4 Storable types and interface types
 
@@ -299,6 +442,14 @@ A type is **storable** if it contains no trait type and no type or size
 variable. Only storable types may appear in `define-data-var`, `define-map`,
 `define-non-fungible-token`, and in `from-consensus-buff?`. A storable type may
 contain `never`; such a position can hold no value, which is harmless.
+
+```ebnf
+storable_type = type ;
+interface_type = type ;
+```
+
+The grammar marks these positions; whether the type written there is storable,
+or an interface type, is checked by the type checker (5.4).
 
 Excluding trait types keeps every call target traceable to the transaction: a
 trait-typed value can only come from a contract literal or a public function's
@@ -337,10 +488,13 @@ author who wants a wider type in the interface states it with `as` (2.5.10):
 ### 2.3.5 Type variables and size variables
 
 An identifier in type position that is not a built-in type name, a `define-type`
-alias, or a trait identifier denotes a **type variable**. An identifier in size
-position that is not a literal denotes a **size variable**. Both are implicitly
-universally quantified over the definition in which they appear, and each MUST
-occur in at least one parameter type of that definition.
+alias, or a trait name denotes a **type variable**. A trait name there is a
+static error: the type of a trait is written `(trait X)` (2.3.1). An identifier
+in size position that is not a literal, a static constant (see below), or a name
+bound as a value (a local, a parameter or another definition) denotes a **size
+variable**. Both are implicitly universally quantified over the definition in
+which they appear, and each MUST occur in at least one parameter type of that
+definition.
 
 Type and size variables may appear only in `define-private` and `define-macro`
 definitions. Public and read-only functions, traits, storage definitions, and
@@ -369,12 +523,17 @@ Some parameters do not hold runtime values but refer statically to a definition
 in the current contract. These **reference kinds** are not types: they cannot
 appear in `let` bindings, storage, interfaces, tuples, or sequences.
 
-```
-ref-kind  ::= (var type)
-            | (map type type)
-            | (fungible-token)
-            | (non-fungible-token type)
-            | (function (type ...) type)
+```ebnf
+ref_kind = var_ref_kind
+         | map_ref_kind
+         | fungible_token_ref_kind
+         | non_fungible_token_ref_kind
+         | function_ref_kind ;
+var_ref_kind = "(", "var", type, ")" ;
+map_ref_kind = "(", "map", type, type, ")" ;
+fungible_token_ref_kind = "(", "fungible-token", ")" ;
+non_fungible_token_ref_kind = "(", "non-fungible-token", type, ")" ;
+function_ref_kind = "(", "function", "(", {type}, ")", type, ")" ;
 ```
 
 An argument in a reference-kind position MUST be either the name of a definition
@@ -398,13 +557,19 @@ for code evaluated at deploy (2.4.2).
 
 ### 2.4.0 Version declaration
 
+```ebnf
+contract = version_declaration, {top_level_form} ;
+version_declaration = "(", "clarity-version", version_number, ")" ;
+version_number = natural_literal ;
+top_level_form = definition | expr ;
 ```
-(clarity-version version)
-```
+
+The version number is a numeral of at least 1, with no leading zero:
+`(clarity-version 0)` and `(clarity-version 01)` are parse errors.
 
 The first form of every contract MUST be a version declaration naming the
 language version the contract is written for. There is no default: a contract
-without one is a syntax error, so a contract is never silently reinterpreted
+without one is a parse error, so a contract is never silently reinterpreted
 under a later version's prelude or rules. A compiler MUST reject a contract
 whose declared version it does not implement, and a compiler that implements
 several versions uses the declared one for the whole contract. The declared
@@ -417,20 +582,69 @@ contract.
 
 ### 2.4.1 Definition forms
 
-| Form                                                                                                                      | Introduces                                                                                                                                                                                                                                                                          | Rules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `(define-constant name expr)`                                                                                             | A named value                                                                                                                                                                                                                                                                       | `expr` is deploy-time code (2.4.2), evaluated once; its type is inferred and MUST satisfy the value size limit (2.3.1). The type may contain `never`, so `(define-constant ERR-NOT-FOUND (err u404))` has type `(response never uint)` and is usable in any function whose error type is `uint`. If `expr` is a literal, or is built only from literals and other static constants using primitives that read neither state nor context (arithmetic, sequence, conversion, and hash primitives), the constant is **static**: its value is known at analysis time and it may be used wherever a literal is required (size terms, `contract-call?` targets, `as-max-len?` bounds) |
-| `(define-type name type)`                                                                                                 | A type alias                                                                                                                                                                                                                                                                        | 2.3.6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `(define-data-var name type expr)`                                                                                        | A persistent variable                                                                                                                                                                                                                                                               | `type` storable; `expr : T <: type` is deploy-time code (2.4.2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `(define-map name key-type value-type)`                                                                                   | A persistent map                                                                                                                                                                                                                                                                    | both types storable; the key prefix plus `serialized-size(key-type)` MUST fit the storage key limit (2.8, 3.7)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `(define-fungible-token name)` and `(define-fungible-token name expr)`                                                    | A fungible token, optionally with a total supply cap `expr : uint`                                                                                                                                                                                                                  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `(define-non-fungible-token name type)`                                                                                   | A non-fungible token with identifier type `type`                                                                                                                                                                                                                                    | `type` storable                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `(define-trait name ((fn-name (type ...) type) ...))` and `(define-trait name ((fn-name (type ...) type read-only) ...))` | A trait: a set of function names with interface-typed signatures whose result types are `response` types. A function marked `read-only` may only be implemented by a read-only function, and may be called through the trait from read-only code (2.7.4)                            |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `(impl-trait trait-identifier)`                                                                                           | A conformance claim, checked statically: every function in the trait MUST be defined as a public or read-only function with a compatible signature (parameters contravariant, result covariant), and a function the trait marks `read-only` MUST be defined with `define-read-only` |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `(define-public (name (param type) ...) expr ...)`                                                                        | An externally callable function                                                                                                                                                                                                                                                     | parameter types are interface types; result type MUST be a `response`; monomorphic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `(define-read-only (name (param type) ...) expr ...)`                                                                     | An externally callable function that MUST NOT mutate state (2.7.4)                                                                                                                                                                                                                  | parameter types are interface types; monomorphic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `(define-private (name (param type-or-ref-kind) ...) expr ...)`                                                           | An internal function called by value                                                                                                                                                                                                                                                | may be generic and overloaded, and may end with a rest parameter (2.6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `(define-macro (name (param type-or-ref-kind) ...) expr ...)`                                                             | A macro: an internal definition expanded at each call site, with call-by-name parameters (2.6.3)                                                                                                                                                                                    | may be generic and overloaded                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+```ebnf
+definition = define_constant
+           | define_type
+           | define_data_var
+           | define_map
+           | define_fungible_token
+           | define_non_fungible_token
+           | define_trait
+           | impl_trait
+           | define_public
+           | define_read_only
+           | define_private
+           | define_macro ;
+define_constant = "(", "define-constant", binding_name, expr, ")" ;
+define_type = "(", "define-type", binding_name, type, ")" ;
+define_data_var = "(", "define-data-var", binding_name, storable_type, expr,
+                  ")" ;
+define_map = "(", "define-map", binding_name, storable_type, storable_type,
+             ")" ;
+define_fungible_token = "(", "define-fungible-token", binding_name, [expr],
+                        ")" ;
+define_non_fungible_token = "(", "define-non-fungible-token", binding_name,
+                            storable_type, ")" ;
+define_trait = "(", "define-trait", binding_name, "(", {trait_signature}, ")",
+               ")" ;
+trait_signature = "(", foreign_function_name, "(", {interface_type}, ")",
+                  interface_type, ["read-only"], ")" ;
+impl_trait = "(", "impl-trait", trait_identifier, ")" ;
+define_public = "(", "define-public", public_signature, body, ")" ;
+define_read_only = "(", "define-read-only", public_signature, body, ")" ;
+public_signature = "(", binding_name, {public_parameter}, ")" ;
+public_parameter = "(", binding_name, interface_type, ")" ;
+define_private = "(", "define-private", private_signature, body, ")" ;
+private_signature = "(", binding_name, {private_parameter}, [rest_parameter],
+                    ")" ;
+private_parameter = "(", binding_name, (type | ref_kind), ")" ;
+rest_parameter = "(", binding_name, type, "...", ")" ;
+define_macro = "(", "define-macro", macro_signature, body, ")" ;
+macro_signature = "(", binding_name, {private_parameter}, ")" ;
+body = expr, {expr} ;
+```
+
+| Grammar rule                | Introduces                                                                                                                                                                                                                                                                          | Rules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `define_constant`           | A named value                                                                                                                                                                                                                                                                       | `expr` is deploy-time code (2.4.2), evaluated once; its type is inferred and MUST satisfy the value size limit (2.3.1). The type may contain `never`, so `(define-constant ERR-NOT-FOUND (err u404))` has type `(response never uint)` and is usable in any function whose error type is `uint`. If `expr` is a literal, or is built only from literals and other static constants using primitives that read neither state nor context (arithmetic, sequence, conversion, and hash primitives), the constant is **static**: its value is known at analysis time and it may be used wherever a literal is required (size terms, `contract-call?` targets, `as-max-len?` bounds) |
+| `define_type`               | A type alias                                                                                                                                                                                                                                                                        | 2.3.6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `define_data_var`           | A persistent variable                                                                                                                                                                                                                                                               | `type` storable; `expr : T <: type` is deploy-time code (2.4.2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `define_map`                | A persistent map                                                                                                                                                                                                                                                                    | both types storable; the key prefix plus `serialized-size(key-type)` MUST fit the storage key limit (2.8, 3.7)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `define_fungible_token`     | A fungible token, optionally with a total supply cap `expr : uint`                                                                                                                                                                                                                  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `define_non_fungible_token` | A non-fungible token with identifier type `type`                                                                                                                                                                                                                                    | `type` storable                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `define_trait`              | A trait: a set of function names with interface-typed signatures whose result types are `response` types. A function marked `read-only` may only be implemented by a read-only function, and may be called through the trait from read-only code (2.7.4)                            |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `impl_trait`                | A conformance claim, checked statically: every function in the trait MUST be defined as a public or read-only function with a compatible signature (parameters contravariant, result covariant), and a function the trait marks `read-only` MUST be defined with `define-read-only` |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `define_public`             | An externally callable function                                                                                                                                                                                                                                                     | parameter types are interface types; result type MUST be a `response`; monomorphic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `define_read_only`          | An externally callable function that MUST NOT mutate state (2.7.4)                                                                                                                                                                                                                  | parameter types are interface types; monomorphic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `define_private`            | An internal function called by value                                                                                                                                                                                                                                                | may be generic and overloaded, and may end with a rest parameter (2.6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `define_macro`              | A macro: an internal definition expanded at each call site, with call-by-name parameters (2.6.3)                                                                                                                                                                                    | may be generic and overloaded                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+In the table, `name` is the rule's `binding_name`, `expr` and `type` its
+expression and type, and `key-type` and `value-type` the two storable types of
+`define_map`, in that order. A trait signature names its functions with
+`foreign_function_name`, so a function name there may be a keyword (2.5.1): such
+a trait describes a contract written in another source language, and a vNEXT
+contract, whose `define-public` names are binding names, cannot implement it.
 
 Parameter names within one definition MUST be distinct (a duplicate is a static
 error, not a runtime one). A function body is a non-empty sequence of
@@ -519,9 +733,68 @@ contract MUST NOT define a top-level name that the prelude defines.
 
 Beyond literals, names, and function application, the core has the following
 special forms. Anything not listed here is either a primitive
-([03-primitives.md](03-primitives.md)) or a library definition.
+([03-primitives.md](03-primitives.md)) or a library definition. The `expr` rule
+below also lists `map_form` and the forms of the six primitives that take a type
+or size argument (`as_max_len_form` and the others): these are primitives of
+chapter 3 with their own syntax, not special forms (2.5.5).
+
+```ebnf
+expr = literal
+     | name
+     | let_form
+     | begin_form
+     | match_form
+     | and_form
+     | or_form
+     | return_form
+     | some_ctor
+     | ok_ctor
+     | err_ctor
+     | list_ctor
+     | tuple_ctor
+     | get_form
+     | merge_form
+     | contract_call
+     | contract_call_raw
+     | as_contract_form
+     | restrict_assets_form
+     | as_form
+     | as_max_len_form
+     | uint_to_buff_be_form
+     | uint_to_buff_le_form
+     | int_to_buff_be_form
+     | int_to_buff_le_form
+     | from_consensus_buff_form
+     | map_form
+     | application ;
+literal = int_literal
+        | uint_literal
+        | bool_literal
+        | buffer_literal
+        | string_ascii_literal
+        | string_utf8_literal
+        | standard_principal_literal
+        | contract_principal_literal
+        | none_literal ;
+int_literal = natural_literal | negative_int_literal ;
+bool_literal = "true" | "false" ;
+none_literal = "none" ;
+```
 
 ### 2.5.1 Names
+
+```ebnf
+name = identifier - keyword ;
+binding_name = name ;
+field_name = identifier ;
+foreign_function_name = identifier ;
+```
+
+Four positions take any identifier, keywords included: a tuple field name
+(`field_name`), the function name in `contract-call?` and `contract-call-raw?`
+and in a `define-trait` signature (`foreign_function_name`), and the trait name
+in a trait identifier (`trait_name_part`, 2.2). A name anywhere else excludes
+the keywords (2.2).
 
 A bare identifier denotes a `let`- or `match`-bound variable, a function
 parameter, or a `define-constant`; because there is no shadowing (2.5.2), at
@@ -532,9 +805,15 @@ position. There are no other bare names: the execution context is read with
 
 ### 2.5.2 `let`
 
+```ebnf
+let_form = "(", "let", "(", {let_binding}, ")", body, ")" ;
+let_binding = "(", binding_name, expr, ")" ;
+begin_form = "(", "begin", body, ")" ;
 ```
-(let ((name expr) ...) body-expr ...)
-```
+
+A `binding_name` is a name, never a keyword: `(let ((list u1)) list)` is a parse
+error, since no rule derives a keyword there; rebinding a reserved name, by
+contrast, is a static error (C1, 5.4).
 
 Bindings are evaluated left to right; each binding is in scope for the following
 bindings and the body. The type is the type of the last body expression.
@@ -555,11 +834,28 @@ rename it when ported.
 
 ### 2.5.3 `match`, `and`, `or`
 
+```ebnf
+match_form = "(", "match", expr, match_arms, ")" ;
+match_arms = some_arm, none_arm   | none_arm, some_arm
+           | ok_arm, err_arm      | err_arm, ok_arm
+           | true_arm, false_arm  | false_arm, true_arm ;
+some_arm  = "(", some_pattern,  body, ")" ;
+none_arm  = "(", none_pattern,  body, ")" ;
+ok_arm    = "(", ok_pattern,    body, ")" ;
+err_arm   = "(", err_pattern,   body, ")" ;
+true_arm  = "(", true_pattern,  body, ")" ;
+false_arm = "(", false_pattern, body, ")" ;
+some_pattern = "(", "some", binding_name, ")" ;
+none_pattern = "none" ;
+ok_pattern = "(", "ok", binding_name, ")" ;
+err_pattern = "(", "err", binding_name, ")" ;
+true_pattern = "true" ;
+false_pattern = "false" ;
 ```
-(match expr arm arm)
-arm     ::= (pattern body-expr ...)
-pattern ::= (some name) | none | (ok name) | (err name) | true | false
-```
+
+Two arms that are not one of these six ordered pairs are a parse error, also in
+a generic body that is never instantiated: `(match o (none u0) (none u1))` does
+not parse, `(match o ((some v) v) (none u0))` does.
 
 `match` is the core's branching construct. The scrutinee type determines the
 required patterns, each of which MUST appear exactly once:
@@ -591,9 +887,9 @@ type-checked with each parameter at its declared type (2.6.3), so the scrutinee
 of that `match` is a `bool` whatever the argument's type: `(if (panic) a b)` and
 `(if (not (panic)) a b)` both have type `lub(A, B)`.
 
-```
-(and expr expr ...)
-(or expr expr ...)
+```ebnf
+and_form = "(", "and", expr, expr, {expr}, ")" ;
+or_form = "(", "or", expr, expr, {expr}, ")" ;
 ```
 
 `and` and `or` take two or more `bool` expressions and evaluate them left to
@@ -609,8 +905,8 @@ an expression of type `never` is by subtyping, so `(and (panic) b)` has type
 
 ### 2.5.4 `return`
 
-```
-(return expr)
+```ebnf
+return_form = "(", "return", expr, ")" ;
 ```
 
 Evaluates `expr`, then terminates the innermost enclosing function body (after
@@ -626,18 +922,38 @@ functions defined over `match` and `return`.
 
 ### 2.5.5 Application
 
-```
-(f arg ...)
+```ebnf
+application = "(", application_head, {expr}, [expr, "..."], ")" ;
+application_head = identifier - non_application_head ;
+non_application_head = keyword | dedicated_primitive_head ;
+dedicated_primitive_head = "as-max-len?" | "uint-to-buff-be"
+                         | "uint-to-buff-le" | "int-to-buff-be"
+                         | "int-to-buff-le" | "from-consensus-buff?" ;
 ```
 
-`f` is a primitive, a function defined in the current contract or the prelude,
-or a `(function ...)` parameter. Arguments are evaluated left to right (except
-for macros, 2.6.3). Typing and overload resolution are defined in 2.6.2.
+At most one argument is a spread `e...`, and it is the last (2.6.5). The six
+primitives that take a type or a size argument are not ordinary applications:
+their calls are the dedicated forms of 3.3 and 3.4 (`size_term`, 2.3.1).
+
+The `application_head` is the function `f`; the expressions after it are its
+arguments. `f` is a primitive, a function defined in the current contract or the
+prelude, or a `(function ...)` parameter. Arguments are evaluated left to right
+(except for macros, 2.6.3). Typing and overload resolution are defined in 2.6.2.
 
 ### 2.5.6 Constructors
 
-`(some e)`, `(ok e)`, `(err e)`, `(list e ...)`, and `{ f: e, ... }` construct
-values.
+```ebnf
+some_ctor = "(", "some", expr, ")" ;
+ok_ctor = "(", "ok", expr, ")" ;
+err_ctor = "(", "err", expr, ")" ;
+list_ctor = "(", "list", {expr}, ")" ;
+tuple_ctor = "{", [tuple_entry, {",", tuple_entry}, [","]], "}" ;
+tuple_entry = field_name, ":", expr ;
+```
+
+These forms construct values. A tuple field name is any identifier, keywords
+included (`{ list: u1 }`), and one trailing comma after the last entry is
+allowed (`{ a: u1, }`); `{,}` and `{ a: u1,, }` are parse errors.
 
 | Form                    | Type                                                      |
 | ----------------------- | --------------------------------------------------------- |
@@ -652,6 +968,11 @@ number of arguments only through a rest parameter (2.6.5).
 
 ### 2.5.7 Tuple access
 
+```ebnf
+get_form = "(", "get", field_name, expr, ")" ;
+merge_form = "(", "merge", expr, expr, ")" ;
+```
+
 - `(get f e)` with `e : { f: T, ... }` has type `T`. `f` MUST be a field of the
   tuple type.
 - `(merge e1 e2)` with tuple types `R1`, `R2` has the tuple type whose fields
@@ -661,9 +982,16 @@ number of arguments only through a rest parameter (2.6.5).
 
 ### 2.5.8 Cross-contract calls
 
+```ebnf
+contract_call = "(", "contract-call?", expr, foreign_function_name, {expr},
+                ")" ;
 ```
-(contract-call? contract function-name arg ...)
-```
+
+The first `expr` is the `contract`, the `foreign_function_name` is the
+`function-name`, and the remaining expressions are the arguments `arg ...`.
+
+The function name is any identifier, keywords included, since the callee may be
+written in another language: `(contract-call? .pool list u1)` parses.
 
 `contract` is a contract principal literal, a static constant (2.4.1) of
 contract principal type, or an expression of a trait type `(trait X)`; in the
@@ -715,9 +1043,14 @@ function the trait marks `read-only`, is not read-only, and its result is
 validated like any other, so a principal that does not conform can make the call
 fail but cannot make it return a value of the wrong type.
 
+```ebnf
+contract_call_raw = "(", "contract-call-raw?", expr, foreign_function_name,
+                    expr, size_term, ")" ;
 ```
-(contract-call-raw? contract function-name args size)
-```
+
+In `contract_call_raw` the expressions are, in order, the `contract`, then
+(after the `function-name`) `args`; the `size_term` is the `size` (2.3.1),
+written `u64`; a bare `64` parses and is a type error (C11, 5.4).
 
 Calls a function without a declared signature, such as a function of a contract
 written in a language that does not declare its types
@@ -733,23 +1066,36 @@ read-only. The rollback rules of 2.7.3 apply to the callee as to any call.
 
 ### 2.5.9 Context scoping and asset allowances
 
+```ebnf
+as_contract_form = "(", "as-contract?", "(", {allowance}, ")", body, ")"
+                 | "(", "as-contract?", "(", all_assets_unsafe_allowance, ")",
+                   body, ")" ;
+all_assets_unsafe_allowance = "(", "with-all-assets-unsafe", ")" ;
+restrict_assets_form = "(", "restrict-assets?", expr, "(", {allowance}, ")",
+                       body, ")" ;
+allowance = with_stx_allowance
+          | with_ft_allowance
+          | with_nft_allowance
+          | with_staking_allowance
+          | with_pox_allowance ;
+with_stx_allowance = "(", "with-stx", expr, ")" ;
+with_ft_allowance = "(", "with-ft", expr, expr, expr, ")" ;
+with_nft_allowance = "(", "with-nft", expr, expr, expr, ")" ;
+with_staking_allowance = "(", "with-staking", expr, ")" ;
+with_pox_allowance = "(", "with-pox", ")" ;
 ```
-(as-contract? (allowance ...) body-expr ...)
-(as-contract? ((with-all-assets-unsafe)) body-expr ...)
-(restrict-assets? owner-expr (allowance ...) body-expr ...)
 
-allowance ::= (with-stx amount)
-            | (with-ft contract token-name amount)
-            | (with-nft contract token-name identifiers)
-            | (with-staking amount)
-            | (with-pox)
-```
+The arguments, in order: `with_stx_allowance` and `with_staking_allowance` take
+the `amount`; `with_ft_allowance` takes the `contract`, the `token-name` and the
+`amount`; `with_nft_allowance` takes the `contract`, the `token-name` and the
+`identifiers`. In `restrict_assets_form` the first `expr` is the `owner-expr`.
+The table below gives the type of each.
 
 `(with-all-assets-unsafe)` waives the check for the current contract's assets.
 Only `as-contract?` accepts it, because in `restrict-assets?` it would make the
 form a no-op. It MUST be the only allowance in the list, because any other
 allowance beside it would have no effect. The grammar above encodes both rules,
-so writing it in `restrict-assets?` or alongside another allowance is a syntax
+so writing it in `restrict-assets?` or alongside another allowance is a parse
 error.
 
 Every allowance argument is an ordinary expression, so a contract or token can
@@ -794,8 +1140,8 @@ contract's). The number of allowances is bounded (2.8).
 
 ### 2.5.10 Type ascription
 
-```
-(as type expr)
+```ebnf
+as_form = "(", "as", type, expr, ")" ;
 ```
 
 `type` is a type expression (2.3.1), and may use the type and size variables in
@@ -1114,8 +1460,11 @@ other rest arguments. The rest parameter is the value of `e`, typed
 in its position, like any other argument. Unlike a call without a spread, the
 rest list's runtime length may be less than `N`, including zero, so
 `(max a (list)...)` is `a`. Only a rest parameter admits a spread argument: a
-definition with a fixed parameter in that position does not accept the call.
-Spread is not available for special forms (`and`, `or`, `let`, `match`).
+definition with a fixed parameter in that position does not accept the call. A
+spread is allowed only as the last argument of an application (2.5.5); elsewhere
+(special forms such as `and`, `or`, `let`, `match`, the `list` constructor,
+`contract-call?`, and the dedicated primitive forms of 3.3 and 3.4) it is a
+parse error.
 
 Rules:
 
@@ -1289,7 +1638,8 @@ once the dependency named in each is settled.
 1. **Version numbering** (2.4.0). Whether `clarity-version` takes a single
    integer or a major and minor pair depends on how language releases are cut:
    any change to the prelude or to a rule is a new version for compatibility
-   purposes, which argues for one number.
+   purposes, which argues for one number. The grammar's `version_number` takes
+   one number today and follows this decision.
 2. **RFC: explicit size parameters.** A reference kind such as `(width size)`
    that accepts a size term at the call site, with the rule that a size variable
    is usable as a `uint` value in the body. It would make `uint-to-buff-be` a
@@ -1319,5 +1669,5 @@ once the dependency named in each is settled.
    and reject a contract that cannot fit, as it already does for module size
    (2.8). The chain's transaction memory cap, which depends on the callers'
    memory, would remain a runtime error.
-7. **Formal presentation.** The judgment-style typing rules and the full EBNF
-   are pending the questions above.
+7. **Formal presentation.** The judgment-style typing rules are pending the
+   questions above.
