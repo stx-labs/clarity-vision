@@ -18,6 +18,8 @@ once the design questions at the end of this chapter are settled.
   (natural numbers bounding sequence lengths).
 - `S <: T` means `S` is a subtype of `T` (2.3.2). `lub(S, T)` is their least
   upper bound when it exists.
+- `T[σ]` is `T` with the substitution `σ` applied: each type or size variable in
+  `T` is replaced by the type or size `σ` assigns it (2.6.2).
 - `never` is the empty type (2.3.3).
 
 ## 2.2 Lexical structure
@@ -322,9 +324,9 @@ lifting it later is backward compatible and restoring it would not be.
 
 A type is an **interface type** if it contains no type or size variable. Trait
 types are allowed. Only interface types may appear in the parameter and result
-types of public and read-only functions and in trait definitions. They are the
-types the compiler declares in `abi.types` (2.4.4), and each is a type of the
-interpretation layer's grammar
+types of public and read-only functions, in trait definitions, and in event
+definitions. They are the types the compiler declares in `abi.types` (2.4.4),
+and each is a type of the interpretation layer's grammar
 ([../08-value-interpretation.md](../08-value-interpretation.md) section 2).
 
 An interface type may contain `never`. A public function whose body is
@@ -340,7 +342,8 @@ An identifier in type position that is not a built-in type name, a `define-type`
 alias, or a trait identifier denotes a **type variable**. An identifier in size
 position that is not a literal denotes a **size variable**. Both are implicitly
 universally quantified over the definition in which they appear, and each MUST
-occur in at least one parameter type of that definition.
+occur in at least one parameter of that definition, in its type or in its
+reference kind (2.3.7).
 
 Type and size variables may appear only in `define-private` and `define-macro`
 definitions. Public and read-only functions, traits, storage definitions, and
@@ -374,16 +377,30 @@ ref-kind  ::= (var type)
             | (map type type)
             | (fungible-token)
             | (non-fungible-token type)
+            | (event type)
             | (function (type ...) type)
 ```
 
 An argument in a reference-kind position MUST be either the name of a definition
 of the matching kind in the current contract, or a parameter of the same kind in
-the enclosing function. References are resolved at instantiation time (2.6.2)
-and have no runtime representation.
+the enclosing function. How the argument's types must relate to the parameter's
+depends on the kind (2.6.2):
 
-Reference kinds let one helper serve every map (or variable, or token) of a
-given shape; each distinct reference is its own instance, so which storage a
+- `(var T)`, `(map K V)`, `(non-fungible-token T)`: identical types, not merely
+  related ones. A variable or map is both read and written, so its types may be
+  neither widened nor narrowed; an NFT's identifier type is matched the same
+  way.
+- `(event T)`: the event's declared type may be a supertype of `T`. The
+  reference is only emitted to, and every value that fits `T` fits the type the
+  event declares in `abi.types`.
+- `(function (type ...) type)`: by the rule of 2.6.2.
+- `(fungible-token)`: no types to match.
+
+References are resolved at instantiation time (2.6.2) and have no runtime
+representation.
+
+Reference kinds let one helper serve every map (or variable, token, or event) of
+a given shape; each distinct reference is its own instance, so which storage a
 function touches stays statically known. Reference kinds may appear only in
 `define-private` and `define-macro` parameters. `(function ...)` arguments may
 name any function defined in the current contract or the prelude, but not a
@@ -395,6 +412,13 @@ A contract is a version declaration followed by a sequence of top-level forms. A
 definition may refer to any other definition in the contract, earlier or later,
 as long as the definition graph is acyclic (2.4.3). Source order matters only
 for code evaluated at deploy (2.4.2).
+
+Top-level names share one namespace, whatever the kind of definition, including
+`define-type` aliases and traits, although those are resolved only in type
+position (2.3.5). Two definitions MUST NOT have the same name, except overloads
+of a function or of a macro (2.6.2); a name's overloads are all functions or all
+macros. This means, for example, that a contract cannot have an event and a map
+both named `listed`, or a constant and a function both named `fee`.
 
 ### 2.4.0 Version declaration
 
@@ -425,10 +449,11 @@ contract.
 | `(define-map name key-type value-type)`                                                                                   | A persistent map                                                                                                                                                                                                                                                                    | both types storable; the key prefix plus `serialized-size(key-type)` MUST fit the storage key limit (2.8, 3.7)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `(define-fungible-token name)` and `(define-fungible-token name expr)`                                                    | A fungible token, optionally with a total supply cap `expr : uint`                                                                                                                                                                                                                  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `(define-non-fungible-token name type)`                                                                                   | A non-fungible token with identifier type `type`                                                                                                                                                                                                                                    | `type` storable                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `(define-event name type)`                                                                                                | A contract event whose data has type `type`, emitted with `emit` (3.10)                                                                                                                                                                                                             | `type` is an interface type (2.3.4) whose `serialized-size` MUST satisfy the value size limit (2.8). The name is in the contract's interface and the type in `abi.types` (2.4.4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `(define-trait name ((fn-name (type ...) type) ...))` and `(define-trait name ((fn-name (type ...) type read-only) ...))` | A trait: a set of function names with interface-typed signatures whose result types are `response` types. A function marked `read-only` may only be implemented by a read-only function, and may be called through the trait from read-only code (2.7.4)                            |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `(impl-trait trait-identifier)`                                                                                           | A conformance claim, checked statically: every function in the trait MUST be defined as a public or read-only function with a compatible signature (parameters contravariant, result covariant), and a function the trait marks `read-only` MUST be defined with `define-read-only` |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `(define-public (name (param type) ...) expr ...)`                                                                        | An externally callable function                                                                                                                                                                                                                                                     | parameter types are interface types; result type MUST be a `response`; monomorphic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `(define-read-only (name (param type) ...) expr ...)`                                                                     | An externally callable function that MUST NOT mutate state (2.7.4)                                                                                                                                                                                                                  | parameter types are interface types; monomorphic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `(define-public (name (param type) ...) expr ...)`                                                                        | An externally callable function                                                                                                                                                                                                                                                     | parameter types are interface types; result type MUST be a `response`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `(define-read-only (name (param type) ...) expr ...)`                                                                     | An externally callable function that MUST NOT mutate state (2.7.4)                                                                                                                                                                                                                  | parameter types are interface types                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `(define-private (name (param type-or-ref-kind) ...) expr ...)`                                                           | An internal function called by value                                                                                                                                                                                                                                                | may be generic and overloaded, and may end with a rest parameter (2.6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `(define-macro (name (param type-or-ref-kind) ...) expr ...)`                                                             | A macro: an internal definition expanded at each call site, with call-by-name parameters (2.6.3)                                                                                                                                                                                    | may be generic and overloaded                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
@@ -492,16 +517,17 @@ The compiler emits two sections describing the contract into its module
 ([../07-chain-abi.md](../07-chain-abi.md) section 3.4):
 
 - **`abi.interface`** ([../07-chain-abi.md](../07-chain-abi.md) section 4.1)
-  names the public and read-only functions with their kinds, and the fungible
-  and non-fungible tokens. The chain validates it against the module at deploy
-  and acts on nothing else.
+  names the public and read-only functions with their kinds, the fungible and
+  non-fungible tokens, and the events. The chain validates it against the module
+  at deploy and acts on nothing else.
 - **`abi.types`**
   ([../08-value-interpretation.md](../08-value-interpretation.md) section 5)
   declares the parameter and result types of every public and read-only
-  function, the identifier type of every non-fungible token, the traits the
-  contract defines, the traits it claims with `impl-trait`, and the layout of
-  its data variables and maps (3.7). A Clarity contract declares all of them, so
-  none of its functions, tokens, or storage is undeclared.
+  function, the identifier type of every non-fungible token, the data type of
+  every event, the traits the contract defines, the traits it claims with
+  `impl-trait`, and the layout of its data variables and maps (3.7). A Clarity
+  contract declares all of them, so none of its functions, tokens, events, or
+  storage is undeclared.
 
 The chain does not read `abi.types`. Other contracts, whatever their source
 language, compile typed calls against it (2.5.8), and wallets and explorers
@@ -525,10 +551,10 @@ special forms. Anything not listed here is either a primitive
 
 A bare identifier denotes a `let`- or `match`-bound variable, a function
 parameter, or a `define-constant`; because there is no shadowing (2.5.2), at
-most one of these applies at any point. Function, map, variable, and token names
-are not values and may appear only in application or reference-argument
-position. There are no other bare names: the execution context is read with
-`get-current-context` (3.9).
+most one of these applies at any point. Function, map, variable, token, and
+event names are not values and may appear only in application or
+reference-argument position. There are no other bare names: the execution
+context is read with `get-current-context` (3.9).
 
 ### 2.5.2 `let`
 
@@ -830,16 +856,34 @@ definition, fewer than `n` fixed parameters (2.6.5). A call whose last argument
 is a spread `e...` is accepted only by rest-parameter definitions with exactly
 `n - 1` fixed parameters. For a candidate with parameter types `P1 ... Pn`
 (which may contain type variables, size variables, and reference kinds) and free
-variables `X`, an **instantiation** is a substitution `σ` over `X` such that:
+variables `X`, an **instantiation** is a substitution `σ` over `X`, assigning a
+type to each type variable and a size to each size variable, such that:
 
 - for each value parameter, `type(ai) <: Pi[σ]`;
 - for each reference-kind parameter, `ai` is a name (or reference parameter) of
-  the matching kind whose declared types match `Pi[σ]`; for
-  `(function (Q ...) R)`, the named function MUST itself admit an instantiation
-  whose parameter types are supertypes of `Q[σ]...` and whose result type is a
-  subtype of `R[σ]`. A rest-parameter definition with `k` fixed parameters is
-  named at a function type with `k + 1` parameters, and the last one fills its
-  rest parameter as a one-element list (2.6.5).
+  the matching kind (2.3.7), and:
+  - for `(var T)`, `(map K V)`, and `(non-fungible-token T)`, its declared types
+    are identical to the types in `Pi[σ]`, with no subtyping in either
+    direction;
+  - for `(event T)`, its declared type `D` is a supertype of `T[σ]`. This bounds
+    the variables in `T` only from above, so a variable that occurs nowhere but
+    in event references is not left to the least-instantiation rule below, which
+    would put it at `never` or size 0. It is matched as in `(var T)`: it takes
+    the type or size that `D` has at its position, so `(event X)` is
+    instantiated at the declared type and `(event (string-ascii N))` at the
+    declared size. The declared types MUST agree at every position of such a
+    variable: `N` in two `(event (buff N))` parameters given events of
+    `(buff 10)` and `(buff 20)` has no instantiation, and separate variables
+    give each its own. A variable that also occurs outside event references is
+    instantiated by those occurrences, and `D` only bounds the result: emitting
+    `0x42` through `(event (buff N))` and `(x (buff N))` to an event of
+    `(buff 10)` instantiates `N` at 1, and to an event of `(buff 0)` has no
+    instantiation;
+  - for `(function (Q ...) R)`, the named function admits an instantiation whose
+    parameter types are supertypes of `Q[σ]...` and whose result type is a
+    subtype of `R[σ]`. A rest-parameter definition with `k` fixed parameters is
+    named at a function type with `k + 1` parameters, and the last one fills its
+    rest parameter as a one-element list (2.6.5).
 
 The candidate **admits** the call if an instantiation exists. Among the
 instantiations that exist, the **least** one (pointwise under `<:`, and smallest
@@ -889,9 +933,11 @@ Every other ambiguity is an error where the definitions are written rather than
 at the call: the definitions of a name MUST NOT **overlap**. Two definitions
 overlap when, under some instantiation of each, their parameters meet (2.3.2) at
 every position. Reference-kind parameters meet when they are of the same kind
-with the same declared types, except that two `(function ...)` kinds meet when
-their parameter and result types meet pointwise. The check is on the
-definitions, whether or not the name is called:
+with the same declared types, except that two `(event ...)` kinds meet when
+`lub` of their types is defined, since an event declared at that type is
+admitted by both, and two `(function ...)` kinds meet when their parameter and
+result types meet pointwise. The check is on the definitions, whether or not the
+name is called:
 
 ```
 (define-private (pad (b (buff 4))) (concat b 0x00))
@@ -902,6 +948,9 @@ definitions, whether or not the name is called:
 
 (define-private (show (x T)) ...)
 (define-private (show (x uint)) ...)                     ;; error: T at uint
+
+(define-private (note (e (event (buff 4)))) ...)
+(define-private (note (e (event (buff 8)))) ...)         ;; error: an event of (buff 8) fits both
 ```
 
 Neither parameter type of `first` is a subtype of the other, but the two still
@@ -1223,9 +1272,11 @@ recursion every call chain is visible in the definition graph.
 
 ### 2.7.6 Events
 
-`print` and every asset primitive emit events into the transaction's event
-batch. A `print` event is the text rendering of its value (3.10). Events of a
-rolled-back frame are discarded with it.
+`emit` and every asset primitive emit events into the transaction's event batch.
+An `emit` event carries the event's name and the canonical encoding of its value
+(3.10). Events of a rolled-back frame are discarded with it and no longer count
+toward the transaction's event bytes ([../07-chain-abi.md](../07-chain-abi.md)
+section 8.3). `log` emits no event (3.10).
 
 ### 2.7.7 Cost
 
@@ -1262,7 +1313,7 @@ source size and transaction budgets.
 
 | Limit                                                                                | Value           | Inherited from                                                                                      |
 | ------------------------------------------------------------------------------------ | --------------- | --------------------------------------------------------------------------------------------------- |
-| Maximum serialized value size                                                        | 1,048,576 bytes | `MAX_VALUE_SIZE`                                                                                    |
+| Maximum serialized value size                                                        | 1,048,576 bytes | `MAX_VALUE_SIZE`; also the chain ABI's event data limit, which bounds `emit` (3.10)                 |
 | Maximum intermediate value size (2.3.1)                                              | 8,388,608 bytes | new, provisional; MUST stay below the chain's Wasm memory limit                                     |
 | Fixpoint step limit for fold accumulators (2.6.2)                                    | 8               | new, provisional                                                                                    |
 | Maximum type nesting depth                                                           | 32              | `MAX_TYPE_DEPTH`                                                                                    |
@@ -1270,7 +1321,6 @@ source size and transaction budgets.
 | Maximum function call depth within a contract (2.7.5)                                | 128             | `MAX_CALL_STACK_DEPTH`; contract-call depth is the chain ABI's                                      |
 | Maximum allowances per `as-contract?` / `restrict-assets?`                           | 128             | `MAX_ALLOWANCES`                                                                                    |
 | Maximum storage key: a map's key prefix plus `serialized-size` of its key type (3.7) | 1,024 bytes     | new; the chain ABI's storage key limit                                                              |
-| Maximum `print` message: the rendered length bound of the argument's type (3.10)     | 1,048,576 bytes | new; the chain ABI's print message limit                                                            |
 
 There is no limit on the size of a contract after macro expansion and
 instantiation, which can grow exponentially (definitions that each call the next
@@ -1307,11 +1357,11 @@ once the dependency named in each is settled.
    iteration" item of the specification plan.
 5. **RFC: host bindings in the prelude.** A `define-host` declaration form would
    let the prelude declare every host-calling primitive (storage, assets,
-   context, chain data, signature schemes, `print`) by name and signature, with
-   semantics cited from the chain ABI rather than restated in chapter 3. The
-   same form could cover compiled primitives with ordinary signatures, leaving
-   chapter 3 with only the primitives whose typing cannot be written as a
-   signature. Parked; it requires an admission rule on the ABI side.
+   context, chain data, signature schemes, `emit`, `log`) by name and signature,
+   with semantics cited from the chain ABI rather than restated in chapter 3.
+   The same form could cover compiled primitives with ordinary signatures,
+   leaving chapter 3 with only the primitives whose typing cannot be written as
+   a signature. Parked; it requires an admission rule on the ABI side.
 6. **Static memory bound.** The intermediate size limit only has to stay below
    the chain's instance memory limit, so whether a well-typed contract's live
    values fit in memory depends on code generation, and exceeding it is a
