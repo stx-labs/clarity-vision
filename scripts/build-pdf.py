@@ -1,5 +1,43 @@
 import os, re, sys, markdown
+from markdown.extensions import codehilite
+from pygments.lexer import RegexLexer
+from pygments.lexers import EbnfLexer
+from pygments.token import (Keyword, Name, Number, Operator, Punctuation,
+                            String, Text)
 from markdown.extensions.toc import slugify
+
+# Pygments' EBNF lexer does not know ISO 14977's repetition factor (`n * [x]`).
+# Teach it before any block is highlighted (the appendix and the ```ebnf blocks
+# both use it), so `127 *` renders as a number and an operator. The rules go in
+# front of the punctuation rule, found by its pattern; fail loudly if it moves.
+_rules = EbnfLexer.tokens["production"]
+_punct = next((i for i, r in enumerate(_rules) if isinstance(r, tuple) and r[0] == r"[\[\]{}(),|]"), None)
+if _punct is None:
+    sys.exit("build-pdf: pygments EbnfLexer changed; update the repetition-factor patch")
+_rules[_punct:_punct] = [(r"\d+", Number), (r"\*", Operator)]
+
+# The ```grammar blocks of chapters 2 and 3 use the reading notation of
+# spec/05-grammar.md 5.1 (`a ::= b c?`). Highlight them with the same token
+# kinds as the EBNF appendix: rule names as keywords, terminals as strings,
+# special sequences as entities.
+class GrammarLexer(RegexLexer):
+    name = "Grammar reading notation"
+    aliases = ["grammar"]
+    tokens = {"root": [
+        (r"\s+", Text),
+        (r"::=", Operator),
+        (r'"[^"]*"', String.Double),
+        (r"'[^']*'", String.Single),
+        (r"<[^<>\n]*>", Name.Entity),
+        (r"\{\d+(,\d+)?\}", Number),
+        (r"[a-z_][a-z0-9_]*", Keyword),
+        (r"[?*+-]", Operator),
+        (r"[()|]", Punctuation),
+    ]}
+
+_get_lexer = codehilite.get_lexer_by_name
+codehilite.get_lexer_by_name = lambda name, **options: (
+    GrammarLexer(**options) if name == "grammar" else _get_lexer(name, **options))
 
 ROOT = sys.argv[1]
 OUT = sys.argv[2]
@@ -8,9 +46,9 @@ DOCS = ["README.md", "01-why-clarity.md", "02-goals.md", "03-architecture.md",
         "08-value-interpretation.md",
         "spec/README.md", "spec/01-principles.md",
         "spec/02-core-language.md", "spec/03-primitives.md",
-        "spec/04-standard-library.md"]
+        "spec/04-standard-library.md", "spec/05-grammar.md"]
 # Source files appended verbatim after the Markdown documents.
-SOURCES = ["spec/std/prelude.clar"]
+SOURCES = ["spec/std/prelude.clar", "spec/grammar/clarity.ebnf"]
 
 def key(path):
     return re.sub(r"[^a-z0-9]+", "-", path.lower().removesuffix(".md")).strip("-")
@@ -20,7 +58,8 @@ def highlight_source(path):
     from pygments.formatters import HtmlFormatter
     from pygments.lexers import SchemeLexer
     src = open(os.path.join(ROOT, path), encoding="utf-8").read()
-    code = highlight(src, SchemeLexer(), HtmlFormatter(cssclass="codehilite"))
+    lexer = EbnfLexer() if path.endswith(".ebnf") else SchemeLexer()
+    code = highlight(src, lexer, HtmlFormatter(cssclass="codehilite"))
     return f'<h1>Appendix: <code>{path}</code></h1>{code}'
 
 def rewrite_links(html, docdir):

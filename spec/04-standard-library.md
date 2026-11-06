@@ -13,7 +13,9 @@ maps onto vNEXT.
 - Prelude names are reserved: a contract MUST NOT define a top-level name that
   the prelude defines. This includes the `std-*` helper definitions.
 - The prelude uses only features available to every contract (P3). It is
-  type-checked, instantiated, and compiled by the same rules as user code.
+  type-checked, instantiated, and compiled by the same rules as user code, and
+  parsed as a contract with the including contract's version declaration
+  prepended (5.5).
 - **Results are defined by the source.** Conformance vectors for library
   functions are derived from the prelude source. If a vector and the source
   disagree, the vector is wrong.
