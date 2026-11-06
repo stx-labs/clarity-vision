@@ -598,16 +598,12 @@ definition = define_constant
            | define_macro ;
 define_constant = "(", "define-constant", binding_name, expr, ")" ;
 define_type = "(", "define-type", binding_name, type, ")" ;
-define_data_var = "(", "define-data-var", binding_name, storable_type,
-                  expr, ")" ;
-define_map = "(", "define-map", binding_name, storable_type,
-             storable_type, ")" ;
-define_fungible_token = "(", "define-fungible-token", binding_name,
-                        [expr], ")" ;
+define_data_var = "(", "define-data-var", binding_name, storable_type, expr, ")" ;
+define_map = "(", "define-map", binding_name, storable_type, storable_type, ")" ;
+define_fungible_token = "(", "define-fungible-token", binding_name, [expr], ")" ;
 define_non_fungible_token = "(", "define-non-fungible-token", binding_name,
                             storable_type, ")" ;
-define_trait = "(", "define-trait", binding_name, "(", {trait_signature},
-               ")", ")" ;
+define_trait = "(", "define-trait", binding_name, "(", {trait_signature}, ")", ")" ;
 trait_signature = "(", foreign_function_name, "(", {interface_type}, ")",
                   interface_type, ["read-only"], ")" ;
 impl_trait = "(", "impl-trait", trait_identifier, ")" ;
@@ -616,8 +612,7 @@ define_read_only = "(", "define-read-only", public_signature, body, ")" ;
 public_signature = "(", binding_name, {public_parameter}, ")" ;
 public_parameter = "(", binding_name, interface_type, ")" ;
 define_private = "(", "define-private", private_signature, body, ")" ;
-private_signature = "(", binding_name, {private_parameter},
-                    [rest_parameter], ")" ;
+private_signature = "(", binding_name, {private_parameter}, [rest_parameter], ")" ;
 private_parameter = "(", binding_name, (type | ref_kind), ")" ;
 rest_parameter = "(", binding_name, type, "...", ")" ;
 define_macro = "(", "define-macro", macro_signature, body, ")" ;
@@ -984,8 +979,7 @@ merge_form = "(", "merge", expr, expr, ")" ;
 ### 2.5.8 Cross-contract calls
 
 ```ebnf
-contract_call = "(", "contract-call?", expr, foreign_function_name,
-                {expr}, ")" ;
+contract_call = "(", "contract-call?", expr, foreign_function_name, {expr}, ")" ;
 ```
 
 The first `expr` is the `contract`, the `foreign_function_name` is the

@@ -423,24 +423,20 @@ define_constant = "(", "define-constant", binding_name, expr, ")" ;
 define_type = "(", "define-type", binding_name, type, ")" ;
 
 (* §2.4.1 *)
-define_data_var = "(", "define-data-var", binding_name, storable_type,
-                  expr, ")" ;
+define_data_var = "(", "define-data-var", binding_name, storable_type, expr, ")" ;
 
 (* §2.4.1 *)
-define_map = "(", "define-map", binding_name, storable_type,
-             storable_type, ")" ;
+define_map = "(", "define-map", binding_name, storable_type, storable_type, ")" ;
 
 (* §2.4.1 *)
-define_fungible_token = "(", "define-fungible-token", binding_name,
-                        [expr], ")" ;
+define_fungible_token = "(", "define-fungible-token", binding_name, [expr], ")" ;
 
 (* §2.4.1 *)
 define_non_fungible_token = "(", "define-non-fungible-token", binding_name,
                             storable_type, ")" ;
 
 (* §2.4.1 *)
-define_trait = "(", "define-trait", binding_name, "(", {trait_signature},
-               ")", ")" ;
+define_trait = "(", "define-trait", binding_name, "(", {trait_signature}, ")", ")" ;
 
 (* §2.4.1 *)
 trait_signature = "(", foreign_function_name, "(", {interface_type}, ")",
@@ -465,8 +461,7 @@ public_parameter = "(", binding_name, interface_type, ")" ;
 define_private = "(", "define-private", private_signature, body, ")" ;
 
 (* §2.4.1, §2.6.5 *)
-private_signature = "(", binding_name, {private_parameter},
-                    [rest_parameter], ")" ;
+private_signature = "(", binding_name, {private_parameter}, [rest_parameter], ")" ;
 
 (* §2.4.1, §2.3.7 *)
 private_parameter = "(", binding_name, (type | ref_kind), ")" ;
@@ -605,8 +600,7 @@ get_form = "(", "get", field_name, expr, ")" ;
 merge_form = "(", "merge", expr, expr, ")" ;
 
 (* §2.5.8 *)
-contract_call = "(", "contract-call?", expr, foreign_function_name,
-                {expr}, ")" ;
+contract_call = "(", "contract-call?", expr, foreign_function_name, {expr}, ")" ;
 
 (* §2.5.8 *)
 contract_call_raw = "(", "contract-call-raw?", expr, foreign_function_name,
@@ -675,8 +669,7 @@ int_to_buff_be_form = "(", "int-to-buff-be", expr, size_term, ")" ;
 int_to_buff_le_form = "(", "int-to-buff-le", expr, size_term, ")" ;
 
 (* §3.4 *)
-from_consensus_buff_form = "(", "from-consensus-buff?", storable_type,
-                           expr, ")" ;
+from_consensus_buff_form = "(", "from-consensus-buff?", storable_type, expr, ")" ;
 
 (* §3.3, §2.3.7 (map f s): exactly one function name and one sequence; no
    spread. *)
