@@ -138,7 +138,7 @@
   (if (< value 0) (- 0 value) value))
 
 ;; Exponent bit positions, most significant first.
-(define-constant std-exponent-bits
+(define-constant STD_EXPONENT_BITS
   (list u31 u30 u29 u28 u27 u26 u25 u24 u23 u22 u21 u20 u19 u18 u17 u16
         u15 u14 u13 u12 u11 u10 u9 u8 u7 u6 u5 u4 u3 u2 u1 u0))
 
@@ -160,18 +160,18 @@
     (panic)
     (get result (fold-left std-pow-step
                   { base: base, exponent: (to-uint exponent), result: 1 }
-                  std-exponent-bits))))
+                  STD_EXPONENT_BITS))))
 
 (define-private (pow (base uint) (exponent uint))
   (if (> exponent u4294967295)
     (panic)
     (get result (fold-left std-pow-step
                   { base: base, exponent: exponent, result: u1 }
-                  std-exponent-bits))))
+                  STD_EXPONENT_BITS))))
 
 ;; Even bit positions from 126 down to 0: the powers of four tried by the
 ;; bitwise square root.
-(define-constant std-sqrti-shifts
+(define-constant STD_SQRTI_SHIFTS
   (list u126 u124 u122 u120 u118 u116 u114 u112 u110 u108 u106 u104 u102
         u100 u98 u96 u94 u92 u90 u88 u86 u84 u82 u80 u78 u76 u74 u72 u70
         u68 u66 u64 u62 u60 u58 u56 u54 u52 u50 u48 u46 u44 u42 u40 u38
@@ -190,7 +190,7 @@
 
 (define-private (std-sqrti-uint (value uint))
   (get root (fold-left std-sqrti-step { remainder: value, root: u0 }
-              std-sqrti-shifts)))
+              STD_SQRTI_SHIFTS)))
 
 (define-private (sqrti (value uint))
   (std-sqrti-uint value))
@@ -324,7 +324,7 @@
   (unwrap-panic (as-max-len? (concat (unwrap-panic (element-at? u"0123456789" digit)) text) u40)))
 
 ;; u340282366920938463463374607431768211455 has 39 digits.
-(define-constant std-decimal-iterations
+(define-constant STD_DECIMAL_ITERATIONS
   (list true true true true true true true true true true true true true
         true true true true true true true true true true true true true
         true true true true true true true true true true true true true))
@@ -341,7 +341,7 @@
 ;; `(string-ascii 0)` or `(string-utf8 0)`, and the fold widens it to 40.
 (define-private (std-render-decimal (value uint) (empty X))
   (get text (fold-left std-decimal-step { rest: value, text: empty }
-              std-decimal-iterations)))
+              STD_DECIMAL_ITERATIONS)))
 
 (define-private (std-render-signed (value int) (empty X) (minus Y))
   (if (< value 0)
@@ -448,14 +448,14 @@
 
 ;; The string-ascii character set (chapter 2.2), in the same order in both
 ;; kinds: 0x20 through 0x7E, then tab, line feed, carriage return.
-(define-constant std-ascii-chars
+(define-constant STD_ASCII_CHARS
   " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\t\n\r")
-(define-constant std-ascii-chars-utf8
+(define-constant STD_ASCII_CHARS_UTF8
   u" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\t\n\r")
 
 (define-private (std-char-to-ascii (char (string-utf8 1)))
-  (match (index-of? std-ascii-chars-utf8 char)
-    ((some index) (element-at? std-ascii-chars index))
+  (match (index-of? STD_ASCII_CHARS_UTF8 char)
+    ((some index) (element-at? STD_ASCII_CHARS index))
     (none none)))
 
 (define-private (std-char-or-empty (char (optional (string-ascii 1))))
@@ -474,17 +474,17 @@
 ;; ---------------------------------------------------------------------------
 
 ;; Version bytes for single-signature and multisig standard principals.
-(define-constant std-mainnet-p2pkh-version 0x16)
-(define-constant std-mainnet-p2sh-version 0x14)
-(define-constant std-testnet-p2pkh-version 0x1a)
-(define-constant std-testnet-p2sh-version 0x15)
+(define-constant STD_MAINNET_P2PKH_VERSION 0x16)
+(define-constant STD_MAINNET_P2SH_VERSION 0x14)
+(define-constant STD_TESTNET_P2PKH_VERSION 0x1a)
+(define-constant STD_TESTNET_P2SH_VERSION 0x15)
 
 (define-private (std-current-network-version? (version (buff 1)))
   (if (get is-mainnet (get-current-context))
-    (or (is-eq version std-mainnet-p2pkh-version)
-        (is-eq version std-mainnet-p2sh-version))
-    (or (is-eq version std-testnet-p2pkh-version)
-        (is-eq version std-testnet-p2sh-version))))
+    (or (is-eq version STD_MAINNET_P2PKH_VERSION)
+        (is-eq version STD_MAINNET_P2SH_VERSION))
+    (or (is-eq version STD_TESTNET_P2PKH_VERSION)
+        (is-eq version STD_TESTNET_P2SH_VERSION))))
 
 ;; A principal's encoding (chain ABI 2.2) is a prefix byte, the version byte,
 ;; the 20 hash bytes, and for a contract principal the name's u8 length and the
@@ -543,8 +543,8 @@
     (err u1)
     (match (principal-construct?
              (if (get is-mainnet (get-current-context))
-               std-mainnet-p2pkh-version
-               std-testnet-p2pkh-version)
+               STD_MAINNET_P2PKH_VERSION
+               STD_TESTNET_P2PKH_VERSION)
              (hash160 public-key)
              none)
       ((ok who) (ok who))
