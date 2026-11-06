@@ -1159,7 +1159,7 @@ or contract and token name), from, to, and amount or identifier. Post-conditions
 and allowance frames are evaluated over it.
 
 Staking adds two more kinds of entry, recorded by the host when a module calls
-the chain's PoX contract, as legacy does:
+the chain's PoX contract:
 
 - **Stake**: the staker and the uSTX newly locked, recorded by every PoX
   function that locks uSTX. A `staking` allowance covers their sum within the
