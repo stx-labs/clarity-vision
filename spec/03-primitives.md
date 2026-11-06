@@ -142,8 +142,8 @@ uint_to_buff_be_form = "(", "uint-to-buff-be", expr, size_term, ")" ;
 uint_to_buff_le_form = "(", "uint-to-buff-le", expr, size_term, ")" ;
 int_to_buff_be_form = "(", "int-to-buff-be", expr, size_term, ")" ;
 int_to_buff_le_form = "(", "int-to-buff-le", expr, size_term, ")" ;
-from_consensus_buff_form = "(", "from-consensus-buff?", storable_type, expr,
-                           ")" ;
+from_consensus_buff_form = "(", "from-consensus-buff?", storable_type,
+                           expr, ")" ;
 ```
 
 Canonical encoding and `serialized-size(T)`, the largest encoding of any value

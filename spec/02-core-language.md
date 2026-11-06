@@ -66,17 +66,23 @@ characters, and gives each source one byte form.
   above. Every non-ASCII character is written as an escape, and each character
   has one spelling up to the case of its hex digits.
 - **Principal literals**: standard principals `'SP...` / `'ST...` (c32check
-  encoded; the version character after `S` is `P` or `M` on mainnet, `T` or `N`
-  on testnet, and any other is a parse error: a principal value of another
-  version, such as one `principal-construct?` builds, has no literal); contract
-  principals `'SP....name` or the deployer-relative `.name`; trait identifiers
-  `'SP....contract.trait`, `.contract.trait`, or a bare local trait `name` where
-  a trait identifier is expected. A contract name is 1 to 40 characters, starts
-  with an ASCII letter, and continues with letters, digits, `-`, or `_`. The
-  same limit applies wherever a contract name appears, including
-  `principal-to-ascii` (3.5) and the library's `principal-construct?` and
-  `principal-destruct?`. There are no reserved or special-cased contract names
-  (legacy admitted `__transient`).
+  encoded, as in [c32check](https://github.com/stacks-network/c32check): a
+  version and a 20-byte hash with a checksum, in the base-32 alphabet of the
+  digits and the upper-case letters except `I`, `L`, `O` and `U`; the version
+  character after `S` is `P` or `M` on mainnet, `T` or `N` on testnet, the
+  versions `0x16`, `0x14`, `0x1a` and `0x15` the prelude names
+  `std-mainnet-p2pkh-version`, `std-mainnet-p2sh-version`,
+  `std-testnet-p2pkh-version` and `std-testnet-p2sh-version`
+  ([std/prelude.clar](std/prelude.clar)), and any other is a parse error: a
+  principal value of another version, such as one `principal-construct?` builds,
+  has no literal); contract principals `'SP....name` or the deployer-relative
+  `.name`; trait identifiers `'SP....contract.trait`, `.contract.trait`, or a
+  bare local trait `name` where a trait identifier is expected. A contract name
+  is 1 to 40 characters, starts with an ASCII letter, and continues with
+  letters, digits, `-`, or `_`. The same limit applies wherever a contract name
+  appears, including `principal-to-ascii` (3.5) and the library's
+  `principal-construct?` and `principal-destruct?`. There are no reserved or
+  special-cased contract names (legacy admitted `__transient`).
 - **Tuple literal syntax**: `{ name: expr, ... }`, with at most one trailing
   comma after the last entry. This is the only tuple constructor syntax.
 - **`none`** is the literal of type `(optional never)`.
@@ -223,17 +229,16 @@ size_term_bare_numeral = int_literal ;
 ```
 
 A `type_reference` is a `define-type` alias, a trait name or a type variable
-(2.3.5); a bare trait name is a static error, the type is written `(trait X)`. A
-size in a type is a numeral or a name: `(buff 32)`, not `(buff u32)`, which is a
-parse error. A size passed as an argument (to `as-max-len?`, the `*-to-buff-*`
-primitives and `contract-call-raw?`) is a `size_term`: a `u` literal or a size
-variable or static constant name, so `(as-max-len? s u32)`; an expression there
-is a parse error. The two positions differ on purpose. A type is written with
-bare numbers, as every type in this specification is, so a `u` literal there is
-a parse error. In a size-term position a bare number is read as an `int` literal
-(`size_term_bare_numeral`): it parses, LX6 bounds it, and like any `int` where a
-`uint` is required it is a type error (5.4, C11). The contract-literal type
-below has no rule: it cannot be written in source.
+(2.3.5). A size in a type is a numeral or a name: `(buff 32)`, not `(buff u32)`,
+which is a parse error. A size passed as an argument (to `as-max-len?`, the
+`*-to-buff-*` primitives and `contract-call-raw?`) is a `size_term`: a `u`
+literal or a size variable or static constant name, so `(as-max-len? s u32)`; an
+expression there is a parse error. The two positions differ on purpose. A type
+is written with bare numbers, as every type in this specification is, so a `u`
+literal there is a parse error. In a size-term position a bare number is read as
+an `int` literal (`size_term_bare_numeral`): it parses, LX6 bounds it, and like
+any `int` where a `uint` is required it is a type error (5.4, C11). The
+contract-literal type below has no rule: it cannot be written in source.
 
 Meaning of each type:
 
@@ -443,13 +448,9 @@ variable. Only storable types may appear in `define-data-var`, `define-map`,
 `define-non-fungible-token`, and in `from-consensus-buff?`. A storable type may
 contain `never`; such a position can hold no value, which is harmless.
 
-```ebnf
-storable_type = type ;
-interface_type = type ;
-```
-
-The grammar marks these positions; whether the type written there is storable,
-or an interface type, is checked by the type checker (5.4).
+The grammar marks these positions as `storable_type` and `interface_type`;
+whether the type written there is storable, or an interface type, is checked by
+the type checker (5.4).
 
 Excluding trait types keeps every call target traceable to the transaction: a
 trait-typed value can only come from a contract literal or a public function's
@@ -597,16 +598,16 @@ definition = define_constant
            | define_macro ;
 define_constant = "(", "define-constant", binding_name, expr, ")" ;
 define_type = "(", "define-type", binding_name, type, ")" ;
-define_data_var = "(", "define-data-var", binding_name, storable_type, expr,
-                  ")" ;
-define_map = "(", "define-map", binding_name, storable_type, storable_type,
-             ")" ;
-define_fungible_token = "(", "define-fungible-token", binding_name, [expr],
-                        ")" ;
+define_data_var = "(", "define-data-var", binding_name, storable_type,
+                  expr, ")" ;
+define_map = "(", "define-map", binding_name, storable_type,
+             storable_type, ")" ;
+define_fungible_token = "(", "define-fungible-token", binding_name,
+                        [expr], ")" ;
 define_non_fungible_token = "(", "define-non-fungible-token", binding_name,
                             storable_type, ")" ;
-define_trait = "(", "define-trait", binding_name, "(", {trait_signature}, ")",
-               ")" ;
+define_trait = "(", "define-trait", binding_name, "(", {trait_signature},
+               ")", ")" ;
 trait_signature = "(", foreign_function_name, "(", {interface_type}, ")",
                   interface_type, ["read-only"], ")" ;
 impl_trait = "(", "impl-trait", trait_identifier, ")" ;
@@ -615,8 +616,8 @@ define_read_only = "(", "define-read-only", public_signature, body, ")" ;
 public_signature = "(", binding_name, {public_parameter}, ")" ;
 public_parameter = "(", binding_name, interface_type, ")" ;
 define_private = "(", "define-private", private_signature, body, ")" ;
-private_signature = "(", binding_name, {private_parameter}, [rest_parameter],
-                    ")" ;
+private_signature = "(", binding_name, {private_parameter},
+                    [rest_parameter], ")" ;
 private_parameter = "(", binding_name, (type | ref_kind), ")" ;
 rest_parameter = "(", binding_name, type, "...", ")" ;
 define_macro = "(", "define-macro", macro_signature, body, ")" ;
@@ -983,8 +984,8 @@ merge_form = "(", "merge", expr, expr, ")" ;
 ### 2.5.8 Cross-contract calls
 
 ```ebnf
-contract_call = "(", "contract-call?", expr, foreign_function_name, {expr},
-                ")" ;
+contract_call = "(", "contract-call?", expr, foreign_function_name,
+                {expr}, ")" ;
 ```
 
 The first `expr` is the `contract`, the `foreign_function_name` is the
