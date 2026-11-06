@@ -100,9 +100,9 @@ parameters swapped.
 `map` is a keyword (the reference kind of 2.3.7, 2.2) and `as-max-len?` takes a
 size term, so both have their own forms in the grammar:
 
-```ebnf
-map_form = "(", "map", name, expr, ")" ;
-as_max_len_form = "(", "as-max-len?", expr, size_term, ")" ;
+```grammar
+map_form ::= "(" "map" name expr ")"
+as_max_len_form ::= "(" "as-max-len?" expr size_term ")"
 ```
 
 `(map f xs)` takes exactly one function name and one sequence: `(map f xs ys)`
@@ -137,12 +137,12 @@ The primitives with a size or type argument have their own forms in the grammar;
 the size is a `size_term` (2.3.1) and the type of `from-consensus-buff?` a
 storable type:
 
-```ebnf
-uint_to_buff_be_form = "(", "uint-to-buff-be", expr, size_term, ")" ;
-uint_to_buff_le_form = "(", "uint-to-buff-le", expr, size_term, ")" ;
-int_to_buff_be_form = "(", "int-to-buff-be", expr, size_term, ")" ;
-int_to_buff_le_form = "(", "int-to-buff-le", expr, size_term, ")" ;
-from_consensus_buff_form = "(", "from-consensus-buff?", storable_type, expr, ")" ;
+```grammar
+uint_to_buff_be_form ::= "(" "uint-to-buff-be" expr size_term ")"
+uint_to_buff_le_form ::= "(" "uint-to-buff-le" expr size_term ")"
+int_to_buff_be_form ::= "(" "int-to-buff-be" expr size_term ")"
+int_to_buff_le_form ::= "(" "int-to-buff-le" expr size_term ")"
+from_consensus_buff_form ::= "(" "from-consensus-buff?" storable_type expr ")"
 ```
 
 Canonical encoding and `serialized-size(T)`, the largest encoding of any value
