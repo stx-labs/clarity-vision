@@ -2,26 +2,36 @@
 
 The syntax of vNEXT source text is defined by the grammar in
 [grammar/clarity.ebnf](grammar/clarity.ebnf), written in ISO/IEC 14977 EBNF.
-Chapters 2 and 3 introduce each form with the grammar rules that define it; this
-chapter explains how to read the grammar and states the conditions that sit
-beside its rules. Every rule in the file cites the section of chapter 2 or 3 it
-formalises. Rule names are snake_case.
+Chapters 2 and 3 introduce each form with the grammar rules that define it,
+shown in a reading notation (5.1); this chapter explains how to read the grammar
+and states the conditions that sit beside its rules. Every rule in the file
+cites the section of chapter 2 or 3 it formalises. Rule names are snake_case.
 
 ## 5.1 Reading the grammar
 
-The meta-symbols are those of ISO 14977:
+The grammar file uses the meta-symbols of ISO 14977. Chapters 2 and 3 show the
+same rules in a reading notation, the one most language references use in their
+prose (the W3C XML recommendation, the Python and Rust references; Go's EBNF
+also drops the commas): a sequence is written by juxtaposition and repetition
+with postfix `?`, `*` and `+`. The two notations differ only in their symbols
+and line layout; the grammar file governs.
 
-| Symbol                  | Meaning                                                                                                                                              |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `a = b ;`               | rule `a` is defined as `b`                                                                                                                           |
-| `a, b`                  | `a` followed by `b`                                                                                                                                  |
-| <code>a &#124; b</code> | `a` or `b`                                                                                                                                           |
-| `[a]`                   | zero or one `a`                                                                                                                                      |
-| `{a}`                   | zero or more `a`; one or more is written `a, {a}`                                                                                                    |
-| `n * [a]`               | at most `n` repetitions of `a`                                                                                                                       |
-| `a - b`                 | an `a` that is not a `b`                                                                                                                             |
-| `? text ?`              | a special sequence: a character that has no visible terminal (TAB, LF) or the end of input, defined in prose; special sequences occur only in Part L |
-| `"x"`, `'x'`            | a terminal string; it has no escapes, so `"\"` is one backslash                                                                                      |
+| Chapters 2 and 3        | Grammar file (ISO 14977) | Meaning                                                                                                                                              |
+| ----------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `a ::= b`               | `a = b ;`                | rule `a` is defined as `b`                                                                                                                           |
+| `a b`                   | `a, b`                   | `a` followed by `b`                                                                                                                                  |
+| <code>a &#124; b</code> | <code>a &#124; b</code>  | `a` or `b`                                                                                                                                           |
+| `a?`                    | `[a]`                    | zero or one `a`                                                                                                                                      |
+| `a*`                    | `{a}`                    | zero or more `a`                                                                                                                                     |
+| `a+`                    | `a, {a}`                 | one or more `a`                                                                                                                                      |
+| `a{0,n}`                | `n * [a]`                | at most `n` repetitions of `a`                                                                                                                       |
+| `a - b`                 | `a - b`                  | an `a` that is not a `b`                                                                                                                             |
+| `(a)`                   | `(a)`                    | grouping                                                                                                                                             |
+| `<text>`                | `? text ?`               | a special sequence: a character that has no visible terminal (TAB, LF) or the end of input, defined in prose; special sequences occur only in Part L |
+| `"x"`, `'x'`            | `"x"`, `'x'`             | a terminal string; it has no escapes, so `"\"` is one backslash                                                                                      |
+
+In the reading notation the postfix operators bind tightest, then `-`, then
+juxtaposition, then `|`.
 
 There are no character ranges: every character class is spelled out. Rule names
 use `_` between words, which strict ISO 14977 does not allow in a

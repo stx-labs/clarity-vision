@@ -8,7 +8,7 @@ author uses is defined in the standard library
 
 The presentation here is semi-formal. The syntax is given by the grammar
 [grammar/clarity.ebnf](grammar/clarity.ebnf), whose reading guide is chapter 5;
-its rules are quoted where each form is introduced. Typing rules are given as
+its rules are shown where each form is introduced. Typing rules are given as
 prose with signatures. The formal judgment-style rules are follow-up work once
 the design questions at the end of this chapter are settled.
 
@@ -16,10 +16,11 @@ the design questions at the end of this chapter are settled.
 
 - Syntax is defined by the grammar [grammar/clarity.ebnf](grammar/clarity.ebnf),
   in ISO/IEC 14977 EBNF (chapter 5 explains how to read it). Each form below is
-  introduced by its own grammar rules, quoted from that file; a rule shared by
-  many forms is quoted once, in the section of the concept it defines (such as
-  `size_term` in 2.3.1), and the file has them all. Rule names are snake_case,
-  such as `let_form`.
+  introduced by its own grammar rules, shown in the reading notation of 5.1
+  (`a ::= b c?`): the same rules as the file, in a lighter notation. A rule
+  shared by many forms is shown once, in the section of the concept it defines
+  (such as `size_term` in 2.3.1), and the file has them all. Rule names are
+  snake_case, such as `let_form`.
 - `name : (A B) -> R` is a signature: `name` takes an `A` and a `B` and produces
   an `R`.
 - `T`, `E`, `K`, `V`, `A`, `U` are type variables. `N`, `M` are size variables
@@ -48,10 +49,10 @@ characters, and gives each source one byte form.
   digit: `u1x`, `-u1`, `+5` and `+u1` are parse errors, not identifiers.
   Identifiers are case-sensitive.
 - **Integer literals**: `uint` literals are `u` followed by a decimal numeral
-  (`u42`); `int` literals are an optional `-` followed by a decimal numeral
-  (`42`, `-7`). A numeral is `0` or a nonzero digit followed by zero or more
-  digits, so `007`, `u00` and `-0` are parse errors. Values outside the 128-bit
-  range are a parse error.
+  (`u42`); `int` literals are a decimal numeral, preceded by `-` if it is not
+  `0` (`42`, `0`, `-7`). A numeral is `0` or a nonzero digit followed by zero
+  or more digits, so `007`, `u00` and `-0` are parse errors. Values outside the
+  128-bit range are a parse error.
 - **Boolean literals**: `true`, `false`.
 - **Buffer literals**: `0x` followed by an even number of hex digits (`0x`,
   `0xdeadbeef`).
@@ -97,25 +98,27 @@ elides text, not the token.
 The token rules (Part L of the grammar; tokenization and layout in 5.2, value
 checks in 5.3):
 
-```ebnf
-comment = ";;", {comment_char}, (line_end | end_of_input) ;
-identifier = identifier_start_plain, 127 * [identifier_char]
-           | "u", [identifier_char_nondigit, 126 * [identifier_char]]
-           | ("-" | "+"),
-             [identifier_char_nondigit_except_u, 126 * [identifier_char]
-              | "u", [identifier_char_nondigit, 125 * [identifier_char]]] ;
-natural_literal = "0" | nonzero_digit, {decimal_digit} ;
-negative_int_literal = "-", nonzero_digit, {decimal_digit} ;
-uint_literal = "u", natural_literal ;
-buffer_literal = "0x", {hex_digit, hex_digit} ;
-string_ascii_literal = '"', {string_plain_char | ascii_escape}, '"' ;
-ascii_escape = "\", ("\" | '"' | "n" | "t" | "r") ;
-standard_principal_literal = "'", "S", c32_char, {c32_char} ;
-contract_principal_literal = [standard_principal_literal], ".", contract_name ;
-contract_name = ascii_letter, 39 * [contract_name_char] ;
-trait_identifier_literal = [standard_principal_literal], ".", contract_name,
-                           ".", trait_name_part ;
-trait_name_part = identifier ;
+```grammar
+comment ::= ";;" comment_char* (line_end | end_of_input)
+identifier ::= identifier_start_plain identifier_char{0,127}
+             | "u" (identifier_char_nondigit identifier_char{0,126})?
+             | ("-" | "+")
+               (identifier_char_nondigit_except_u identifier_char{0,126}
+                | "u" (identifier_char_nondigit identifier_char{0,125})?)?
+natural_literal ::= "0" | nonzero_digit decimal_digit*
+negative_int_literal ::= "-" nonzero_digit decimal_digit*
+uint_literal ::= "u" natural_literal
+buffer_literal ::= "0x" (hex_digit hex_digit)*
+string_ascii_literal ::= '"' (string_plain_char | ascii_escape)* '"'
+ascii_escape ::= "\" ("\" | '"' | "n" | "t" | "r")
+string_utf8_literal ::= "u" '"' (utf8_string_char | ascii_escape | utf8_escape)* '"'
+utf8_escape ::= "\u{" ("0" | nonzero_hex_digit hex_digit{0,5}) "}"
+standard_principal_literal ::= "'" "S" c32_char+
+contract_principal_literal ::= standard_principal_literal? "." contract_name
+contract_name ::= ascii_letter contract_name_char{0,39}
+trait_identifier_literal ::= standard_principal_literal? "." contract_name "."
+                             trait_name_part
+trait_name_part ::= identifier
 ```
 
 The token rules have these consequences, each shown with a valid and an invalid
@@ -163,67 +166,55 @@ contract:
 In the grammar a keyword is any word of `keyword` (each class is its own rule in
 the grammar file), and the rules that take a name exclude it:
 
-```ebnf
-keyword = literal_keyword
-        | special_form_keyword
-        | definition_keyword
-        | version_keyword
-        | allowance_keyword
-        | constructor_keyword
-        | type_name_keyword
-        | ref_kind_keyword
-        | trait_marker_keyword ;
-literal_keyword = "true" | "false" | "none" ;
-special_form_keyword = "let" | "begin" | "match" | "and" | "or" | "return"
-                     | "as" | "get" | "merge" | "contract-call?"
-                     | "contract-call-raw?" | "as-contract?"
-                     | "restrict-assets?" ;
-definition_keyword = "define-constant" | "define-type" | "define-data-var"
-                   | "define-map" | "define-fungible-token"
-                   | "define-non-fungible-token" | "define-event"
-                   | "define-trait" | "impl-trait" | "define-public"
-                   | "define-read-only" | "define-private" | "define-macro" ;
-version_keyword = "clarity-version" ;
-allowance_keyword = "with-stx" | "with-ft" | "with-nft" | "with-staking"
-                  | "with-pox" | "with-all-assets-unsafe" ;
-constructor_keyword = "some" | "ok" | "err" | "list" ;
-type_name_keyword = "int" | "uint" | "bool" | "principal" | "never" | "buff"
-                  | "string-ascii" | "string-utf8" | "list" | "optional"
-                  | "response" | "trait" ;
-ref_kind_keyword = "var" | "map" | "fungible-token" | "non-fungible-token"
-                 | "event" | "function" ;
-trait_marker_keyword = "read-only" ;
+```grammar
+keyword ::= literal_keyword | special_form_keyword | definition_keyword
+          | version_keyword | allowance_keyword | constructor_keyword
+          | type_name_keyword | ref_kind_keyword | trait_marker_keyword
+literal_keyword ::= "true" | "false" | "none"
+special_form_keyword ::= "let" | "begin" | "match" | "and" | "or" | "return"
+                       | "as" | "get" | "merge" | "contract-call?"
+                       | "contract-call-raw?" | "as-contract?"
+                       | "restrict-assets?"
+definition_keyword ::= "define-constant" | "define-type" | "define-data-var"
+                     | "define-map" | "define-fungible-token"
+                     | "define-non-fungible-token" | "define-event"
+                     | "define-trait" | "impl-trait" | "define-public"
+                     | "define-read-only" | "define-private" | "define-macro"
+version_keyword ::= "clarity-version"
+allowance_keyword ::= "with-stx" | "with-ft" | "with-nft" | "with-staking"
+                    | "with-pox" | "with-all-assets-unsafe"
+constructor_keyword ::= "some" | "ok" | "err" | "list"
+type_name_keyword ::= "int" | "uint" | "bool" | "principal" | "never" | "buff"
+                    | "string-ascii" | "string-utf8" | "list" | "optional"
+                    | "response" | "trait"
+ref_kind_keyword ::= "var" | "map" | "fungible-token" | "non-fungible-token"
+                   | "event" | "function"
+trait_marker_keyword ::= "read-only"
 ```
 
 ## 2.3 Types
 
 ### 2.3.1 Type grammar
 
-```ebnf
-type = base_type
-     | buff_type
-     | string_ascii_type
-     | string_utf8_type
-     | list_type
-     | optional_type
-     | response_type
-     | tuple_type
-     | trait_type
-     | type_reference ;
-base_type = "int" | "uint" | "bool" | "principal" | "never" ;
-buff_type = "(", "buff", type_size, ")" ;
-string_ascii_type = "(", "string-ascii", type_size, ")" ;
-list_type = "(", "list", type_size, type, ")" ;
-optional_type = "(", "optional", type, ")" ;
-response_type = "(", "response", type, type, ")" ;
-tuple_type = "{", [tuple_type_entry, {",", tuple_type_entry}, [","]], "}" ;
-tuple_type_entry = field_name, ":", type ;
-trait_type = "(", "trait", trait_identifier, ")" ;
-trait_identifier = trait_identifier_literal | name ;
-type_reference = name ;
-type_size = natural_literal | name ;
-size_term = uint_literal | name | size_term_bare_numeral ;
-size_term_bare_numeral = int_literal ;
+```grammar
+type ::= base_type | buff_type | string_ascii_type | string_utf8_type
+       | list_type | optional_type | response_type | tuple_type | trait_type
+       | type_reference
+base_type ::= "int" | "uint" | "bool" | "principal" | "never"
+buff_type ::= "(" "buff" type_size ")"
+string_ascii_type ::= "(" "string-ascii" type_size ")"
+string_utf8_type ::= "(" "string-utf8" type_size ")"
+list_type ::= "(" "list" type_size type ")"
+optional_type ::= "(" "optional" type ")"
+response_type ::= "(" "response" type type ")"
+tuple_type ::= "{" (tuple_type_entry ("," tuple_type_entry)* ","?)? "}"
+tuple_type_entry ::= field_name ":" type
+trait_type ::= "(" "trait" trait_identifier ")"
+trait_identifier ::= trait_identifier_literal | name
+type_reference ::= name
+type_size ::= natural_literal | name
+size_term ::= uint_literal | name | size_term_bare_numeral
+size_term_bare_numeral ::= int_literal
 ```
 
 A `type_reference` is a `define-type` alias, a trait name or a type variable
@@ -522,19 +513,15 @@ Some parameters do not hold runtime values but refer statically to a definition
 in the current contract. These **reference kinds** are not types: they cannot
 appear in `let` bindings, storage, interfaces, tuples, or sequences.
 
-```ebnf
-ref_kind = var_ref_kind
-         | map_ref_kind
-         | fungible_token_ref_kind
-         | non_fungible_token_ref_kind
-         | event_ref_kind
-         | function_ref_kind ;
-var_ref_kind = "(", "var", type, ")" ;
-map_ref_kind = "(", "map", type, type, ")" ;
-fungible_token_ref_kind = "(", "fungible-token", ")" ;
-non_fungible_token_ref_kind = "(", "non-fungible-token", type, ")" ;
-event_ref_kind = "(", "event", type, ")" ;
-function_ref_kind = "(", "function", "(", {type}, ")", type, ")" ;
+```grammar
+ref_kind ::= var_ref_kind | map_ref_kind | fungible_token_ref_kind
+           | non_fungible_token_ref_kind | event_ref_kind | function_ref_kind
+var_ref_kind ::= "(" "var" type ")"
+map_ref_kind ::= "(" "map" type type ")"
+fungible_token_ref_kind ::= "(" "fungible-token" ")"
+non_fungible_token_ref_kind ::= "(" "non-fungible-token" type ")"
+event_ref_kind ::= "(" "event" type ")"
+function_ref_kind ::= "(" "function" "(" type* ")" type ")"
 ```
 
 An argument in a reference-kind position MUST be either the name of a definition
@@ -578,11 +565,11 @@ both named `listed`, or a constant and a function both named `fee`.
 
 ### 2.4.0 Version declaration
 
-```ebnf
-contract = version_declaration, {top_level_form} ;
-version_declaration = "(", "clarity-version", version_number, ")" ;
-version_number = natural_literal ;
-top_level_form = definition | expr ;
+```grammar
+contract ::= version_declaration top_level_form*
+version_declaration ::= "(" "clarity-version" version_number ")"
+version_number ::= natural_literal
+top_level_form ::= definition | expr
 ```
 
 The version number is a numeral of at least 1, with no leading zero:
@@ -603,43 +590,34 @@ contract.
 
 ### 2.4.1 Definition forms
 
-```ebnf
-definition = define_constant
-           | define_type
-           | define_data_var
-           | define_map
-           | define_fungible_token
-           | define_non_fungible_token
-           | define_event
-           | define_trait
-           | impl_trait
-           | define_public
-           | define_read_only
-           | define_private
-           | define_macro ;
-define_constant = "(", "define-constant", binding_name, expr, ")" ;
-define_type = "(", "define-type", binding_name, type, ")" ;
-define_data_var = "(", "define-data-var", binding_name, storable_type, expr, ")" ;
-define_map = "(", "define-map", binding_name, storable_type, storable_type, ")" ;
-define_fungible_token = "(", "define-fungible-token", binding_name, [expr], ")" ;
-define_non_fungible_token = "(", "define-non-fungible-token", binding_name,
-                            storable_type, ")" ;
-define_event = "(", "define-event", binding_name, interface_type, ")" ;
-define_trait = "(", "define-trait", binding_name, "(", {trait_signature}, ")", ")" ;
-trait_signature = "(", foreign_function_name, "(", {interface_type}, ")",
-                  interface_type, ["read-only"], ")" ;
-impl_trait = "(", "impl-trait", trait_identifier, ")" ;
-define_public = "(", "define-public", public_signature, body, ")" ;
-define_read_only = "(", "define-read-only", public_signature, body, ")" ;
-public_signature = "(", binding_name, {public_parameter}, ")" ;
-public_parameter = "(", binding_name, interface_type, ")" ;
-define_private = "(", "define-private", private_signature, body, ")" ;
-private_signature = "(", binding_name, {private_parameter}, [rest_parameter], ")" ;
-private_parameter = "(", binding_name, (type | ref_kind), ")" ;
-rest_parameter = "(", binding_name, type, "...", ")" ;
-define_macro = "(", "define-macro", macro_signature, body, ")" ;
-macro_signature = "(", binding_name, {private_parameter}, ")" ;
-body = expr, {expr} ;
+```grammar
+definition ::= define_constant | define_type | define_data_var | define_map
+             | define_fungible_token | define_non_fungible_token | define_event
+             | define_trait | impl_trait | define_public | define_read_only
+             | define_private | define_macro
+define_constant ::= "(" "define-constant" binding_name expr ")"
+define_type ::= "(" "define-type" binding_name type ")"
+define_data_var ::= "(" "define-data-var" binding_name storable_type expr ")"
+define_map ::= "(" "define-map" binding_name storable_type storable_type ")"
+define_fungible_token ::= "(" "define-fungible-token" binding_name expr? ")"
+define_non_fungible_token ::= "(" "define-non-fungible-token" binding_name
+                              storable_type ")"
+define_event ::= "(" "define-event" binding_name interface_type ")"
+define_trait ::= "(" "define-trait" binding_name "(" trait_signature* ")" ")"
+trait_signature ::= "(" foreign_function_name "(" interface_type* ")"
+                    interface_type "read-only"? ")"
+impl_trait ::= "(" "impl-trait" trait_identifier ")"
+define_public ::= "(" "define-public" public_signature body ")"
+define_read_only ::= "(" "define-read-only" public_signature body ")"
+public_signature ::= "(" binding_name public_parameter* ")"
+public_parameter ::= "(" binding_name interface_type ")"
+define_private ::= "(" "define-private" private_signature body ")"
+private_signature ::= "(" binding_name private_parameter* rest_parameter? ")"
+private_parameter ::= "(" binding_name (type | ref_kind) ")"
+rest_parameter ::= "(" binding_name type "..." ")"
+define_macro ::= "(" "define-macro" macro_signature body ")"
+macro_signature ::= "(" binding_name private_parameter* ")"
+body ::= expr+
 ```
 
 | Grammar rule                | Introduces                                                                                                                                                                                                                                                                          | Rules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -758,56 +736,29 @@ below also lists `map_form` and the forms of the six primitives that take a type
 or size argument (`as_max_len_form` and the others): these are primitives of
 chapter 3 with their own syntax, not special forms (2.5.5).
 
-```ebnf
-expr = literal
-     | name
-     | let_form
-     | begin_form
-     | match_form
-     | and_form
-     | or_form
-     | return_form
-     | some_ctor
-     | ok_ctor
-     | err_ctor
-     | list_ctor
-     | tuple_ctor
-     | get_form
-     | merge_form
-     | contract_call
-     | contract_call_raw
-     | as_contract_form
-     | restrict_assets_form
-     | as_form
-     | as_max_len_form
-     | uint_to_buff_be_form
-     | uint_to_buff_le_form
-     | int_to_buff_be_form
-     | int_to_buff_le_form
-     | from_consensus_buff_form
-     | map_form
-     | application ;
-literal = int_literal
-        | uint_literal
-        | bool_literal
-        | buffer_literal
-        | string_ascii_literal
-        | string_utf8_literal
-        | standard_principal_literal
-        | contract_principal_literal
-        | none_literal ;
-int_literal = natural_literal | negative_int_literal ;
-bool_literal = "true" | "false" ;
-none_literal = "none" ;
+```grammar
+expr ::= literal | name | let_form | begin_form | match_form | and_form
+       | or_form | return_form | some_ctor | ok_ctor | err_ctor | list_ctor
+       | tuple_ctor | get_form | merge_form | contract_call | contract_call_raw
+       | as_contract_form | restrict_assets_form | as_form | as_max_len_form
+       | uint_to_buff_be_form | uint_to_buff_le_form | int_to_buff_be_form
+       | int_to_buff_le_form | from_consensus_buff_form | map_form | application
+literal ::= int_literal | uint_literal | bool_literal | buffer_literal
+          | string_ascii_literal | string_utf8_literal
+          | standard_principal_literal | contract_principal_literal
+          | none_literal
+int_literal ::= natural_literal | negative_int_literal
+bool_literal ::= "true" | "false"
+none_literal ::= "none"
 ```
 
 ### 2.5.1 Names
 
-```ebnf
-name = identifier - keyword ;
-binding_name = name ;
-field_name = identifier ;
-foreign_function_name = identifier ;
+```grammar
+name ::= identifier - keyword
+binding_name ::= name
+field_name ::= identifier
+foreign_function_name ::= identifier
 ```
 
 Four positions take any identifier, keywords included: a tuple field name
@@ -825,10 +776,10 @@ context is read with `get-current-context` (3.9).
 
 ### 2.5.2 `let`
 
-```ebnf
-let_form = "(", "let", "(", {let_binding}, ")", body, ")" ;
-let_binding = "(", binding_name, expr, ")" ;
-begin_form = "(", "begin", body, ")" ;
+```grammar
+let_form ::= "(" "let" "(" let_binding* ")" body ")"
+let_binding ::= "(" binding_name expr ")"
+begin_form ::= "(" "begin" body ")"
 ```
 
 A `binding_name` is a name, never a keyword: `(let ((list u1)) list)` is a parse
@@ -854,23 +805,22 @@ rename it when ported.
 
 ### 2.5.3 `match`, `and`, `or`
 
-```ebnf
-match_form = "(", "match", expr, match_arms, ")" ;
-match_arms = some_arm, none_arm   | none_arm, some_arm
-           | ok_arm, err_arm      | err_arm, ok_arm
-           | true_arm, false_arm  | false_arm, true_arm ;
-some_arm  = "(", some_pattern,  body, ")" ;
-none_arm  = "(", none_pattern,  body, ")" ;
-ok_arm    = "(", ok_pattern,    body, ")" ;
-err_arm   = "(", err_pattern,   body, ")" ;
-true_arm  = "(", true_pattern,  body, ")" ;
-false_arm = "(", false_pattern, body, ")" ;
-some_pattern = "(", "some", binding_name, ")" ;
-none_pattern = "none" ;
-ok_pattern = "(", "ok", binding_name, ")" ;
-err_pattern = "(", "err", binding_name, ")" ;
-true_pattern = "true" ;
-false_pattern = "false" ;
+```grammar
+match_form ::= "(" "match" expr match_arms ")"
+match_arms ::= some_arm none_arm | none_arm some_arm | ok_arm err_arm
+             | err_arm ok_arm | true_arm false_arm | false_arm true_arm
+some_arm ::= "(" some_pattern body ")"
+none_arm ::= "(" none_pattern body ")"
+ok_arm ::= "(" ok_pattern body ")"
+err_arm ::= "(" err_pattern body ")"
+true_arm ::= "(" true_pattern body ")"
+false_arm ::= "(" false_pattern body ")"
+some_pattern ::= "(" "some" binding_name ")"
+none_pattern ::= "none"
+ok_pattern ::= "(" "ok" binding_name ")"
+err_pattern ::= "(" "err" binding_name ")"
+true_pattern ::= "true"
+false_pattern ::= "false"
 ```
 
 Two arms that are not one of these six ordered pairs are a parse error, also in
@@ -907,9 +857,9 @@ type-checked with each parameter at its declared type (2.6.3), so the scrutinee
 of that `match` is a `bool` whatever the argument's type: `(if (panic) a b)` and
 `(if (not (panic)) a b)` both have type `lub(A, B)`.
 
-```ebnf
-and_form = "(", "and", expr, expr, {expr}, ")" ;
-or_form = "(", "or", expr, expr, {expr}, ")" ;
+```grammar
+and_form ::= "(" "and" expr expr+ ")"
+or_form ::= "(" "or" expr expr+ ")"
 ```
 
 `and` and `or` take two or more `bool` expressions and evaluate them left to
@@ -925,8 +875,8 @@ an expression of type `never` is by subtyping, so `(and (panic) b)` has type
 
 ### 2.5.4 `return`
 
-```ebnf
-return_form = "(", "return", expr, ")" ;
+```grammar
+return_form ::= "(" "return" expr ")"
 ```
 
 Evaluates `expr`, then terminates the innermost enclosing function body (after
@@ -942,13 +892,13 @@ functions defined over `match` and `return`.
 
 ### 2.5.5 Application
 
-```ebnf
-application = "(", application_head, {expr}, [expr, "..."], ")" ;
-application_head = identifier - non_application_head ;
-non_application_head = keyword | dedicated_primitive_head ;
-dedicated_primitive_head = "as-max-len?" | "uint-to-buff-be"
-                         | "uint-to-buff-le" | "int-to-buff-be"
-                         | "int-to-buff-le" | "from-consensus-buff?" ;
+```grammar
+application ::= "(" application_head expr* (expr "...")? ")"
+application_head ::= identifier - non_application_head
+non_application_head ::= keyword | dedicated_primitive_head
+dedicated_primitive_head ::= "as-max-len?" | "uint-to-buff-be"
+                           | "uint-to-buff-le" | "int-to-buff-be"
+                           | "int-to-buff-le" | "from-consensus-buff?"
 ```
 
 At most one argument is a spread `e...`, and it is the last (2.6.5). The six
@@ -962,13 +912,13 @@ prelude, or a `(function ...)` parameter. Arguments are evaluated left to right
 
 ### 2.5.6 Constructors
 
-```ebnf
-some_ctor = "(", "some", expr, ")" ;
-ok_ctor = "(", "ok", expr, ")" ;
-err_ctor = "(", "err", expr, ")" ;
-list_ctor = "(", "list", {expr}, ")" ;
-tuple_ctor = "{", [tuple_entry, {",", tuple_entry}, [","]], "}" ;
-tuple_entry = field_name, ":", expr ;
+```grammar
+some_ctor ::= "(" "some" expr ")"
+ok_ctor ::= "(" "ok" expr ")"
+err_ctor ::= "(" "err" expr ")"
+list_ctor ::= "(" "list" expr* ")"
+tuple_ctor ::= "{" (tuple_entry ("," tuple_entry)* ","?)? "}"
+tuple_entry ::= field_name ":" expr
 ```
 
 These forms construct values. A tuple field name is any identifier, keywords
@@ -988,9 +938,9 @@ number of arguments only through a rest parameter (2.6.5).
 
 ### 2.5.7 Tuple access
 
-```ebnf
-get_form = "(", "get", field_name, expr, ")" ;
-merge_form = "(", "merge", expr, expr, ")" ;
+```grammar
+get_form ::= "(" "get" field_name expr ")"
+merge_form ::= "(" "merge" expr expr ")"
 ```
 
 - `(get f e)` with `e : { f: T, ... }` has type `T`. `f` MUST be a field of the
@@ -1002,8 +952,8 @@ merge_form = "(", "merge", expr, expr, ")" ;
 
 ### 2.5.8 Cross-contract calls
 
-```ebnf
-contract_call = "(", "contract-call?", expr, foreign_function_name, {expr}, ")" ;
+```grammar
+contract_call ::= "(" "contract-call?" expr foreign_function_name expr* ")"
 ```
 
 The first `expr` is the `contract`, the `foreign_function_name` is the
@@ -1062,14 +1012,15 @@ function the trait marks `read-only`, is not read-only, and its result is
 validated like any other, so a principal that does not conform can make the call
 fail but cannot make it return a value of the wrong type.
 
-```ebnf
-contract_call_raw = "(", "contract-call-raw?", expr, foreign_function_name,
-                    expr, size_term, ")" ;
+```grammar
+contract_call_raw ::= "(" "contract-call-raw?" expr foreign_function_name expr
+                      size_term ")"
 ```
 
 In `contract_call_raw` the expressions are, in order, the `contract`, then
 (after the `function-name`) `args`; the `size_term` is the `size` (2.3.1),
-written `u64`; a bare `64` parses and is a type error (C11, 5.4).
+written as a `uint`, e.g. `u64`; a bare integer, e.g. `64`, parses and is a
+type error (C11, 5.4).
 
 Calls a function without a declared signature, such as a function of a contract
 written in a language that does not declare its types
@@ -1085,23 +1036,18 @@ read-only. The rollback rules of 2.7.3 apply to the callee as to any call.
 
 ### 2.5.9 Context scoping and asset allowances
 
-```ebnf
-as_contract_form = "(", "as-contract?", "(", {allowance}, ")", body, ")"
-                 | "(", "as-contract?", "(", all_assets_unsafe_allowance, ")",
-                   body, ")" ;
-all_assets_unsafe_allowance = "(", "with-all-assets-unsafe", ")" ;
-restrict_assets_form = "(", "restrict-assets?", expr, "(", {allowance}, ")",
-                       body, ")" ;
-allowance = with_stx_allowance
-          | with_ft_allowance
-          | with_nft_allowance
-          | with_staking_allowance
-          | with_pox_allowance ;
-with_stx_allowance = "(", "with-stx", expr, ")" ;
-with_ft_allowance = "(", "with-ft", expr, expr, expr, ")" ;
-with_nft_allowance = "(", "with-nft", expr, expr, expr, ")" ;
-with_staking_allowance = "(", "with-staking", expr, ")" ;
-with_pox_allowance = "(", "with-pox", ")" ;
+```grammar
+as_contract_form ::= "(" "as-contract?" "(" allowance* ")" body ")"
+                   | "(" "as-contract?" "(" all_assets_unsafe_allowance ")" body ")"
+all_assets_unsafe_allowance ::= "(" "with-all-assets-unsafe" ")"
+restrict_assets_form ::= "(" "restrict-assets?" expr "(" allowance* ")" body ")"
+allowance ::= with_stx_allowance | with_ft_allowance | with_nft_allowance
+            | with_staking_allowance | with_pox_allowance
+with_stx_allowance ::= "(" "with-stx" expr ")"
+with_ft_allowance ::= "(" "with-ft" expr expr expr ")"
+with_nft_allowance ::= "(" "with-nft" expr expr expr ")"
+with_staking_allowance ::= "(" "with-staking" expr ")"
+with_pox_allowance ::= "(" "with-pox" ")"
 ```
 
 The arguments, in order: `with_stx_allowance` and `with_staking_allowance` take
@@ -1159,8 +1105,8 @@ contract's). The number of allowances is bounded (2.8).
 
 ### 2.5.10 Type ascription
 
-```ebnf
-as_form = "(", "as", type, expr, ")" ;
+```grammar
+as_form ::= "(" "as" type expr ")"
 ```
 
 `type` is a type expression (2.3.1), and may use the type and size variables in
