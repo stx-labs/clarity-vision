@@ -97,6 +97,21 @@ that swaps `f`'s arguments, and a function cannot be closed over. Legacy `fold`
 (left to right, element first) is removed; it is `fold-left` with the callback's
 parameters swapped.
 
+`map` is a keyword (the reference kind of 2.3.7, 2.2) and `as-max-len?` takes a
+size term, so both have their own forms in the grammar:
+
+```ebnf
+map_form = "(", "map", name, expr, ")" ;
+as_max_len_form = "(", "as-max-len?", expr, size_term, ")" ;
+```
+
+`(map f xs)` takes exactly one function name and one sequence: `(map f xs ys)`
+and `(map f xs...)` are parse errors, and so is a function slot that is not a
+name, such as `(map (g) xs)`. That is a parse error because `map` has its own
+form; the same mistake in `filter` or `fold-left`, ordinary applications, is a
+type error. The size of `as-max-len?` is a `size_term` (2.3.1):
+`(as-max-len? s u4)`; `(as-max-len? s 4)` parses and is a type error.
+
 Library, not primitive: `append`, `index-of?`, `replace-at?`. Legacy
 multi-sequence `map` (`(map f l1 l2)`) is dropped. It cannot be written in the
 library, because a fold would have to carry `f` in its accumulator. `filter`
@@ -117,6 +132,18 @@ reject inputs near the limit that the primitive accepts.
 | `int-to-buff-le`       | `(int size) -> (buff W)`           | little-endian counterpart                                                                                                                                                                                                                                                                                                    | value does not fit                     |
 | `to-consensus-buff`    | `(T) -> (buff serialized-size(T))` | canonical encoding of the value (SIP-005; see below). Total: the size limits apply to the result through its position (2.3.1), so a serialization that is only hashed or compared is bounded by the intermediate limit, and one that is bound, returned, or stored by the value limit, both statically. `T` MUST be storable |                                        |
 | `from-consensus-buff?` | `(type (buff N)) -> (optional T)`  | the first argument is a type expression `T`, which MUST be storable. Deserializes; `none` if the bytes are not a canonical encoding of a value of type `T` (exact typed-tuple fields, no trailing bytes). Memory for the result is reserved against `serialized-size(T)` before decoding (2.7.7)                             |                                        |
+
+The primitives with a size or type argument have their own forms in the grammar;
+the size is a `size_term` (2.3.1) and the type of `from-consensus-buff?` a
+storable type:
+
+```ebnf
+uint_to_buff_be_form = "(", "uint-to-buff-be", expr, size_term, ")" ;
+uint_to_buff_le_form = "(", "uint-to-buff-le", expr, size_term, ")" ;
+int_to_buff_be_form = "(", "int-to-buff-be", expr, size_term, ")" ;
+int_to_buff_le_form = "(", "int-to-buff-le", expr, size_term, ")" ;
+from_consensus_buff_form = "(", "from-consensus-buff?", storable_type, expr, ")" ;
+```
 
 Canonical encoding and `serialized-size(T)`, the largest encoding of any value
 of `T`, are defined by the interpretation layer
