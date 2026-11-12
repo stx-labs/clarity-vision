@@ -134,16 +134,18 @@ identifier = identifier_start_plain, 127 * [identifier_char]
 
 (* --- L.4 Numeric and buffer literals ------------------------------------- *)
 
-(* §2.2 A decimal numeral is "0" or a nonzero digit followed by digits. *)
+(* §2.2 A decimal numeral is "0" or a nonzero digit followed by digits, a
+   single "_" between two digits allowed. *)
 nonzero_digit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 
 (* §2.2 An unsigned numeral with no leading zero: 007 is no token (T2, 5.2).
-   LX2; LX6 through int_literal bound the value (5.3). *)
-natural_literal = "0" | nonzero_digit, {decimal_digit} ;
+   1_000 is 1000; 1_, 1__0 and 0_1 are no token. LX2; LX6 through
+   int_literal bound the value (5.3). *)
+natural_literal = "0" | nonzero_digit, {["_"], decimal_digit} ;
 
-(* §2.2 "-" and a numeral; -0 is no token (T2, 5.2). LX1 bounds the value
-   (5.3). *)
-negative_int_literal = "-", nonzero_digit, {decimal_digit} ;
+(* §2.2 "-" and a numeral; -0 is no token (T2, 5.2), -1_000 is -1000. LX1
+   bounds the value (5.3). *)
+negative_int_literal = "-", nonzero_digit, {["_"], decimal_digit} ;
 
 (* §2.2 "u" followed by a numeral with no leading zero: u00 is no token (T2,
    5.2). LX3 bounds the value (5.3). *)

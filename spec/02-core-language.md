@@ -49,10 +49,12 @@ characters, and gives each source one byte form.
   digit: `u1x`, `-u1`, `+5` and `+u1` are parse errors, not identifiers.
   Identifiers are case-sensitive.
 - **Integer literals**: `uint` literals are `u` followed by a decimal numeral
-  (`u42`); `int` literals are a decimal numeral, preceded by `-` if it is not
-  `0` (`42`, `0`, `-7`). A numeral is `0` or a nonzero digit followed by zero
-  or more digits, so `007`, `u00` and `-0` are parse errors. Values outside the
-  128-bit range are a parse error.
+  (`u42`); `int` literals are an optional `-` followed by a non-zero decimal
+  numeral, or `0` (`42`, `-7`, `0`). A numeral is `0` or a nonzero digit
+  followed by zero or more digits, and a single `_` may separate two of its
+  digits (`1_000_000`, `u2_500`, `(buff 1_024)`) without changing its value.
+  So `007`, `u00`, `-0`, `1_`, `1__0` and `0_1` are parse errors, and `u_1` is
+  an identifier. Values outside the 128-bit range are a parse error.
 - **Boolean literals**: `true`, `false`.
 - **Buffer literals**: `0x` followed by an even number of hex digits (`0x`,
   `0xdeadbeef`).
@@ -72,13 +74,12 @@ characters, and gives each source one byte form.
   encoded, as in [c32check](https://github.com/stacks-network/c32check): a
   version and a 20-byte hash with a checksum, in the base-32 alphabet of the
   digits and the upper-case letters except `I`, `L`, `O` and `U`; the version
-  character after `S` is `P` or `M` on mainnet, `T` or `N` on testnet, the
-  versions `0x16`, `0x14`, `0x1a` and `0x15` the prelude names
-  `std-mainnet-p2pkh-version`, `std-mainnet-p2sh-version`,
+  character after `S` may be any character of that alphabet, a version from 0
+  to 31, of which the chain's accounts use `P` and `M` on mainnet and `T` and
+  `N` on testnet, the versions `0x16`, `0x14`, `0x1a` and `0x15` the prelude
+  names `std-mainnet-p2pkh-version`, `std-mainnet-p2sh-version`,
   `std-testnet-p2pkh-version` and `std-testnet-p2sh-version`
-  ([std/prelude.clar](std/prelude.clar)), and any other is a parse error: a
-  principal value of another version, such as one `principal-construct?` builds,
-  has no literal); contract principals `'SP....name` or the deployer-relative
+  ([std/prelude.clar](std/prelude.clar))); contract principals `'SP....name` or the deployer-relative
   `.name`; trait identifiers `'SP....contract.trait`, `.contract.trait`, or a
   bare local trait `name` where a trait identifier is expected. A contract name
   is 1 to 40 characters, starts with an ASCII letter, and continues with
@@ -105,8 +106,8 @@ identifier ::= identifier_start_plain identifier_char{0,127}
              | ("-" | "+")
                (identifier_char_nondigit_except_u identifier_char{0,126}
                 | "u" (identifier_char_nondigit identifier_char{0,125})?)?
-natural_literal ::= "0" | nonzero_digit decimal_digit*
-negative_int_literal ::= "-" nonzero_digit decimal_digit*
+natural_literal ::= "0" | nonzero_digit ("_"? decimal_digit)*
+negative_int_literal ::= "-" nonzero_digit ("_"? decimal_digit)*
 uint_literal ::= "u" natural_literal
 buffer_literal ::= "0x" (hex_digit hex_digit)*
 string_ascii_literal ::= '"' (string_plain_char | ascii_escape)* '"'
