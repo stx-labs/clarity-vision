@@ -1,0 +1,704 @@
+(* ============================================================================
+   Clarity vNEXT grammar.  ISO/IEC 14977 EBNF.
+
+   The syntax of Clarity vNEXT source text.  Chapter 5 (05-grammar.md) is the
+   reading guide: notation, the two levels, tokenization (T1-T4), the layout
+   rule (W1), the lexical checks (LX1-LX7) and the rules left to the type
+   checker (C1-C15).  Rule comments cite sections of 02-core-language.md
+   (2.x) and 03-primitives.md (3.x).
+   ========================================================================== *)
+
+(* ##########################################################################
+   PART L  --  LEXICAL GRAMMAR  (characters to tokens)
+   ########################################################################## *)
+
+(* --- L.1 Source text, tokens, separators --------------------------------- *)
+
+(* §2.2 The whole source: separators and tokens. *)
+source_text = {separator}, [token, {{separator}, token}], {separator} ;
+
+(* §2.2 *)
+token = "(" | ")" | "{" | "}" | ":" | "," | "..."
+      | identifier
+      | natural_literal
+      | negative_int_literal
+      | uint_literal
+      | buffer_literal
+      | string_ascii_literal
+      | string_utf8_literal
+      | standard_principal_literal
+      | contract_principal_literal
+      | trait_identifier_literal ;
+
+(* §2.2 *)
+atom_delimiter = separator | "(" | ")" | "{" | "}" | ":" | "," | "..."
+               | end_of_input ;
+
+(* §2.2 Whitespace or a comment. Separators are dropped before Part S. *)
+separator = whitespace | comment ;
+
+(* §2.2 Space, TAB and LF only. A carriage return is an error anywhere (T3,
+   5.2), so a CRLF line end is rejected. *)
+whitespace = " " | tab_char | line_feed ;
+
+(* §2.2 LF is the only line terminator: "end of line" in 2.2. *)
+line_end = line_feed ;
+
+(* §2.2 ";;" to the end of the line. A single ";" outside a string is an
+   error (T3, 5.2). *)
+comment = ";;", {comment_char}, (line_end | end_of_input) ;
+
+(* §2.2 A comment holds printable ASCII and TAB only; no other character,
+   non-ASCII included. *)
+comment_char = tab_char | printable_ascii ;
+
+(* §2.2 *)
+tab_char = ? the single character U+0009 CHARACTER TABULATION ? ;
+
+(* §2.2 *)
+line_feed = ? the single character U+000A LINE FEED ? ;
+
+(* §2.2 *)
+end_of_input = ? the empty string at the end of the source text ? ;
+
+(* --- L.2 Character classes ----------------------------------------------- *)
+
+(* §2.2 *)
+decimal_digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
+(* §2.2 *)
+hex_digit = decimal_digit
+          | "a" | "b" | "c" | "d" | "e" | "f"
+          | "A" | "B" | "C" | "D" | "E" | "F" ;
+
+(* §2.2 *)
+uppercase_letter = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
+                 | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
+                 | "U" | "V" | "W" | "X" | "Y" | "Z" ;
+
+(* §2.2 *)
+lowercase_letter_except_u = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h"
+                          | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p"
+                          | "q" | "r" | "s" | "t" | "v" | "w" | "x" | "y"
+                          | "z" ;
+
+(* §2.2 *)
+lowercase_letter = lowercase_letter_except_u | "u" ;
+
+(* §2.2 *)
+ascii_letter = uppercase_letter | lowercase_letter ;
+
+(* §2.2 *)
+identifier_symbol_except_sign = "_" | "!" | "?" | "<" | ">" | "=" | "/" | "*"
+                              | "^" ;
+
+(* §2.2 *)
+identifier_symbol = identifier_symbol_except_sign | "-" | "+" ;
+
+(* §2.2 *)
+plain_punctuation = "!" | "#" | "$" | "%" | "&" | "'" | "(" | ")" | "*" | "+"
+                  | "," | "-" | "." | "/" | ":" | ";" | "<" | "=" | ">" | "?"
+                  | "@" | "[" | "]" | "^" | "_" | "`" | "{" | "|" | "}" | "~" ;
+
+(* §2.2 A raw character of a string literal: printable ASCII except the
+   quote and the backslash. *)
+string_plain_char = " " | ascii_letter | decimal_digit | plain_punctuation ;
+
+(* §2.2 *)
+printable_ascii = string_plain_char | '"' | "\" ;
+
+(* --- L.3 Identifiers ----------------------------------------------------- *)
+
+(* §2.2 *)
+identifier_start_plain = uppercase_letter | lowercase_letter_except_u
+                       | identifier_symbol_except_sign ;
+
+(* §2.2 *)
+identifier_char = ascii_letter | decimal_digit | identifier_symbol ;
+
+(* §2.2 *)
+identifier_char_nondigit = ascii_letter | identifier_symbol ;
+
+(* §2.2 *)
+identifier_char_nondigit_except_u = uppercase_letter | lowercase_letter_except_u
+                                  | identifier_symbol ;
+
+(* §2.2, §2.8 1-128 characters. An identifier never starts with
+   [+-]?u?<digit>: u1, -7, +5, -u1 and +u1 are never identifiers; u, -, +,
+   ux1, -x, u-1, u+1, +u and -u are. *)
+identifier = identifier_start_plain, 127 * [identifier_char]
+           | "u", [identifier_char_nondigit, 126 * [identifier_char]]
+           | ("-" | "+"),
+             [identifier_char_nondigit_except_u, 126 * [identifier_char]
+              | "u", [identifier_char_nondigit, 125 * [identifier_char]]] ;
+
+(* --- L.4 Numeric and buffer literals ------------------------------------- *)
+
+(* §2.2 A decimal numeral is "0" or a nonzero digit followed by digits, a
+   single "_" between two digits allowed. *)
+nonzero_digit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
+(* §2.2 An unsigned numeral with no leading zero: 007 is no token (T2, 5.2).
+   1_000 is 1000; 1_, 1__0 and 0_1 are no token. LX2; LX6 through
+   int_literal bound the value (5.3). *)
+natural_literal = "0" | nonzero_digit, {["_"], decimal_digit} ;
+
+(* §2.2 "-" and a numeral; -0 is no token (T2, 5.2), -1_000 is -1000. LX1
+   bounds the value (5.3). *)
+negative_int_literal = "-", nonzero_digit, {["_"], decimal_digit} ;
+
+(* §2.2 "u" followed by a numeral with no leading zero: u00 is no token (T2,
+   5.2). LX3 bounds the value (5.3). *)
+uint_literal = "u", natural_literal ;
+
+(* §2.2 "0x" (lower case) and an even number of hex digits. *)
+buffer_literal = "0x", {hex_digit, hex_digit} ;
+
+(* --- L.5 String literals ------------------------------------------------- *)
+
+(* §2.2 The five escapes of 2.2. Any other backslash sequence is an error. *)
+ascii_escape = "\", ("\" | '"' | "n" | "t" | "r") ;
+
+(* §2.2 *)
+string_ascii_literal = '"', {string_plain_char | ascii_escape}, '"' ;
+
+(* §2.2 *)
+nonzero_hex_digit = nonzero_digit
+                  | "a" | "b" | "c" | "d" | "e" | "f"
+                  | "A" | "B" | "C" | "D" | "E" | "F" ;
+
+(* §2.2 \u{H}: 1-6 hex digits of either case, no leading zero ("0" alone is
+   U+0000). LX5 (5.3). *)
+utf8_escape = "\u{", ("0" | nonzero_hex_digit, 5 * [hex_digit]), "}" ;
+
+(* §2.2 A raw character of a UTF-8 string literal: printable ASCII except
+   the quote and the backslash. Every other character is written as a
+   utf8_escape. *)
+utf8_string_char = string_plain_char ;
+
+(* §2.2 *)
+string_utf8_literal = "u", '"', {utf8_string_char | ascii_escape | utf8_escape},
+                      '"' ;
+
+(* --- L.6 Principal and trait identifier literals ------------------------- *)
+
+(* §2.2 *)
+c32_char = decimal_digit
+         | "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "J" | "K"
+         | "M" | "N" | "P" | "Q" | "R" | "S" | "T" | "V" | "W" | "X"
+         | "Y" | "Z" ;
+
+(* §2.2 "'S", the version character and the c32check text. LX4 (5.3). *)
+standard_principal_literal = "'", "S", c32_char, {c32_char} ;
+
+(* §2.2 1-40 characters: an ASCII letter, then letters, digits, "-" or "_". *)
+contract_name = ascii_letter, 39 * [contract_name_char] ;
+
+(* §2.2 *)
+contract_name_char = ascii_letter | decimal_digit | "-" | "_" ;
+
+(* §2.2 *)
+contract_principal_literal = [standard_principal_literal], ".", contract_name ;
+
+(* §2.2 The trait name follows the identifier rule (keywords included). *)
+trait_name_part = identifier ;
+
+(* §2.2 *)
+trait_identifier_literal = [standard_principal_literal], ".", contract_name,
+                           ".", trait_name_part ;
+
+(* ##########################################################################
+   PART S  --  SYNTACTIC GRAMMAR  (tokens to forms)
+   ########################################################################## *)
+
+(* --- S.1 Start symbols and top level ------------------------------------- *)
+
+(* §2.4, §2.4.0 The start symbol. *)
+contract = version_declaration, {top_level_form} ;
+
+(* §2.4.0 *)
+version_declaration = "(", "clarity-version", version_number, ")" ;
+
+(* §2.4.0 A numeral (no leading zero); LX7 (5.3) requires at least 1, so 0
+   is a parse error. *)
+version_number = natural_literal ;
+
+(* §2.4.2 *)
+top_level_form = definition | expr ;
+
+(* --- S.2 Keywords, names ------------------------------------------------- *)
+
+(* §2.2 Keywords cannot be bound or used as values (2.2): a keyword where a
+   name, value, type variable or size variable is expected is a parse error. *)
+keyword = literal_keyword
+        | special_form_keyword
+        | definition_keyword
+        | version_keyword
+        | allowance_keyword
+        | constructor_keyword
+        | type_name_keyword
+        | ref_kind_keyword
+        | trait_marker_keyword ;
+
+(* §2.2 *)
+literal_keyword = "true" | "false" | "none" ;
+
+(* §2.5 *)
+special_form_keyword = "let" | "begin" | "match" | "and" | "or" | "return"
+                     | "as" | "get" | "merge" | "contract-call?"
+                     | "contract-call-raw?" | "as-contract?"
+                     | "restrict-assets?" ;
+
+(* §2.4.1 *)
+definition_keyword = "define-constant" | "define-type" | "define-data-var"
+                   | "define-map" | "define-fungible-token"
+                   | "define-non-fungible-token" | "define-event"
+                   | "define-trait" | "impl-trait" | "define-public"
+                   | "define-read-only" | "define-private" | "define-macro" ;
+
+(* §2.4.0 *)
+version_keyword = "clarity-version" ;
+
+(* §2.5.9 *)
+allowance_keyword = "with-stx" | "with-ft" | "with-nft" | "with-staking"
+                  | "with-pox" | "with-all-assets-unsafe" ;
+
+(* §2.5.6 *)
+constructor_keyword = "some" | "ok" | "err" | "list" ;
+
+(* §2.3.1 *)
+type_name_keyword = "int" | "uint" | "bool" | "principal" | "never" | "buff"
+                  | "string-ascii" | "string-utf8" | "list" | "optional"
+                  | "response" | "trait" ;
+
+(* §2.3.7 *)
+ref_kind_keyword = "var" | "map" | "fungible-token" | "non-fungible-token"
+                 | "event" | "function" ;
+
+(* §2.4.1 *)
+trait_marker_keyword = "read-only" ;
+
+(* §2.2, §2.5.1 An identifier that is not a keyword. Reserved names
+   (primitives and prelude definitions) are names; rebinding one is a static
+   error (C1, 5.4). *)
+name = identifier - keyword ;
+
+(* §2.2, §2.5.2 *)
+binding_name = name ;
+
+(* §2.5.7, §2.2 Any identifier, keywords included: { list: u1 } and (get
+   principal t) parse. *)
+field_name = identifier ;
+
+(* §2.5.8 Any identifier, keywords included: the function belongs to another
+   contract, possibly written in another language. *)
+foreign_function_name = identifier ;
+
+(* --- S.3 Literals -------------------------------------------------------- *)
+
+(* §2.2 *)
+literal = int_literal
+        | uint_literal
+        | bool_literal
+        | buffer_literal
+        | string_ascii_literal
+        | string_utf8_literal
+        | standard_principal_literal
+        | contract_principal_literal
+        | none_literal ;
+
+(* §2.2 *)
+int_literal = natural_literal | negative_int_literal ;
+
+(* §2.2 *)
+bool_literal = "true" | "false" ;
+
+(* §2.2 *)
+none_literal = "none" ;
+
+(* --- S.4 Types ----------------------------------------------------------- *)
+
+(* §2.3.1 *)
+type = base_type
+     | buff_type
+     | string_ascii_type
+     | string_utf8_type
+     | list_type
+     | optional_type
+     | response_type
+     | tuple_type
+     | trait_type
+     | type_reference ;
+
+(* §2.3.1 *)
+base_type = "int" | "uint" | "bool" | "principal" | "never" ;
+
+(* §2.3.1 *)
+buff_type = "(", "buff", type_size, ")" ;
+
+(* §2.3.1 *)
+string_ascii_type = "(", "string-ascii", type_size, ")" ;
+
+(* §2.3.1 *)
+string_utf8_type = "(", "string-utf8", type_size, ")" ;
+
+(* §2.3.1 *)
+list_type = "(", "list", type_size, type, ")" ;
+
+(* §2.3.1 *)
+optional_type = "(", "optional", type, ")" ;
+
+(* §2.3.1 *)
+response_type = "(", "response", type, type, ")" ;
+
+(* §2.3.1 One trailing comma after the last entry is allowed; {,} and {a:
+   int,,} are errors. *)
+tuple_type = "{", [tuple_type_entry, {",", tuple_type_entry}, [","]], "}" ;
+
+(* §2.3.1 *)
+tuple_type_entry = field_name, ":", type ;
+
+(* §2.3.1 *)
+trait_type = "(", "trait", trait_identifier, ")" ;
+
+(* §2.3.1, §2.3.5, §2.3.6 A bare name in type position: an alias, a trait
+   name or a type variable (C10, 5.4). *)
+type_reference = name ;
+
+(* §2.3.1, §2.3.5 A size in a type: a numeral or a name. (buff u32) is a
+   parse error; (buff 32) is the spelling. *)
+type_size = natural_literal | name ;
+
+(* §2.2, §2.3.1 *)
+trait_identifier = trait_identifier_literal | name ;
+
+(* §2.3.4 *)
+storable_type = type ;
+
+(* §2.3.4 *)
+interface_type = type ;
+
+(* --- S.5 Reference kinds ------------------------------------------------- *)
+
+(* §2.3.7 *)
+ref_kind = var_ref_kind
+         | map_ref_kind
+         | fungible_token_ref_kind
+         | non_fungible_token_ref_kind
+         | event_ref_kind
+         | function_ref_kind ;
+
+(* §2.3.7 *)
+var_ref_kind = "(", "var", type, ")" ;
+
+(* §2.3.7 *)
+map_ref_kind = "(", "map", type, type, ")" ;
+
+(* §2.3.7 *)
+fungible_token_ref_kind = "(", "fungible-token", ")" ;
+
+(* §2.3.7 *)
+non_fungible_token_ref_kind = "(", "non-fungible-token", type, ")" ;
+
+(* §2.3.7 *)
+event_ref_kind = "(", "event", type, ")" ;
+
+(* §2.3.7 *)
+function_ref_kind = "(", "function", "(", {type}, ")", type, ")" ;
+
+(* --- S.6 Definitions ----------------------------------------------------- *)
+
+(* §2.4.1 *)
+definition = define_constant
+           | define_type
+           | define_data_var
+           | define_map
+           | define_fungible_token
+           | define_non_fungible_token
+           | define_event
+           | define_trait
+           | impl_trait
+           | define_public
+           | define_read_only
+           | define_private
+           | define_macro ;
+
+(* §2.4.1 *)
+define_constant = "(", "define-constant", binding_name, expr, ")" ;
+
+(* §2.4.1, §2.3.6 *)
+define_type = "(", "define-type", binding_name, type, ")" ;
+
+(* §2.4.1 *)
+define_data_var = "(", "define-data-var", binding_name, storable_type, expr, ")" ;
+
+(* §2.4.1 *)
+define_map = "(", "define-map", binding_name, storable_type, storable_type, ")" ;
+
+(* §2.4.1 *)
+define_fungible_token = "(", "define-fungible-token", binding_name, [expr], ")" ;
+
+(* §2.4.1 *)
+define_non_fungible_token = "(", "define-non-fungible-token", binding_name,
+                            storable_type, ")" ;
+
+(* §2.4.1 *)
+define_event = "(", "define-event", binding_name, interface_type, ")" ;
+
+(* §2.4.1 *)
+define_trait = "(", "define-trait", binding_name, "(", {trait_signature}, ")", ")" ;
+
+(* §2.4.1 *)
+trait_signature = "(", foreign_function_name, "(", {interface_type}, ")",
+                  interface_type, ["read-only"], ")" ;
+
+(* §2.4.1 *)
+impl_trait = "(", "impl-trait", trait_identifier, ")" ;
+
+(* §2.4.1, §2.6.1 *)
+define_public = "(", "define-public", public_signature, body, ")" ;
+
+(* §2.4.1, §2.6.1 *)
+define_read_only = "(", "define-read-only", public_signature, body, ")" ;
+
+(* §2.4.1 *)
+public_signature = "(", binding_name, {public_parameter}, ")" ;
+
+(* §2.4.1 *)
+public_parameter = "(", binding_name, interface_type, ")" ;
+
+(* §2.4.1, §2.6.5 *)
+define_private = "(", "define-private", private_signature, body, ")" ;
+
+(* §2.4.1, §2.6.5 *)
+private_signature = "(", binding_name, {private_parameter}, [rest_parameter], ")" ;
+
+(* §2.4.1, §2.3.7 *)
+private_parameter = "(", binding_name, (type | ref_kind), ")" ;
+
+(* §2.6.5 *)
+rest_parameter = "(", binding_name, type, "...", ")" ;
+
+(* §2.4.1, §2.6.3 *)
+define_macro = "(", "define-macro", macro_signature, body, ")" ;
+
+(* §2.4.1, §2.6.3 *)
+macro_signature = "(", binding_name, {private_parameter}, ")" ;
+
+(* §2.4.1 *)
+body = expr, {expr} ;
+
+(* --- S.7 Expressions ----------------------------------------------------- *)
+
+(* §2.5 *)
+expr = literal
+     | name
+     | let_form
+     | begin_form
+     | match_form
+     | and_form
+     | or_form
+     | return_form
+     | some_ctor
+     | ok_ctor
+     | err_ctor
+     | list_ctor
+     | tuple_ctor
+     | get_form
+     | merge_form
+     | contract_call
+     | contract_call_raw
+     | as_contract_form
+     | restrict_assets_form
+     | as_form
+     | as_max_len_form
+     | uint_to_buff_be_form
+     | uint_to_buff_le_form
+     | int_to_buff_be_form
+     | int_to_buff_le_form
+     | from_consensus_buff_form
+     | map_form
+     | application ;
+
+(* §2.5.2 *)
+let_form = "(", "let", "(", {let_binding}, ")", body, ")" ;
+
+(* §2.5.2 *)
+let_binding = "(", binding_name, expr, ")" ;
+
+(* §2.5.2 *)
+begin_form = "(", "begin", body, ")" ;
+
+(* §2.5.3 *)
+match_form = "(", "match", expr, match_arms, ")" ;
+
+(* §2.5.3 Two arms that are not one of these six ordered pairs are a parse
+   error, also in a generic body that is never instantiated. Which pair is
+   required depends on the scrutinee type (C9, 5.4). *)
+match_arms = some_arm, none_arm   | none_arm, some_arm
+           | ok_arm, err_arm      | err_arm, ok_arm
+           | true_arm, false_arm  | false_arm, true_arm ;
+
+(* §2.5.3 *)
+some_arm  = "(", some_pattern,  body, ")" ;
+
+(* §2.5.3 *)
+none_arm  = "(", none_pattern,  body, ")" ;
+
+(* §2.5.3 *)
+ok_arm    = "(", ok_pattern,    body, ")" ;
+
+(* §2.5.3 *)
+err_arm   = "(", err_pattern,   body, ")" ;
+
+(* §2.5.3 *)
+true_arm  = "(", true_pattern,  body, ")" ;
+
+(* §2.5.3 *)
+false_arm = "(", false_pattern, body, ")" ;
+
+(* §2.5.3 *)
+some_pattern = "(", "some", binding_name, ")" ;
+
+(* §2.5.3 *)
+none_pattern = "none" ;
+
+(* §2.5.3 *)
+ok_pattern = "(", "ok", binding_name, ")" ;
+
+(* §2.5.3 *)
+err_pattern = "(", "err", binding_name, ")" ;
+
+(* §2.5.3 *)
+true_pattern = "true" ;
+
+(* §2.5.3 *)
+false_pattern = "false" ;
+
+(* §2.5.3 *)
+and_form = "(", "and", expr, expr, {expr}, ")" ;
+
+(* §2.5.3 *)
+or_form = "(", "or", expr, expr, {expr}, ")" ;
+
+(* §2.5.4 *)
+return_form = "(", "return", expr, ")" ;
+
+(* §2.5.6 *)
+some_ctor = "(", "some", expr, ")" ;
+
+(* §2.5.6 *)
+ok_ctor = "(", "ok", expr, ")" ;
+
+(* §2.5.6 *)
+err_ctor = "(", "err", expr, ")" ;
+
+(* §2.5.6 *)
+list_ctor = "(", "list", {expr}, ")" ;
+
+(* §2.2, §2.5.6 One trailing comma after the last entry is allowed; {,} and
+   {a: u1,,} are errors. *)
+tuple_ctor = "{", [tuple_entry, {",", tuple_entry}, [","]], "}" ;
+
+(* §2.5.6 *)
+tuple_entry = field_name, ":", expr ;
+
+(* §2.5.7 *)
+get_form = "(", "get", field_name, expr, ")" ;
+
+(* §2.5.7 *)
+merge_form = "(", "merge", expr, expr, ")" ;
+
+(* §2.5.8 *)
+contract_call = "(", "contract-call?", expr, foreign_function_name, {expr}, ")" ;
+
+(* §2.5.8 *)
+contract_call_raw = "(", "contract-call-raw?", expr, foreign_function_name,
+                    expr, size_term, ")" ;
+
+(* §2.5.8, §2.3.1 A size passed as an argument: a uint literal or a size
+   variable or static constant name. An expression is a parse error. *)
+size_term = uint_literal | name | size_term_bare_numeral ;
+
+(* §2.3.1 A bare int literal where a size term is expected parses and is a
+   static type error (C11, 5.4); LX6 bounds its value (5.3). *)
+size_term_bare_numeral = int_literal ;
+
+(* §2.5.9 *)
+as_contract_form = "(", "as-contract?", "(", {allowance}, ")", body, ")"
+                 | "(", "as-contract?", "(", all_assets_unsafe_allowance, ")",
+                   body, ")" ;
+
+(* §2.5.9 *)
+all_assets_unsafe_allowance = "(", "with-all-assets-unsafe", ")" ;
+
+(* §2.5.9 *)
+restrict_assets_form = "(", "restrict-assets?", expr, "(", {allowance}, ")",
+                       body, ")" ;
+
+(* §2.5.9 *)
+allowance = with_stx_allowance
+          | with_ft_allowance
+          | with_nft_allowance
+          | with_staking_allowance
+          | with_pox_allowance ;
+
+(* §2.5.9 *)
+with_stx_allowance = "(", "with-stx", expr, ")" ;
+
+(* §2.5.9 *)
+with_ft_allowance = "(", "with-ft", expr, expr, expr, ")" ;
+
+(* §2.5.9 *)
+with_nft_allowance = "(", "with-nft", expr, expr, expr, ")" ;
+
+(* §2.5.9 *)
+with_staking_allowance = "(", "with-staking", expr, ")" ;
+
+(* §2.5.9 *)
+with_pox_allowance = "(", "with-pox", ")" ;
+
+(* §2.5.10 *)
+as_form = "(", "as", type, expr, ")" ;
+
+(* --- S.8 Primitives with a non-expression argument ----------------------- *)
+
+(* §3.3 *)
+as_max_len_form = "(", "as-max-len?", expr, size_term, ")" ;
+
+(* §3.4 *)
+uint_to_buff_be_form = "(", "uint-to-buff-be", expr, size_term, ")" ;
+
+(* §3.4 *)
+uint_to_buff_le_form = "(", "uint-to-buff-le", expr, size_term, ")" ;
+
+(* §3.4 *)
+int_to_buff_be_form = "(", "int-to-buff-be", expr, size_term, ")" ;
+
+(* §3.4 *)
+int_to_buff_le_form = "(", "int-to-buff-le", expr, size_term, ")" ;
+
+(* §3.4 *)
+from_consensus_buff_form = "(", "from-consensus-buff?", storable_type, expr, ")" ;
+
+(* §3.3, §2.3.7 (map f s): exactly one function name and one sequence; no
+   spread. *)
+map_form = "(", "map", name, expr, ")" ;
+
+(* --- S.9 Application ----------------------------------------------------- *)
+
+(* §2.5.5, §2.6.5 *)
+application = "(", application_head, {expr}, [expr, "..."], ")" ;
+
+(* §2.5.5 The head of an ordinary application: a name other than the six
+   primitives with a type or size argument, whose calls are the dedicated
+   forms above. *)
+application_head = identifier - non_application_head ;
+
+(* §2.5.5 *)
+non_application_head = keyword | dedicated_primitive_head ;
+
+(* §3.3, §3.4 *)
+dedicated_primitive_head = "as-max-len?" | "uint-to-buff-be"
+                         | "uint-to-buff-le" | "int-to-buff-be"
+                         | "int-to-buff-le" | "from-consensus-buff?" ;
