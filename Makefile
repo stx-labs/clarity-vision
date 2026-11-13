@@ -9,7 +9,7 @@ BUILD  := .build
 VENV   := $(BUILD)/venv
 HTML   := $(BUILD)/clarity-vision.html
 PDF    := clarity-vision.pdf
-SRCS   := $(wildcard *.md spec/*.md spec/std/*.clar)
+SRCS   := $(wildcard *.md spec/*.md spec/std/*.clar spec/grammar/*.ebnf)
 
 .PHONY: pdf clean
 pdf: $(PDF)

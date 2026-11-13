@@ -497,7 +497,7 @@
                  name: (if (is-eq (len bytes) u22)
                          none
                          (from-consensus-buff? (string-ascii 40)
-                           (concat 0x0d000000 (unwrap-panic (slice? bytes u22 (len bytes))))))
+                           (concat 0x0d000000 (unwrap-panic (slice? bytes u22 (len bytes)))))),
                  version: version }))
     (if (std-current-network-version? version) (ok parts) (err parts))))
 
