@@ -101,12 +101,13 @@ rewritten where it uses non-ASCII text, escapes with leading zeros such as
 
 These conditions are parse errors, like a violation of W1. LX1 to LX5 are
 checked on the token; LX6 and LX7 depend on where the token occurs and are
-checked on the derivation.
+checked on the derivation. The bounds apply to the value of a numeral, which
+ignores its `_` separators (2.2).
 
 | Check | Condition                                                                                                                                                                                                                                                                                                                                |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | LX1   | A negative integer literal is at least -2^127 (the sign is applied first, so `-170141183460469231731687303715884105728` is valid).                                                                                                                                                                                                       |
-| LX2   | An unsigned numeral is at most 2^128-1 in every position; the value of a numeral ignores its `_` separators (2.2). A size in a type has no other bound here: a size above a limit of 2.8 is a static error. A numeral used as an `int` has the tighter bound of LX6.                                                                     |
+| LX2   | An unsigned numeral is at most 2^128-1 in every position. A size in a type has no other bound here: a size above a limit of 2.8 is a static error. A numeral used as an `int` has the tighter bound of LX6.                                                                                                                              |
 | LX3   | A `u` literal is at most 2^128-1.                                                                                                                                                                                                                                                                                                        |
 | LX4   | A standard principal, also inside a contract principal or trait identifier, is a valid c32check encoding of a version and a 20-byte hash, whose version character may be any character of the alphabet, a version from 0 to 31 (2.2). The alphabet and the checksum are those of [c32check](https://github.com/stacks-network/c32check). |
 | LX5   | A `\u{H}` escape names a Unicode scalar value that is not TAB, LF, CR or printable ASCII: printable ASCII is written as itself, except `"` and `\`, written `\"` and `\\`, and TAB, LF, CR only as `\t`, `\n`, `\r`.                                                                                                                     |
