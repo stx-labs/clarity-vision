@@ -52,9 +52,9 @@ characters, and gives each source one byte form.
   (`u42`); `int` literals are an optional `-` followed by a non-zero decimal
   numeral, or `0` (`42`, `-7`, `0`). A numeral is `0` or a nonzero digit
   followed by zero or more digits, and a single `_` may separate two of its
-  digits (`1_000_000`, `u2_500`, `(buff 1_024)`) without changing its value.
-  So `007`, `u00`, `-0`, `1_`, `1__0` and `0_1` are parse errors, and `u_1` is
-  an identifier. Values outside the 128-bit range are a parse error.
+  digits (`1_000_000`, `u2_500`, `(buff 1_024)`) without changing its value. So
+  `007`, `u00`, `-0`, `1_`, `1__0` and `0_1` are parse errors, and `u_1` is an
+  identifier. Values outside the 128-bit range are a parse error.
 - **Boolean literals**: `true`, `false`.
 - **Buffer literals**: `0x` followed by an even number of hex digits (`0x`,
   `0xdeadbeef`).
@@ -74,19 +74,19 @@ characters, and gives each source one byte form.
   encoded, as in [c32check](https://github.com/stacks-network/c32check): a
   version and a 20-byte hash with a checksum, in the base-32 alphabet of the
   digits and the upper-case letters except `I`, `L`, `O` and `U`; the version
-  character after `S` may be any character of that alphabet, a version from 0
-  to 31, of which the chain's accounts use `P` and `M` on mainnet and `T` and
-  `N` on testnet, the versions `0x16`, `0x14`, `0x1a` and `0x15` the prelude
-  names `std-mainnet-p2pkh-version`, `std-mainnet-p2sh-version`,
-  `std-testnet-p2pkh-version` and `std-testnet-p2sh-version`
-  ([std/prelude.clar](std/prelude.clar))); contract principals `'SP....name` or the deployer-relative
-  `.name`; trait identifiers `'SP....contract.trait`, `.contract.trait`, or a
-  bare local trait `name` where a trait identifier is expected. A contract name
-  is 1 to 40 characters, starts with an ASCII letter, and continues with
-  letters, digits, `-`, or `_`. The same limit applies wherever a contract name
-  appears, including `principal-to-ascii` (3.5) and the library's
-  `principal-construct?` and `principal-destruct?`. There are no reserved or
-  special-cased contract names (legacy admitted `__transient`).
+  character after `S` may be any character of that alphabet, a version from 0 to
+  31, of which the chain's accounts use `P` and `M` on mainnet and `T` and `N`
+  on testnet, the versions `0x16`, `0x14`, `0x1a` and `0x15` the prelude names
+  `STD_MAINNET_P2PKH_VERSION`, `STD_MAINNET_P2SH_VERSION`,
+  `STD_TESTNET_P2PKH_VERSION` and `STD_TESTNET_P2SH_VERSION`
+  ([std/prelude.clar](std/prelude.clar))); contract principals `'SP....name` or
+  the deployer-relative `.name`; trait identifiers `'SP....contract.trait`,
+  `.contract.trait`, or a bare local trait `name` where a trait identifier is
+  expected. A contract name is 1 to 40 characters, starts with an ASCII letter,
+  and continues with letters, digits, `-`, or `_`. The same limit applies
+  wherever a contract name appears, including `principal-to-ascii` (3.5) and the
+  library's `principal-construct?` and `principal-destruct?`. There are no
+  reserved or special-cased contract names (legacy admitted `__transient`).
 - **Tuple literal syntax**: `{ name: expr, ... }`, with at most one trailing
   comma after the last entry. This is the only tuple constructor syntax.
 - **`none`** is the literal of type `(optional never)`.
@@ -623,7 +623,7 @@ body ::= expr+
 
 | Grammar rule                | Introduces                                                                                                                                                                                                                                                                          | Rules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `define_constant`           | A named value                                                                                                                                                                                                                                                                       | `expr` is deploy-time code (2.4.2), evaluated once; its type is inferred and MUST satisfy the value size limit (2.3.1). The type may contain `never`, so `(define-constant ERR-NOT-FOUND (err u404))` has type `(response never uint)` and is usable in any function whose error type is `uint`. If `expr` is a literal, or is built only from literals and other static constants using primitives that read neither state nor context (arithmetic, sequence, conversion, and hash primitives), the constant is **static**: its value is known at analysis time and it may be used wherever a literal is required (size terms, `contract-call?` targets, `as-max-len?` bounds) |
+| `define_constant`           | A named value                                                                                                                                                                                                                                                                       | `expr` is deploy-time code (2.4.2), evaluated once; its type is inferred and MUST satisfy the value size limit (2.3.1). The type may contain `never`, so `(define-constant ERR_NOT_FOUND (err u404))` has type `(response never uint)` and is usable in any function whose error type is `uint`. If `expr` is a literal, or is built only from literals and other static constants using primitives that read neither state nor context (arithmetic, sequence, conversion, and hash primitives), the constant is **static**: its value is known at analysis time and it may be used wherever a literal is required (size terms, `contract-call?` targets, `as-max-len?` bounds) |
 | `define_type`               | A type alias                                                                                                                                                                                                                                                                        | 2.3.6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `define_data_var`           | A persistent variable                                                                                                                                                                                                                                                               | `type` storable; `expr : T <: type` is deploy-time code (2.4.2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `define_map`                | A persistent map                                                                                                                                                                                                                                                                    | both types storable; the key prefix plus `serialized-size(key-type)` MUST fit the storage key limit (2.8, 3.7)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -1020,8 +1020,8 @@ contract_call_raw ::= "(" "contract-call-raw?" expr foreign_function_name expr
 
 In `contract_call_raw` the expressions are, in order, the `contract`, then
 (after the `function-name`) `args`; the `size_term` is the `size` (2.3.1),
-written as a `uint`, e.g. `u64`; a bare integer, e.g. `64`, parses and is a
-type error (C11, 5.4).
+written as a `uint`, e.g. `u64`; a bare integer, e.g. `64`, parses and is a type
+error (C11, 5.4).
 
 Calls a function without a declared signature, such as a function of a contract
 written in a language that does not declare its types
@@ -1358,7 +1358,7 @@ because the definition graph is acyclic (2.4.3).
 >
 > (define-public (withdraw (amount uint))
 >   (let ((balance (try-with! (get-balance (get sender (get-current-context)))
->                             ERR-NO-ACCOUNT)))
+>                             ERR_NO_ACCOUNT)))
 >     ...))
 > ```
 >
@@ -1641,7 +1641,7 @@ once the dependency named in each is settled.
    a multi-sequence `map`, and `flip`-style adapters writable in the prelude
    without function values at runtime or in the ABI.
 4. **RFC: bounded iteration.** The prelude drives several loops with constant
-   lists used as counters (`std-decimal-iterations`, `std-exponent-bits`). A
+   lists used as counters (`STD_DECIMAL_ITERATIONS`, `STD_EXPONENT_BITS`). A
    form that iterates a statically bounded number of times without a list, and
    that preserves P1, would remove the pattern. This is the "richer bounded
    iteration" item of the specification plan.
