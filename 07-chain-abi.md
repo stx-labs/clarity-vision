@@ -144,7 +144,7 @@ is part of the ABI and no unused response arm can change a signature.
 | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `abi.interface`  | yes      | yes (section 4)                                                                                                                      |
 | `abi.types`      | no       | only for size; contents are defined by the interpretation layer ([08-value-interpretation.md](08-value-interpretation.md) section 5) |
-| `abi.provenance` | no       | only for size; contents are owned by the toolchain that produced the module ([03-architecture.md](03-architecture.md) section 2)     |
+| `abi.provenance` | no       | only for size; contents are owned by the toolchain that produced the module ([10-source-verification.md](10-source-verification.md) section 3)     |
 
 Any other custom section, including `name`, is rejected. The module is the unit
 that `contract-hash?` hashes and that `clarity-verify` compares, so it carries
