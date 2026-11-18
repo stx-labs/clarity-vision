@@ -24,6 +24,7 @@ All of these documents are published together as a single
 | [06-issue-tracker.md](06-issue-tracker.md)               | Disposition of every open `clarity` issue against the spec draft, and candidate additions                                                                                  |
 | [07-chain-abi.md](07-chain-abi.md)                       | Proposal for the runtime layer of the chain ABI shared by every source language: host value encoding, module format, interface, host functions, frames, fuel, and outcomes |
 | [08-value-interpretation.md](08-value-interpretation.md) | Proposal for the interpretation layer of the chain ABI: declared types and the encoding conventions compilers, wallets, and explorers rely on                              |
+| [09-type-checker.md](09-type-checker.md)                 | Proposal for the type checker: design rules, pipeline, type algebra, calls and overloads, static rules, diagnostics, the typed IR, and open spec questions                 |
 | [spec/](spec/)                                           | The specification working draft: a minimal core language plus a standard library written in the language itself                                                            |
 
 ## Terminology
