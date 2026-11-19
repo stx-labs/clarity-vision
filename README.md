@@ -26,6 +26,13 @@ All of these documents are published together as a single
 | [08-value-interpretation.md](08-value-interpretation.md) | Proposal for the interpretation layer of the chain ABI: declared types and the encoding conventions compilers, wallets, and explorers rely on                              |
 | [spec/](spec/)                                           | The specification working draft: a minimal core language plus a standard library written in the language itself                                                            |
 
+[design/](design/) holds implementation designs for the node. They are not part
+of the PDF.
+
+- [design/chain-abi-implementation.md](design/chain-abi-implementation.md):
+  implementing the chain ABI in stacks-core: engine, crates, state layout,
+  frames, fuel, the legacy bridge, testing, and the work breakdown.
+
 ## Terminology
 
 These terms have one meaning across every document here.
