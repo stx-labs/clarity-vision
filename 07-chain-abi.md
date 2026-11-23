@@ -1576,10 +1576,11 @@ Adopting this proposal changes the following. None of the changes is made yet.
      discarded and the caller receives the error class instead of the
      transaction aborting. This relaxes "there is no catch" (5.3) and needs its
      own analysis against R6 and the language's abort semantics (spec 2.7.2).
-6. **Formal definition** (R8). The host interface in section 6 should be
-   published as one machine-readable file (WIT or a smaller purpose-made format)
-   from which the host bindings, each compiler's import declarations, and the
-   ABI vectors' function list are generated.
+6. **Formal definition** (R8). Answered: the host interface in section 6 is
+   defined by one Rust table, in the `stacks-abi` crate. The host reads it, and
+   each compiler's import declarations and the ABI vectors' function list are
+   generated from it. WIT was not used: its types are not the parameter kinds of
+   6.1, and it implies the component model.
 7. **Converting values in Wasm.** Every entry point decodes its arguments from
    canonical encoding into the module's memory layout, validating them on the
    way (5.4), and encodes its result back; every caller does the same for the
