@@ -70,10 +70,15 @@ question 4).
 
 ### 2.1 Names
 
-| Kind                             | Grammar                                                                       | Length      |
-| -------------------------------- | ----------------------------------------------------------------------------- | ----------- |
-| Function, token, and event names | ASCII letters, digits, and `- _ ! ? + < > = / * ^`, not starting with a digit | 1–128 bytes |
-| Contract names                   | an ASCII letter, then letters, digits, `-`, `_`                               | 1–40 bytes  |
+| Kind                             | Grammar                                                                        | Length      |
+| -------------------------------- | ------------------------------------------------------------------------------ | ----------- |
+| Function, token, and event names | ASCII letters, digits, and `- _ ! ? + < > = / * ^`, not starting like a number | 1–128 bytes |
+| Contract names                   | an ASCII letter, then letters, digits, `-`, `_`                                | 1–40 bytes  |
+
+A name starts like a number when it begins with a digit, or with `u`, `-`, `+`,
+`-u`, or `+u` followed by a digit: `7x`, `u1`, `-9`, and `+u1x` are not names,
+and `u`, `-x`, and `u-1` are. This is the language's rule for an identifier
+([spec/02-core-language.md](spec/02-core-language.md) section 2.2).
 
 Every source language shares these rules. One contract-name limit applies
 everywhere: in deploys, in principals, and on the wire. Legacy has 40 at deploy
@@ -351,6 +356,7 @@ Wasm type is the concatenation:
 | `len`    | `i32`       | the number of bytes written to the `buf`, with the short-buffer rule of 5.3; `-1` means "none" where the function says so |
 | `status` | `i32`       | `0` for success, otherwise one of the codes listed with the function                                                      |
 | `bool`   | `i32`       | `1` for true, `0` for false                                                                                               |
+| `i32`    | `i32`       | an integer, as the function describes                                                                                     |
 
 For example, `stx_burn(amount: u128, from: principal) -> status` is imported
 with Wasm type `(param i64 i64 i32 i32) (result i32)`.
