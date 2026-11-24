@@ -206,6 +206,8 @@ differ from the audited source. The defenses:
    section; the chain stores only the module. `clarity-verify` rebuilds a module
    from its claimed source and compiler version and compares bytes. Wallets and
    explorers show whether a module's source is verified.
+   [10-source-verification.md](10-source-verification.md) specifies the
+   provenance section, the procedure, and the registry.
 4. **Analyses attach to the triple.** A cost bound or proof is stated for a
    (source, compiler version, module) triple, identified by the source hash,
    compiler version, and module hash, and is meaningful for a deployed module
